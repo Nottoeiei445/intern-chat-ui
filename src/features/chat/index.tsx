@@ -21,7 +21,7 @@ export const ChatFeature = () => {
   } = useChat();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState("deepseek-r1:7b");
+  const [selectedModel, setSelectedModel] = useState("llama3");
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
   const currentChat = chats.find(c => c.id === activeChatId);
