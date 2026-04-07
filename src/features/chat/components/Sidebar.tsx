@@ -1,6 +1,7 @@
 "use client"
 
-import { Menu, MessageSquarePlus, Settings, MessageSquare, Trash2 } from "lucide-react";
+import { useState } from "react";
+import { Menu, MessageSquarePlus, Settings, MessageSquare, Trash2, Pencil, Check, X } from "lucide-react";
 import { ChatThread } from "../types";
 
 interface SidebarProps {
@@ -11,6 +12,7 @@ interface SidebarProps {
   onSelect: (id: string | null) => void;
   onNew: () => void;
   onDelete: (id: string) => void;
+  onRename: (id: string, newTitle: string) => void;
 }
 
 export const Sidebar = ({ 
@@ -20,8 +22,31 @@ export const Sidebar = ({
   activeId, 
   onSelect, 
   onNew, 
-  onDelete 
+  onDelete,
+  onRename
 }: SidebarProps) => {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [tempTitle, setTempTitle] = useState("");
+
+  const handleStartEdit = (e: React.MouseEvent, chat: ChatThread) => {
+    e.stopPropagation();
+    setEditingId(chat.id);
+    setTempTitle(chat.title || "");
+  };
+
+  const handleSave = (e: React.MouseEvent | React.KeyboardEvent, id: string) => {
+    e.stopPropagation();
+    if (tempTitle.trim()) {
+      onRename(id, tempTitle.trim());
+    }
+    setEditingId(null);
+  };
+
+  const handleCancel = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingId(null);
+  };
+
   return (
     <aside 
       className={`
@@ -62,26 +87,59 @@ export const Sidebar = ({
         {chats.map((chat) => (
           <div 
             key={chat.id}
-            onClick={() => onSelect(chat.id)}
+            onClick={() => !editingId && onSelect(chat.id)}
             className={`
               flex items-center justify-between gap-3 p-3 rounded-full cursor-pointer group transition-colors
               ${activeId === chat.id ? "bg-blue-600/20 text-blue-400" : "hover:bg-white/5 text-slate-300"}
             `}
           >
-            <div className="flex items-center gap-3 overflow-hidden">
+            <div className="flex items-center gap-3 overflow-hidden flex-1">
               <MessageSquare size={18} className={`shrink-0 ${activeId === chat.id ? "text-blue-400" : "text-slate-500"}`} />
-              <span className="font-ibm text-sm truncate">{chat.title || "บทสนทนาใหม่"}</span>
+              
+              {editingId === chat.id ? (
+                <input
+                  autoFocus
+                  className="bg-[#050505] border border-blue-500/50 rounded px-2 py-0.5 text-sm w-full outline-none font-ibm"
+                  value={tempTitle}
+                  onChange={(e) => setTempTitle(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSave(e, chat.id)}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              ) : (
+                <span className="font-ibm text-sm truncate">{chat.title || "บทสนทนาใหม่"}</span>
+              )}
             </div>
             
-            <button 
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete(chat.id);
-              }}
-              className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 transition-all"
-            >
-              <Trash2 size={14} />
-            </button>
+            <div className="flex items-center gap-1 shrink-0">
+              {editingId === chat.id ? (
+                <>
+                  <button onClick={(e) => handleSave(e, chat.id)} className="p-1 hover:text-green-400">
+                    <Check size={14} />
+                  </button>
+                  <button onClick={handleCancel} className="p-1 hover:text-red-400">
+                    <X size={14} />
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button 
+                    onClick={(e) => handleStartEdit(e, chat)}
+                    className="opacity-0 group-hover:opacity-100 p-1 hover:text-blue-400 transition-all"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(chat.id);
+                    }}
+                    className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 transition-all"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         ))}
       </div>

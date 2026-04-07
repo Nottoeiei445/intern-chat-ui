@@ -16,7 +16,8 @@ export const ChatFeature = () => {
     isLoading, 
     sendMessage, 
     createNewChat, 
-    deleteChat 
+    deleteChat,
+    renameChat
   } = useChat();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -31,6 +32,7 @@ export const ChatFeature = () => {
         isOpen={isSidebarOpen} 
         onToggle={toggleSidebar}
         chats={chats} 
+        onRename={renameChat}
         activeId={activeChatId} 
         onSelect={setActiveChatId} 
         onNew={createNewChat} 
