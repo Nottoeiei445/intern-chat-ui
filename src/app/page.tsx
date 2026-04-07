@@ -15,7 +15,7 @@ export default function GISChatPro() {
     renameChat 
   } = useChat();
 
-  const [selectedModel, setSelectedModel] = useState("deepseek-r1:7b");
+  const [selectedModel, setSelectedModel] = useState("llama3");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
