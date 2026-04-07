@@ -1,0 +1,40 @@
+"use client"
+
+import { useState } from "react"
+import { useChat, Sidebar, Header, MessageList, ChatInput } from "../features/chat"
+
+export default function GISChatPro() {
+  const { chats, activeChatId, setActiveChatId, isLoading, sendMessage, createNewChat, deleteChat } = useChat();
+  const [selectedModel, setSelectedModel] = useState("deepseek-r1:7b");
+
+  const currentChat = chats.find(c => c.id === activeChatId);
+
+  return (
+    <div className="flex h-screen bg-[#050505] text-slate-200 overflow-hidden">
+      <Sidebar 
+        chats={chats} 
+        activeId={activeChatId} 
+        onSelect={setActiveChatId} 
+        onNew={createNewChat} 
+        onDelete={deleteChat} 
+      />
+
+      <main className="flex-1 flex flex-col relative">
+        <Header 
+          selectedModel={selectedModel} 
+          onModelChange={setSelectedModel} 
+        />
+
+        <MessageList 
+          messages={currentChat?.messages || []} 
+          isLoading={isLoading} 
+        />
+
+        <ChatInput 
+          onSendMessage={(val) => sendMessage(val, selectedModel)} 
+          isLoading={isLoading} 
+        />
+      </main>
+    </div>
+  )
+}
