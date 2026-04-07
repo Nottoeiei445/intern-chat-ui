@@ -4,9 +4,18 @@ import { useState } from "react"
 import { useChat, Sidebar, Header, MessageList, ChatInput } from "../features/chat"
 
 export default function GISChatPro() {
-  const { chats, activeChatId, setActiveChatId, isLoading, sendMessage, createNewChat, deleteChat } = useChat();
-  const [selectedModel, setSelectedModel] = useState("deepseek-r1:7b");
+  const { 
+    chats, 
+    activeChatId, 
+    setActiveChatId, 
+    isLoading, 
+    sendMessage, 
+    createNewChat, 
+    deleteChat,
+    renameChat 
+  } = useChat();
 
+  const [selectedModel, setSelectedModel] = useState("deepseek-r1:7b");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
@@ -22,6 +31,7 @@ export default function GISChatPro() {
         onSelect={setActiveChatId} 
         onNew={createNewChat} 
         onDelete={deleteChat} 
+        onRename={renameChat}
       />
 
       <main className="flex-1 flex flex-col relative">
