@@ -12,7 +12,6 @@ interface Props {
 export const MessageList = ({ messages, isLoading }: Props) => {
   const scrollRef = useRef<HTMLDivElement>(null)
 
-  // Auto scroll to bottom when messages or loading state changes
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages, isLoading])

@@ -15,10 +15,9 @@ export const ChatInput = ({ onSendMessage, isLoading }: Props) => {
   const handleSend = () => {
     if (!input.trim() || isLoading) return
     onSendMessage(input)
-    setInput("") // Clear input after sending
+    setInput("")
   }
 
-  // Handle 'Enter' key press (without shift key)
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
