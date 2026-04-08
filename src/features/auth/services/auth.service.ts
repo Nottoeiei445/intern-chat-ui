@@ -10,6 +10,36 @@ const api = axios.create({
   },
 });
 
+api.interceptors.response.use(
+  (response) => response, 
+  async (error) => {
+    const originalRequest = error.config;
+    const isAuthRoute = originalRequest.url?.includes('/auth/login') || originalRequest.url?.includes('/auth/refresh');
+
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthRoute) {
+      originalRequest._retry = true; 
+
+      try {
+        await axios.post(
+          "https://ada-anthropopathic-ai.ngrok-free.dev/auth/refresh",
+          {},
+          { withCredentials: true }
+        );
+
+        return api(originalRequest);
+        
+      } catch (refreshError) {
+        if (typeof window !== "undefined" && window.location.pathname !== "/login") {
+          window.location.href = "/login"; 
+        }
+        return Promise.reject(refreshError);
+      }
+    }
+
+    return Promise.reject(error);
+  }
+);
+
 export const authService = {
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
     try {
@@ -23,10 +53,8 @@ export const authService = {
     }
   },
 
-  // 👇 เพิ่มฟังก์ชันนี้สำหรับเช็ค Session ตอนกด F5
   getCurrentUser: async (): Promise<AuthResponse> => {
     try {
-      // 💡 ผมเดาทางเพื่อนเฮียว่าน่าจะใช้ /auth/refresh (ถ้าไม่ใช่ เฮียแก้ตรงนี้นะครับ)
       const response = await api.post("/auth/refresh"); 
       return response.data;
     } catch (error: any) {

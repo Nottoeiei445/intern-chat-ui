@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
+import { Geist } from "next/font/google";
+import { cn } from "@/lib/utils";
+
+const geist = Geist({subsets:['latin'],variable:'--font-sans'});
 
 const ibmPlex = localFont({
   src: [
@@ -41,7 +45,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${ibmPlex.variable} ${kanit.variable} ${sarabun.variable} h-full antialiased`}
+      className={cn("h-full", "antialiased", ibmPlex.variable, kanit.variable, sarabun.variable, "font-sans", geist.variable)}
     >
       <body className="min-h-full flex flex-col font-ibm bg-[#050505] text-slate-200">
         {children}
