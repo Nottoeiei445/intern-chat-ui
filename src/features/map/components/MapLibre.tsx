@@ -2,10 +2,28 @@
 import React, { useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import { Button } from '@/components/ui/button'; 
+import { LocateFixed } from 'lucide-react';
 
 export const MapLibre = () => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<maplibregl.Map | null>(null);
+
+  const handleLocateMe = () => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition((position) => {
+        const { longitude, latitude } = position.coords;
+        map.current?.flyTo({
+          center: [longitude, latitude],
+          zoom: 16,
+          duration: 2000,
+          essential: true
+        });
+      }, (error) => {
+        alert("ไม่สามารถเข้าถึงตำแหน่งได้ กรุณาตรวจสอบการอนุญาตสิทธิ์ครับ");
+      });
+    }
+  };
 
   useEffect(() => {
     if (map.current) return; 
@@ -15,19 +33,16 @@ export const MapLibre = () => {
         container: mapContainer.current, 
         style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json', 
         center: [100.5200, 13.7500], 
-        zoom: 12, // ซูมเข้ามาอีกนิดให้เห็นตึกชัดๆ
+        zoom: 12,
       });
 
       map.current.on('load', () => {
-        
-        // ==========================================
-        // 1. หมวด POINT (จุดพิกัดเดี่ยวๆ)
-        // ==========================================
+        // --- หมวด POINT ---
         map.current?.addSource('point-source', {
           type: 'geojson',
           data: {
             type: 'Feature',
-            properties: { name: 'จุดนัดพบ (คลิกฉันสิ!)', description: 'นี่คือรายละเอียดของจุดนี้' },
+            properties: { name: 'จุดนัดพบ', description: 'นี่คือรายละเอียดของจุดนี้' },
             geometry: { type: 'Point', coordinates: [100.5200, 13.7400] }
           }
         });
@@ -44,9 +59,6 @@ export const MapLibre = () => {
           }
         });
 
-        // ==========================================
-        // 2. หมวด LINE (เส้นทาง)
-        // ==========================================
         map.current?.addSource('line-source', {
           type: 'geojson',
           data: {
@@ -70,9 +82,7 @@ export const MapLibre = () => {
           paint: { 'line-color': '#3B82F6', 'line-width': 6 }
         });
 
-        // ==========================================
-        // 3. หมวด POLYGON (พื้นที่ปิด)
-        // ==========================================
+        // --- หมวด POLYGON ---
         map.current?.addSource('polygon-source', {
           type: 'geojson',
           data: {
@@ -96,72 +106,57 @@ export const MapLibre = () => {
           paint: { 'fill-color': '#10B981', 'fill-opacity': 0.4 }
         });
 
-        // ==========================================
-        // 🎯 สั่งให้ "วิ่ง" ไปหาตำแหน่งปัจจุบันของผู้ใช้
-        // ==========================================
         if ("geolocation" in navigator) {
           navigator.geolocation.getCurrentPosition((position) => {
             const { longitude, latitude } = position.coords;
-
-            // สั่งให้แผนที่บินไปหาพิกัดที่ได้จาก GPS
             map.current?.flyTo({
               center: [longitude, latitude],
-              zoom: 16,        // ซูมเข้าไปใกล้ๆ จะได้เห็นบ้านตัวเองชัดๆ
-              essential: true, // การบินนี้ถือเป็นสิ่งสำคัญ (ข้ามอนิเมชั่นถ้าผู้ใช้ตั้งค่าลดการเคลื่อนไหว)
-              duration: 3000   // ใช้เวลาบิน 3 วินาที
+              zoom: 16,
+              duration: 3000
             });
-
-            // (แถม) ปักหมุดสีแดงตรงที่เฮียอยู่ด้วยเลย
             new maplibregl.Marker({ color: '#FF0000' })
               .setLngLat([longitude, latitude])
               .setPopup(new maplibregl.Popup().setHTML("<b>คุณอยู่ที่นี่!</b>"))
               .addTo(map.current!);
-              
-          }, (error) => {
-            console.error("GPS Error:", error.message);
-            alert("เฮียครับ! อย่าลืมกดอนุญาตให้เข้าถึงตำแหน่ง (Location) ในเบราว์เซอร์นะ");
           });
         }
 
-        // ==========================================
-        // 🎯 ACTION: ทำให้คลิกที่จุดสีแดงแล้วมี Popup เด้ง!
-        // ==========================================
         map.current?.on('click', 'point-layer', (e) => {
           if (!e.features || e.features.length === 0) return;
-          
           const coordinates = (e.features[0].geometry as any).coordinates.slice();
           const name = e.features[0].properties.name;
           const desc = e.features[0].properties.description;
-
-          // สร้าง Popup และแปะลงแผนที่
-          new maplibregl.Popup()
+          new maplibregl.Popup({ offset: 25})
             .setLngLat(coordinates)
-            .setHTML(`
-              <div style="padding: 5px;">
-                <h3 style="font-weight: bold; font-size: 16px; margin-bottom: 4px;">${name}</h3>
-                <p style="margin: 0; color: #666;">${desc}</p>
-              </div>
-            `)
+            .setHTML(`<div style="padding: 10px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f9f9f9; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"><h4 style="margin: 0 0 8px 0; color: #d32f2f; font-weight: bold; text-align: center;">${name}</h4><p style="margin: 0; color: #555; line-height: 1.4;">${desc}</p></div>`)
             .addTo(map.current!);
         });
 
-        // เปลี่ยนเคอร์เซอร์เป็นรูปนิ้วชี้เวลาเอาเมาส์ไปวางบนจุด
-        map.current?.on('mouseenter', 'point-layer', () => {
-          map.current!.getCanvas().style.cursor = 'pointer';
-        });
-        map.current?.on('mouseleave', 'point-layer', () => {
-          map.current!.getCanvas().style.cursor = '';
-        });
-
+        map.current?.on('mouseenter', 'point-layer', () => { map.current!.getCanvas().style.cursor = 'pointer'; });
+        map.current?.on('mouseleave', 'point-layer', () => { map.current!.getCanvas().style.cursor = ''; });
       });
     }
   }, []);
 
   return (
-    <div 
-      ref={mapContainer} 
-      className="w-full h-full rounded-lg shadow-inner overflow-hidden border border-gray-200"
-      style={{ minHeight: '600px' }} 
-    />
+    <div className="relative w-full h-full min-h-[600px] rounded-lg shadow-inner overflow-hidden border border-gray-200">
+      
+      <div className="absolute bottom-6 right-6 z-10">
+        <Button 
+          variant="secondary"
+          size="icon" 
+          className="rounded-full w-12 h-12 shadow-md hover:shadow-xl transition-all"
+          onClick={handleLocateMe}
+        >
+          <LocateFixed className="w-6 h-6 text-primary" />
+        </Button>
+      </div>
+
+      <div 
+        ref={mapContainer} 
+        className="w-full h-full" 
+        style={{ minHeight: '600px' }} 
+      />
+    </div>
   );
 };
