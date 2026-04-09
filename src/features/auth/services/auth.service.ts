@@ -215,6 +215,18 @@ export const authService = {
 
         // Sync in-memory token if provided
         authService.setSessionToken(data.data.accessToken ?? null);
+
+        // 🌟 THE FIX: Restore user from LocalStorage if backend doesn't send it
+        if (!data.data.user) {
+          const storedUser = localStorage.getItem(AUTH_CONFIG.session.userStorageKey);
+          if (storedUser) {
+            try {
+              data.data.user = JSON.parse(storedUser);
+            } catch (parseError) {
+              authService.logEvent("⚠️ [Auth] Failed to parse stored user data.");
+            }
+          }
+        }
       }
 
       return data;
