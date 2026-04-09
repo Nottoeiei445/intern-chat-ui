@@ -32,6 +32,7 @@ export const AUTH_CONFIG = {
     refresh: "/auth/refresh",
     logout: "/auth/logout",
     getCurrentUser: "/auth/me",
+    register: "/auth/register",
   },
 
   // Session Management
@@ -57,6 +58,16 @@ export const AUTH_CONFIG = {
 
     // URL to redirect to on authentication errors
     unauthorizedUrl: "/login",
+  },
+
+  // Validation settings used by the frontend registration form
+  validation: {
+    minPasswordLength: 8,
+    requireUppercase: true,
+    requireNumber: true,
+    usernameMinLength: 3,
+    // Simple email regex — sufficient for standard validation before backend call
+    emailRegex: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
   },
 
   // Feature Flags

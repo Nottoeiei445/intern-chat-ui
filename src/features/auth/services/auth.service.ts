@@ -1,5 +1,5 @@
 import axios from "axios";
-import { AuthResponse, LoginCredentials } from "../types";
+import { AuthResponse, LoginCredentials, RegisterCredentials } from "../types";
 import { AUTH_CONFIG } from "../config/auth.config";
 
 // ==========================================
@@ -42,6 +42,7 @@ const addRefreshSubscriber = (callback: (token: string) => void) => {
 
 // ==========================================
 // Response Interceptor: Handle Token Refresh
+// (INTENTIONALLY LEFT UNCHANGED per constraint — concurrency queue preserved)
 // ==========================================
 api.interceptors.response.use(
   (response) => response,
@@ -201,6 +202,51 @@ export const authService = {
   },
 
   /**
+   * Register with credentials
+   * NOTE: `confirmPassword` is removed from payload before sending to backend
+   */
+  register: async (credentials: RegisterCredentials): Promise<AuthResponse> => {
+    try {
+      const { confirmPassword, ...payload } = credentials;
+      const response = await api.post(AUTH_CONFIG.endpoints.register, payload);
+      const data = response.data;
+
+      if (data && data.data) {
+        // Store token expiration time if provided
+        const expiresAt = calculateExpiresAt(data.data.expiresIn);
+        storeTokenExpiry(expiresAt);
+
+        // Store user data if provided
+        if (data.data.user) {
+          localStorage.setItem(
+            AUTH_CONFIG.session.userStorageKey,
+            JSON.stringify(data.data.user)
+          );
+        }
+
+        // Sync in-memory token if provided
+        authService.setSessionToken(data.data.accessToken ?? null);
+
+        authService.logEvent("✅ [Auth] Registration successful!");
+      }
+
+      return data;
+    } catch (error: any) {
+      if (error.response) {
+        const backendMsg = (error.response.data && error.response.data.message) || "";
+        if (/email.*(exists|already|registered)/i.test(backendMsg)) {
+          throw new Error("Email already registered");
+        }
+        if (/username.*(taken|exists|already)/i.test(backendMsg)) {
+          throw new Error("Username already taken");
+        }
+        throw new Error(backendMsg || `Server Error: ${error.response.status}`);
+      }
+      throw new Error("Cannot connect to the server or CORS blocked.");
+    }
+  },
+
+  /**
    * Get current user (restore session)
    */
   getCurrentUser: async (): Promise<AuthResponse> => {
@@ -216,7 +262,7 @@ export const authService = {
         // Sync in-memory token if provided
         authService.setSessionToken(data.data.accessToken ?? null);
 
-        // 🌟 THE FIX: Restore user from LocalStorage if backend doesn't send it
+        // Restore user from LocalStorage if backend doesn't send it
         if (!data.data.user) {
           const storedUser = localStorage.getItem(AUTH_CONFIG.session.userStorageKey);
           if (storedUser) {

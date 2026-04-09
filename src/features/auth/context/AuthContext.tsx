@@ -1,7 +1,7 @@
 "use client"
 
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
-import { UserProfile, LoginCredentials } from "../types";
+import { UserProfile, LoginCredentials, RegisterCredentials } from "../types";
 import { authService } from "../services/auth.service";
 import { AUTH_CONFIG } from "../config/auth.config";
 
@@ -12,6 +12,7 @@ interface AuthContextType {
   isInitialized: boolean;
   error: string | null;
   login: (credentials: LoginCredentials) => Promise<void>;
+  register: (credentials: RegisterCredentials) => Promise<void>;
   logout: () => Promise<void>;
   refreshToken: () => Promise<void>;
   timeUntilExpiry: number;
@@ -128,7 +129,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // ==========================================
-  // 4. Logout Function
+  // 4. Register Function
+  // ==========================================
+  const register = async (credentials: RegisterCredentials) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await authService.register(credentials);
+
+      if (response && response.data) {
+        setAccessToken(response.data.accessToken);
+        setUser(response.data.user);
+        authService.logEvent("Registration successful!");
+      } else {
+        throw new Error("Invalid response format from server.");
+      }
+    } catch (err: any) {
+      const errorMsg = err.message || "Registration failed";
+      setError(errorMsg);
+      authService.logEvent("Registration failed: " + errorMsg);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ==========================================
+  // 5. Logout Function
   // ==========================================
   const logout = async () => {
     if (refreshCheckIntervalRef.current) {
@@ -149,7 +176,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // ==========================================
-  // 5. Manual Token Refresh Function
+  // 6. Manual Token Refresh Function
   // ==========================================
   const refreshToken = async () => {
     try {
@@ -178,6 +205,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     isInitialized,
     error,
     login,
+    register,
     logout,
     refreshToken,
     timeUntilExpiry,

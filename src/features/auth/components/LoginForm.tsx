@@ -92,6 +92,16 @@ export const LoginForm = () => {
           "Sign In"
         )}
       </button>
+        <div className="text-xs text-slate-500 text-center">
+        Don't have an account?{" "}
+        <button
+          type="button"
+          onClick={() => router.push("/register")}
+          className="text-blue-400 hover:underline"
+        >
+          Create account
+        </button>
+      </div>
     </form>
   );
 };
