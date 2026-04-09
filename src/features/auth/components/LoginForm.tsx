@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useRouter } from "next/navigation";
 
@@ -10,12 +10,26 @@ export const LoginForm = () => {
   const [password, setPassword] = useState("");
   const router = useRouter();
 
+  // 🌟 เติม useEffect ตัวนี้เข้ามาทำหน้าที่ Redirect กลับหน้าหลัก
+  useEffect(() => {
+    if (user) {
+      // หน่วงเวลา 1 วินาทีให้เห็นแอนิเมชัน Welcome back แล้วเด้งไปหน้า /
+      const timer = setTimeout(() => {
+        router.push("/"); 
+      }, 1000);
+
+      // คลีนอัพ timer เผื่อ component ถูกทำลายก่อน
+      return () => clearTimeout(timer);
+    }
+  }, [user, router]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await login({ email, password });
       router.push("/");
     } catch (err) {
+      // Error is handled by the auth context and displayed below
     }
   };
 

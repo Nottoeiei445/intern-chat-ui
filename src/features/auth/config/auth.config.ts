@@ -16,14 +16,14 @@ export const AUTH_CONFIG = {
 
   token: {
     // Access token expiration time (typically 15-30 minutes)
-    accessTokenExpiryMinutes: 15,
+    accessTokenExpiryMinutes: 2,
 
     // Refresh token expiration time (typically 7-30 days)
     refreshTokenExpiryMinutes: 10080, // 7 days
 
     // Time before expiration to refresh proactively (in minutes)
     // This prevents the token from expiring while the user is active
-    refreshThresholdMinutes: 2,
+    refreshThresholdMinutes: 1,
   },
 
   // Endpoints

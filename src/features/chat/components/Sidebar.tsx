@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Menu, MessageSquarePlus, Settings, MessageSquare, Trash2, Pencil, Check, X } from "lucide-react";
 import { ChatThread } from "../types";
+import { useRouter } from "next/navigation";
+import { useAuth } from "../../auth/context/AuthContext";
 
 interface SidebarProps {
   isOpen: boolean;
@@ -27,9 +29,15 @@ export const Sidebar = ({
 }: SidebarProps) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [tempTitle, setTempTitle] = useState("");
+  const router = useRouter();
+  const { user } = useAuth();
 
   const handleStartEdit = (e: React.MouseEvent, chat: ChatThread) => {
     e.stopPropagation();
+    if (!user) {
+      router.push("/login");
+      return;
+    }
     setEditingId(chat.id);
     setTempTitle(chat.title || "");
   };
@@ -45,6 +53,32 @@ export const Sidebar = ({
   const handleCancel = (e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingId(null);
+  };
+
+  const handleNewClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+    onNew();
+  };
+
+  const handleSelect = (chatId: string | null) => {
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+    onSelect(chatId);
+  };
+
+  const handleDelete = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+    onDelete(id);
   };
 
   return (
@@ -65,11 +99,12 @@ export const Sidebar = ({
 
       <div className="px-3 mb-6 mt-2 shrink-0">
         <button 
-          onClick={onNew}
+          onClick={handleNewClick}
           className={`
             flex items-center gap-3 bg-[#2b2c2e] hover:bg-[#37393b] text-slate-200 
             h-10 rounded-full transition-all duration-300
             ${isOpen ? "px-4 w-fit" : "w-10 justify-center px-0 mx-auto"}
+            ${!user ? "opacity-60" : ""}
           `}
         >
           <MessageSquarePlus size={20} className="shrink-0" />
@@ -87,7 +122,7 @@ export const Sidebar = ({
         {chats.map((chat) => (
           <div 
             key={chat.id}
-            onClick={() => !editingId && onSelect(chat.id)}
+            onClick={() => !editingId && handleSelect(chat.id)}
             className={`
               flex items-center justify-between gap-3 p-3 rounded-full cursor-pointer group transition-colors
               ${activeId === chat.id ? "bg-blue-600/20 text-blue-400" : "hover:bg-white/5 text-slate-300"}
@@ -129,10 +164,7 @@ export const Sidebar = ({
                     <Pencil size={14} />
                   </button>
                   <button 
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDelete(chat.id);
-                    }}
+                    onClick={(e) => handleDelete(e, chat.id)}
                     className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 transition-all"
                   >
                     <Trash2 size={14} />
