@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { ChatThread, Message } from "../types";
 import { chatWithOllama } from "../services/ollama";
 import { useAuth } from "../../auth/context/AuthContext";
-// 👇 1. Import ตัว Config ที่เราสร้างไว้เข้ามาใช้
+//Import ตัว Config ที่เราสร้างไว้เข้ามาใช้
 import { CHAT_CONFIG } from "../config/chat.config"; 
 
 export function useChat() {
@@ -25,7 +25,7 @@ export function useChat() {
         return;
       }
       try {
-        // 👇 2. เปลี่ยนมาใช้ CHAT_CONFIG.HISTORY
+        //ใช้ CHAT_CONFIG.HISTORY
         const res = await fetch(`${CHAT_CONFIG.HISTORY}?userId=${user.id}`);
         if (res.ok) {
           const data: ChatThread[] = await res.json();
@@ -46,14 +46,14 @@ export function useChat() {
     setChats(filtered);
     if (activeChatId === id) setActiveChatId(filtered[0]?.id || null);
     
-    // 👇 3. ใช้ CHAT_CONFIG.HISTORY
+    //ใช้ CHAT_CONFIG.HISTORY
     if (user) await fetch(`${CHAT_CONFIG.HISTORY}/${id}`, { method: 'DELETE' }).catch(console.error);
   };
 
   const renameChat = async (id: string, newTitle: string) => {
     setChats(prev => prev.map(chat => chat.id === id ? { ...chat, title: newTitle } : chat));
     
-    // 👇 4. ใช้ CHAT_CONFIG.HISTORY
+    //ใช้ CHAT_CONFIG.HISTORY
     if (user) {
       await fetch(`${CHAT_CONFIG.HISTORY}/${id}`, {
         method: 'PATCH',
@@ -132,7 +132,7 @@ export function useChat() {
           c.id === target ? { ...c, messages: [...c.messages, assistantMsg] } : c
         ));
 
-        // 🔥 ท่าที่ 2: ใช้ CHAT_CONFIG.APPEND ส่งไปให้เพื่อน (Backend)
+        // ใช้ CHAT_CONFIG.APPEND ส่งไปให้ Backend เก็บประวัติ
         await fetch(CHAT_CONFIG.APPEND, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
