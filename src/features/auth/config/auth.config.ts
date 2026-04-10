@@ -16,7 +16,7 @@ export const AUTH_CONFIG = {
 
   token: {
     // Access token expiration time (typically 15-30 minutes)
-    accessTokenExpiryMinutes: 2,
+    accessTokenExpiryMinutes: 10,
 
     // Refresh token expiration time (typically 7-30 days)
     refreshTokenExpiryMinutes: 10080, // 7 days
@@ -42,9 +42,10 @@ export const AUTH_CONFIG = {
 
     // Cookie name for refresh token
     refreshTokenCookieName: "refreshToken",
-
-    // Cache token expiration in localStorage
-    tokenExpiryStorageKey: "tokenExpiry",
+    // Keys used for persistence (stored in localStorage)
+    accessTokenStorageKey: "access_token",
+    // Cache token expiration timestamp (ms since epoch)
+    tokenExpiryStorageKey: "expires_at",
     userStorageKey: "user",
   },
 

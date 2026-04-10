@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react";
+import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "../context/AuthContext";
 import { useRouter } from "next/navigation";
 
@@ -9,6 +10,7 @@ export const LoginForm = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const router = useRouter();
+  const toast = useToast();
 
   // 🌟 เติม useEffect ตัวนี้เข้ามาทำหน้าที่ Redirect กลับหน้าหลัก
   useEffect(() => {
@@ -29,7 +31,20 @@ export const LoginForm = () => {
       await login({ email, password });
       router.push("/");
     } catch (err) {
-      // Error is handled by the auth context and displayed below
+      const status = (err as any)?.status ?? (err as any)?.response?.status;
+      const data = (err as any)?.data ?? (err as any)?.response?.data;
+      const backendMessage = (err as any)?.message ?? data?.message ?? null;
+
+      if (status === 409) {
+        toast.error(backendMessage || "Conflict: please check your credentials.");
+      } else if (status === 400) {
+        toast.error(backendMessage || "Invalid request. Please check your input.");
+      } else if (status === 401) {
+        // Common case: wrong email/password — prefer backend message if available
+        toast.error(backendMessage || "Incorrect email or password.");
+      } else {
+        toast.error(backendMessage || "An unexpected error occurred. Please try again.");
+      }
     }
   };
 
