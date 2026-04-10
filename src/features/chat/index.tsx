@@ -1,16 +1,21 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { useRouter } from "next/navigation";
+
+// Components
 import { Sidebar } from "./components/Sidebar";
 import { Header } from "./components/Header";
 import { MessageList } from "./components/MessageList";
 import { ChatInput } from "./components/ChatInput";
 
+// Hooks & Context
 import { useChat } from "./hooks/useChat";
 import { useAuth } from "../auth/context/AuthContext";
-import { useRouter } from "next/navigation";
 
 export const ChatFeature = () => {
+  const { user } = useAuth();
+  const router = useRouter();
   const { 
     chats, 
     activeChatId, 
@@ -23,52 +28,48 @@ export const ChatFeature = () => {
     ephemeralMessages
   } = useChat();
 
-  const { user } = useAuth();
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState("llama3");
-  const router = useRouter();
 
-  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
-
+  // 1. จัดการเลือกแชทแรกอัตโนมัติเมื่อ User ล็อกอินและมีข้อมูล
   useEffect(() => {
-    if (!user) {
+    if (user && !activeChatId && chats.length > 0) {
+      setActiveChatId(chats[0].id);
+    } else if (!user) {
       setActiveChatId(null);
-    } else {
-      if (!activeChatId && chats.length > 0) {
-        setActiveChatId(chats[0].id);
-      }
     }
-  }, [user, chats, setActiveChatId, activeChatId]);
+  }, [user, chats, activeChatId, setActiveChatId]);
 
-  const handleCreateNew = () => {
-    if (!user) {
-      router.push("/login");
-      return;
+  // 2. คำนวณข้อความที่จะโชว์ (ใช้ useMemo ช่วยเรื่อง Performance)
+  const messagesToShow = useMemo(() => {
+    if (activeChatId) {
+      const currentChat = chats.find(c => c.id === activeChatId);
+      return currentChat?.messages || [];
     }
+    return ephemeralMessages;
+  }, [activeChatId, chats, ephemeralMessages]);
+
+  // --- Handlers ---
+  
+  const handleCreateNew = () => {
+    if (!user) return router.push("/login");
     createNewChat();
   };
 
   const handleSelect = (id: string | null) => {
-    if (!user) {
-      router.push("/login");
-      return;
-    }
+    if (!user) return router.push("/login");
     setActiveChatId(id);
   };
 
-  const handleSendMessage = (val: string, model: string) => {
-    if (!user && !activeChatId) {
-      sendMessage(val, model, { ephemeral: true });
-    } else {
-      sendMessage(val, model);
-    }
+  const handleSendMessage = (val: string) => {
+    // ถ้ายังไม่ล็อกอิน ให้ใช้ ephemeral mode (ไม่เก็บประวัติ)
+    const options = (!user && !activeChatId) ? { ephemeral: true } : undefined;
+    sendMessage(val, selectedModel, options);
   };
-
-  const currentChat = chats.find(c => c.id === activeChatId);
-  const messagesToShow = activeChatId ? (currentChat?.messages || []) : ephemeralMessages;
 
   return (
     <div className="flex h-screen bg-[#050505] text-slate-200 overflow-hidden font-ibm">
+      {/* Sidebar ฝั่งซ้าย */}
       <Sidebar 
         isOpen={isSidebarOpen} 
         onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -80,6 +81,7 @@ export const ChatFeature = () => {
         onDelete={deleteChat} 
       />
       
+      {/* พื้นที่แชทหลักฝั่งขวา */}
       <div className="flex-1 flex flex-col relative min-w-0">
         <Header 
           isSidebarOpen={isSidebarOpen} 
@@ -95,8 +97,9 @@ export const ChatFeature = () => {
           />
         </div>
 
+        {/* ส่วนปุ่มส่งข้อความ */}
         <ChatInput 
-          onSendMessage={(val) => handleSendMessage(val, selectedModel)} 
+          onSendMessage={handleSendMessage} 
           isLoading={isLoading} 
         />
       </div>
@@ -104,6 +107,7 @@ export const ChatFeature = () => {
   );
 };
 
+// Export ทุกอย่างออกไปให้เรียกใช้ง่ายๆ
 export * from './types';
 export * from './hooks/useChat';
 export * from './components/Sidebar';

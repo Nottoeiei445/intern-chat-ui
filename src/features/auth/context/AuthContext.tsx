@@ -1,6 +1,6 @@
-"use client"
+"use client";
 
-import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef, useCallback } from "react";
 import { UserProfile, LoginCredentials, RegisterCredentials } from "../types";
 import { authService } from "../services/auth.service";
 import { AUTH_CONFIG } from "../config/auth.config";
@@ -28,8 +28,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<string | null>(null);
   const [timeUntilExpiry, setTimeUntilExpiry] = useState<number>(0);
 
+  // ใช้ Ref เก็บ Interval เพื่อให้สั่งล้าง (Cleanup) ได้จากทุกที่
   const refreshCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const proactiveRefreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 🧹 ฟังก์ชันสำหรับ "ล้างไพ่" ทุกอย่าง (Internal Helper)
+  // ช่วยทั้งเรื่อง Security (ไม่เหลือข้อมูลค้าง) และ Performance (ล้างแรม)
+  const clearAuthState = useCallback(() => {
+    // 1. ล้าง State ใน Memory
+    setUser(null);
+    setAccessToken(null);
+    setError(null);
+    setTimeUntilExpiry(0);
+
+    // 2. ล้างตัวดักจับ (Intervals/Timeouts) เพื่อป้องกัน Memory Leak
+    if (refreshCheckIntervalRef.current) {
+      clearInterval(refreshCheckIntervalRef.current);
+      refreshCheckIntervalRef.current = null;
+    }
+    if (proactiveRefreshTimeoutRef.current) {
+      clearTimeout(proactiveRefreshTimeoutRef.current);
+      proactiveRefreshTimeoutRef.current = null;
+    }
+
+    // 3. ล้างขยะใน Storage
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(AUTH_CONFIG.session.accessTokenStorageKey);
+      localStorage.removeItem(AUTH_CONFIG.session.tokenExpiryStorageKey);
+      localStorage.removeItem(AUTH_CONFIG.session.userStorageKey);
+    }
+    
+    authService.logEvent("🧹 Cleaned up all auth states and intervals.");
+  }, []);
 
   // ==========================================
   // 1. Initialize Session on App Load
@@ -37,28 +67,16 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const initializeSession = async () => {
       try {
-        // 1) If session persistence is enabled, check localStorage for a valid token
-        if (
-          AUTH_CONFIG.features.enableSessionPersistence &&
-          typeof window !== "undefined"
-        ) {
-          const storedToken = localStorage.getItem(
-            AUTH_CONFIG.session.accessTokenStorageKey
-          );
-          const storedExpires = localStorage.getItem(
-            AUTH_CONFIG.session.tokenExpiryStorageKey
-          );
-
+        if (AUTH_CONFIG.features.enableSessionPersistence && typeof window !== "undefined") {
+          const storedToken = localStorage.getItem(AUTH_CONFIG.session.accessTokenStorageKey);
+          const storedExpires = localStorage.getItem(AUTH_CONFIG.session.tokenExpiryStorageKey);
           const expiresAt = storedExpires ? parseInt(storedExpires, 10) : null;
 
           if (storedToken && expiresAt && Date.now() < expiresAt) {
-            // Token still valid — use it directly and avoid calling /refresh
             authService.setSessionToken(storedToken);
             setAccessToken(storedToken);
 
-            const storedUser = localStorage.getItem(
-              AUTH_CONFIG.session.userStorageKey
-            );
+            const storedUser = localStorage.getItem(AUTH_CONFIG.session.userStorageKey);
             if (storedUser) {
               try {
                 setUser(JSON.parse(storedUser));
@@ -66,79 +84,50 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                 setUser(null);
               }
             }
-
-            authService.logEvent(
-              "Session restored from localStorage; skipping refresh."
-            );
             setIsInitialized(true);
             return;
           }
         }
 
-        // 2) No valid token in localStorage — try refreshing using refresh token
         const response = await authService.refreshAccessToken();
-
-        if (response && response.data) {
+        if (response?.data) {
           setAccessToken(response.data.accessToken);
           setUser(response.data.user ?? null);
-          authService.logEvent("Session restored successfully on app load.");
         }
       } catch (err) {
-        authService.logEvent("No active session. User needs to login.");
-
-        if (typeof window !== "undefined") {
-          try {
-            localStorage.removeItem(
-              AUTH_CONFIG.session.accessTokenStorageKey
-            );
-            localStorage.removeItem(
-              AUTH_CONFIG.session.tokenExpiryStorageKey
-            );
-          } catch (e) {
-            /* ignore */
-          }
-          localStorage.removeItem(AUTH_CONFIG.session.userStorageKey);
-        }
-
-        // Clear in-memory auth state; do NOT redirect here — let routing/AuthGuard handle navigation.
-        setAccessToken(null);
-        setUser(null);
+        // 🧹 ถ้า Initialize พลาด ให้ล้างขยะที่อาจค้างอยู่ทันที
+        clearAuthState();
       } finally {
         setIsInitialized(true);
       }
     };
 
     initializeSession();
-  }, []);
+    
+    // Cleanup เมื่อ Component ถูกทำลาย (Unmount)
+    return () => clearAuthState();
+  }, [clearAuthState]);
 
   // ==========================================
-  // 2. Token Expiration Checker
+  // 2. Token Expiration Checker (Performance Point)
   // ==========================================
   useEffect(() => {
-    if (!AUTH_CONFIG.features.enableProactiveRefresh) return;
+    if (!AUTH_CONFIG.features.enableProactiveRefresh || !accessToken) return;
 
     const checkTokenExpiry = async () => {
       const timeRemaining = authService.getTimeUntilExpiry();
       setTimeUntilExpiry(Math.max(0, timeRemaining));
 
-      if (authService.isTokenExpiringSoon() && accessToken) {
-        authService.logEvent(
-          "Token expiring soon. Attempting proactive refresh..."
-        );
-
+      if (authService.isTokenExpiringSoon()) {
         try {
           const response = await authService.refreshAccessToken();
-
-          if (response && response.data) {
+          if (response?.data) {
             setAccessToken(response.data.accessToken);
-            authService.logEvent(
-              "Proactive token refresh successful."
-            );
           }
         } catch (err) {
-          authService.logEvent(
-            "Proactive token refresh failed: " + (err as Error).message
-          );
+          authService.logEvent("Proactive refresh failed.");
+          // ถ้า Refresh ไม่ผ่าน (Token อาจจะตายสนิท) ให้สั่ง Logout ล้างเครื่องเลย
+          logout(); 
         }
       }
     };
@@ -148,6 +137,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       AUTH_CONFIG.session.tokenCheckIntervalMs
     );
 
+    // 🧹 ต้องมีตัว Return เพื่อล้าง Interval เก่าทิ้งทุกครั้งที่ Token เปลี่ยน
     return () => {
       if (refreshCheckIntervalRef.current) {
         clearInterval(refreshCheckIntervalRef.current);
@@ -156,25 +146,38 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, [accessToken]);
 
   // ==========================================
-  // 3. Login Function
+  // 3. Login & 4. Register
   // ==========================================
   const login = async (credentials: LoginCredentials) => {
     setIsLoading(true);
     setError(null);
     try {
       const response = await authService.login(credentials);
-
-      if (response && response.data) {
+      if (response?.data) {
         setAccessToken(response.data.accessToken);
         setUser(response.data.user);
-        authService.logEvent("Login successful! Token received.");
-      } else {
-        throw new Error("Invalid response format from server.");
       }
     } catch (err: any) {
-      const errorMsg = err.message || "Login failed";
-      setError(errorMsg);
-      authService.logEvent("Login failed: " + errorMsg);
+      setError(err.message || "Login failed");
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const register = async (credentials: RegisterCredentials) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await authService.register(credentials);
+      if (response?.data?.accessToken) {
+        setAccessToken(response.data.accessToken);
+        setUser(response.data.user);
+      } else {
+        await login({ email: credentials.email, password: credentials.password });
+      }
+    } catch (err: any) {
+      setError(err.message || "Registration failed");
       throw err;
     } finally {
       setIsLoading(false);
@@ -182,98 +185,31 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // ==========================================
-  // 4. Register Function
-  // ==========================================
-  // ==========================================
-  // 4. Register Function (With Auto-Login)
-  // ==========================================
-  const register = async (credentials: RegisterCredentials) => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await authService.register(credentials);
-
-      // กรณีที่ 1: Backend ส่ง accessToken กลับมาให้ตั้งแต่ตอนสมัคร
-      if (response && response.data && response.data.accessToken) {
-        setAccessToken(response.data.accessToken);
-        setUser(response.data.user);
-        authService.logEvent("Registration successful! Token received.");
-      } 
-      // กรณีที่ 2: สมัครสำเร็จ แต่ Backend ไม่ได้ส่ง Token มาให้ 
-      else if (response) {
-        authService.logEvent("Registration successful. Auto-logging in...");
-        
-        // แอบเรียกฟังก์ชัน login ซ้อนทันที โดยใช้อีเมลและรหัสผ่านที่เพิ่งกรอก
-        await login({
-          email: credentials.email,
-          password: credentials.password,
-        });
-      } 
-      else {
-        throw new Error("Invalid response format from server.");
-      }
-    } catch (err: any) {
-      const errorMsg = err.message || "Registration failed";
-      setError(errorMsg);
-      authService.logEvent("Registration failed: " + errorMsg);
-      // โยน Error ออกไปให้ RegisterForm.tsx จับไปโชว์ Toast
-      throw err; 
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // ==========================================
-  // 5. Logout Function
+  // 5. Logout Function (Security & Cleanup Master)
   // ==========================================
   const logout = async () => {
-    if (refreshCheckIntervalRef.current) {
-      clearInterval(refreshCheckIntervalRef.current);
-    }
-    if (proactiveRefreshTimeoutRef.current) {
-      clearTimeout(proactiveRefreshTimeoutRef.current);
-    }
-
     try {
       await authService.logout();
     } finally {
-      setUser(null);
-      setAccessToken(null);
-      setTimeUntilExpiry(0);
-      authService.logEvent("Logged out successfully.");
+      // 🧹 สั่งล้างทุกอย่างในเครื่องก่อนดีด User ออกไปหน้า Login
+      clearAuthState();
 
-      // Perform a single redirect to the configured logout page (if not already there)
       if (typeof window !== "undefined") {
-        try {
-          if (window.location.pathname !== AUTH_CONFIG.redirect.afterLogoutUrl) {
-            window.location.href = AUTH_CONFIG.redirect.afterLogoutUrl;
-          }
-        } catch (e) {
-          /* ignore */
+        if (window.location.pathname !== AUTH_CONFIG.redirect.afterLogoutUrl) {
+          window.location.href = AUTH_CONFIG.redirect.afterLogoutUrl;
         }
       }
     }
   };
 
-  // ==========================================
-  // 6. Manual Token Refresh Function
-  // ==========================================
   const refreshToken = async () => {
     try {
       const response = await authService.refreshAccessToken();
-
-      if (response && response.data) {
+      if (response?.data) {
         setAccessToken(response.data.accessToken);
-        authService.logEvent(
-          "Token manually refreshed successfully."
-        );
-      } else {
-        throw new Error("Invalid response format from server.");
       }
     } catch (err: any) {
-      const errorMsg = err.message || "Token refresh failed";
-      setError(errorMsg);
-      authService.logEvent("Token refresh failed: " + errorMsg);
+      setError(err.message || "Token refresh failed");
       throw err;
     }
   };

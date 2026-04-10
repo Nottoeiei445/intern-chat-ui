@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "../context/AuthContext";
 import { useRouter } from "next/navigation";
@@ -12,15 +12,31 @@ export const LoginForm = () => {
   const router = useRouter();
   const toast = useToast();
 
-  // 🌟 เติม useEffect ตัวนี้เข้ามาทำหน้าที่ Redirect กลับหน้าหลัก
+  // ==========================================
+  // 1. 🧹 ลอจิกจัดการตัวแปร (จำ Email แต่ฆ่า Password)
+  // ==========================================
+  useEffect(() => {
+    // ดึง Email มาใส่ตามปกติ
+    const savedEmail = localStorage.getItem("remembered_email");
+    if (savedEmail) {
+      setEmail(savedEmail);
+    }
+
+    // 🔥 ท่าไม้ตาย 1: หน่วงเวลาล้าง Password นิดนึง (100ms)
+    // เพราะเบราว์เซอร์จะ Auto-fill หลังจาก React Render เสร็จเสี้ยววินาที
+    // การใช้ Timeout จะทำให้เรา "กวาดขยะ" หลังจากที่มันแอบมาหยอดเสร็จครับ
+    const timer = setTimeout(() => {
+      setPassword("");
+    }, 100); 
+
+    return () => clearTimeout(timer);
+  }, []);
+
   useEffect(() => {
     if (user) {
-      // หน่วงเวลา 1 วินาทีให้เห็นแอนิเมชัน Welcome back แล้วเด้งไปหน้า /
       const timer = setTimeout(() => {
         router.push("/"); 
       }, 1000);
-
-      // คลีนอัพ timer เผื่อ component ถูกทำลายก่อน
       return () => clearTimeout(timer);
     }
   }, [user, router]);
@@ -29,34 +45,33 @@ export const LoginForm = () => {
     e.preventDefault();
     try {
       await login({ email, password });
+      localStorage.setItem("remembered_email", email);
       router.push("/");
     } catch (err) {
+      setPassword(""); // ล้างรหัสถ้าล็อกอินพลาด
       const status = (err as any)?.status ?? (err as any)?.response?.status;
       const data = (err as any)?.data ?? (err as any)?.response?.data;
       const backendMessage = (err as any)?.message ?? data?.message ?? null;
 
       if (status === 409) {
         toast.error(backendMessage || "Conflict: please check your credentials.");
-      } else if (status === 400) {
-        toast.error(backendMessage || "Invalid request. Please check your input.");
       } else if (status === 401) {
-        // Common case: wrong email/password — prefer backend message if available
         toast.error(backendMessage || "Incorrect email or password.");
       } else {
-        toast.error(backendMessage || "An unexpected error occurred. Please try again.");
+        toast.error(backendMessage || "An unexpected error occurred.");
       }
     }
   };
 
   if (user) {
     return (
-      <div className="w-full max-w-sm p-6 bg-[#0a0a0a] border border-white/5 rounded-2xl flex flex-col items-center justify-center gap-4 animate-in fade-in zoom-in duration-300">
+      <div className="w-full max-w-sm p-6 bg-[#0a0a0a] border border-white/5 rounded-2xl flex flex-col items-center justify-center gap-4">
         <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center">
           <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
         </div>
         <div className="text-center">
           <h2 className="text-slate-200 font-medium mb-1">Welcome back, {user.username}</h2>
-          <p className="text-slate-500 text-xs">Authentication successful. Redirecting...</p>
+          <p className="text-slate-500 text-xs">Redirecting...</p>
         </div>
       </div>
     );
@@ -65,11 +80,11 @@ export const LoginForm = () => {
   return (
     <form 
       onSubmit={handleSubmit} 
-      className="w-full max-w-sm p-8 bg-[#0a0a0a] border border-white/5 rounded-2xl flex flex-col gap-5 shadow-2xl shadow-black/50"
+      className="w-full max-w-sm p-8 bg-[#0a0a0a] border border-white/5 rounded-2xl flex flex-col gap-5 shadow-2xl"
     >
       <div className="flex flex-col gap-1 mb-2">
         <h2 className="text-xl font-semibold text-slate-200">Sign In</h2>
-        <p className="text-xs text-slate-500">Enter your credentials to access the node.</p>
+        <p className="text-xs text-slate-500">Access your engineering node.</p>
       </div>
       
       {error && (
@@ -84,9 +99,9 @@ export const LoginForm = () => {
           type="email" 
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          autoComplete="email"
+          autoComplete="username" 
           placeholder="name@example.com"
-          className="bg-[#111111] border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all"
+          className="bg-[#111111] border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-blue-500 focus:outline-none transition-all"
           required
         />
       </div>
@@ -97,9 +112,11 @@ export const LoginForm = () => {
           type="password" 
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          autoComplete="current-password"
+          // 🔥 ท่าไม้ตาย 2: เปลี่ยนเป็น "new-password"
+          // เบราว์เซอร์ส่วนใหญ่จะไม่ออโต้ฟิลรหัสเก่าใส่ช่องที่มีกำกับว่าเป็นรหัสใหม่ครับ
+          autoComplete="new-password" 
           placeholder="••••••••"
-          className="bg-[#111111] border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all"
+          className="bg-[#111111] border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-blue-500 focus:outline-none transition-all"
           required
         />
       </div>
@@ -107,27 +124,14 @@ export const LoginForm = () => {
       <button 
         type="submit" 
         disabled={isLoading}
-        className="mt-4 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/30 disabled:text-slate-400 text-white text-sm font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+        className="mt-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2"
       >
-        {isLoading ? (
-          <>
-            <svg className="animate-spin h-4 w-4 text-white/70" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            Authenticating...
-          </>
-        ) : (
-          "Sign In"
-        )}
+        {isLoading ? "Authenticating..." : "Sign In"}
       </button>
-        <div className="text-xs text-slate-500 text-center">
+
+      <div className="text-xs text-slate-500 text-center">
         Don't have an account?{" "}
-        <button
-          type="button"
-          onClick={() => router.push("/register")}
-          className="text-blue-400 hover:underline"
-        >
+        <button type="button" onClick={() => router.push("/register")} className="text-blue-400 hover:underline">
           Create account
         </button>
       </div>
