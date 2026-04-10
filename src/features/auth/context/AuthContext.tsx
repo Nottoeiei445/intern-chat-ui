@@ -37,19 +37,72 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const initializeSession = async () => {
       try {
-        const response = await authService.getCurrentUser();
+        // 1) If session persistence is enabled, check localStorage for a valid token
+        if (
+          AUTH_CONFIG.features.enableSessionPersistence &&
+          typeof window !== "undefined"
+        ) {
+          const storedToken = localStorage.getItem(
+            AUTH_CONFIG.session.accessTokenStorageKey
+          );
+          const storedExpires = localStorage.getItem(
+            AUTH_CONFIG.session.tokenExpiryStorageKey
+          );
+
+          const expiresAt = storedExpires ? parseInt(storedExpires, 10) : null;
+
+          if (storedToken && expiresAt && Date.now() < expiresAt) {
+            // Token still valid — use it directly and avoid calling /refresh
+            authService.setSessionToken(storedToken);
+            setAccessToken(storedToken);
+
+            const storedUser = localStorage.getItem(
+              AUTH_CONFIG.session.userStorageKey
+            );
+            if (storedUser) {
+              try {
+                setUser(JSON.parse(storedUser));
+              } catch {
+                setUser(null);
+              }
+            }
+
+            authService.logEvent(
+              "Session restored from localStorage; skipping refresh."
+            );
+            setIsInitialized(true);
+            return;
+          }
+        }
+
+        // 2) No valid token in localStorage — try refreshing using refresh token
+        const response = await authService.refreshAccessToken();
 
         if (response && response.data) {
           setAccessToken(response.data.accessToken);
-          setUser(response.data.user);
-          authService.logEvent(
-            "Session restored successfully on app load."
-          );
+          setUser(response.data.user ?? null);
+          authService.logEvent("Session restored successfully on app load.");
         }
       } catch (err) {
-        authService.logEvent(
-          "No active session. User needs to login."
-        );
+        authService.logEvent("No active session. User needs to login.");
+
+        if (typeof window !== "undefined") {
+          try {
+            localStorage.removeItem(
+              AUTH_CONFIG.session.accessTokenStorageKey
+            );
+            localStorage.removeItem(
+              AUTH_CONFIG.session.tokenExpiryStorageKey
+            );
+          } catch (e) {
+            /* ignore */
+          }
+          localStorage.removeItem(AUTH_CONFIG.session.userStorageKey);
+        }
+
+        // Clear in-memory auth state; do NOT redirect here — let routing/AuthGuard handle navigation.
+        setAccessToken(null);
+        setUser(null);
       } finally {
         setIsInitialized(true);
       }
@@ -131,24 +184,40 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   // ==========================================
   // 4. Register Function
   // ==========================================
+  // ==========================================
+  // 4. Register Function (With Auto-Login)
+  // ==========================================
   const register = async (credentials: RegisterCredentials) => {
     setIsLoading(true);
     setError(null);
     try {
       const response = await authService.register(credentials);
 
-      if (response && response.data) {
+      // กรณีที่ 1: Backend ส่ง accessToken กลับมาให้ตั้งแต่ตอนสมัคร
+      if (response && response.data && response.data.accessToken) {
         setAccessToken(response.data.accessToken);
         setUser(response.data.user);
-        authService.logEvent("Registration successful!");
-      } else {
+        authService.logEvent("Registration successful! Token received.");
+      } 
+      // กรณีที่ 2: สมัครสำเร็จ แต่ Backend ไม่ได้ส่ง Token มาให้ 
+      else if (response) {
+        authService.logEvent("Registration successful. Auto-logging in...");
+        
+        // แอบเรียกฟังก์ชัน login ซ้อนทันที โดยใช้อีเมลและรหัสผ่านที่เพิ่งกรอก
+        await login({
+          email: credentials.email,
+          password: credentials.password,
+        });
+      } 
+      else {
         throw new Error("Invalid response format from server.");
       }
     } catch (err: any) {
       const errorMsg = err.message || "Registration failed";
       setError(errorMsg);
       authService.logEvent("Registration failed: " + errorMsg);
-      throw err;
+      // โยน Error ออกไปให้ RegisterForm.tsx จับไปโชว์ Toast
+      throw err; 
     } finally {
       setIsLoading(false);
     }
@@ -172,6 +241,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       setAccessToken(null);
       setTimeUntilExpiry(0);
       authService.logEvent("Logged out successfully.");
+
+      // Perform a single redirect to the configured logout page (if not already there)
+      if (typeof window !== "undefined") {
+        try {
+          if (window.location.pathname !== AUTH_CONFIG.redirect.afterLogoutUrl) {
+            window.location.href = AUTH_CONFIG.redirect.afterLogoutUrl;
+          }
+        } catch (e) {
+          /* ignore */
+        }
+      }
     }
   };
 

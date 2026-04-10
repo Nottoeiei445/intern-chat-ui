@@ -84,22 +84,37 @@ api.interceptors.response.use(
             response.data?.data?.expiresIn ||
             AUTH_CONFIG.token.accessTokenExpiryMinutes * 60; // fallback to config
           const expiresAt = Date.now() + expiresIn * 1000;
-          localStorage.setItem(AUTH_CONFIG.session.tokenExpiryStorageKey, expiresAt.toString());
+          if (typeof window !== "undefined") {
+            localStorage.setItem(
+              AUTH_CONFIG.session.tokenExpiryStorageKey,
+              expiresAt.toString()
+            );
+            // store access token in localStorage as well
+            localStorage.setItem(
+              AUTH_CONFIG.session.accessTokenStorageKey,
+              newToken
+            );
+          }
+
+          // update in-memory token so request interceptor uses it
+          currentAccessToken = newToken;
 
           onRefreshed(newToken);
           return api(originalRequest);
         }
       } catch (refreshError) {
-        if (
-          typeof window !== "undefined" &&
-          window.location.pathname !== AUTH_CONFIG.redirect.unauthorizedUrl
-        ) {
-          // Clear stored auth data
-          localStorage.removeItem(AUTH_CONFIG.session.tokenExpiryStorageKey);
+        if (typeof window !== "undefined") {
+          // Clear stored auth data in localStorage
+          try {
+            localStorage.removeItem(AUTH_CONFIG.session.tokenExpiryStorageKey);
+            localStorage.removeItem(AUTH_CONFIG.session.accessTokenStorageKey);
+          } catch (e) {
+            /* ignore */
+          }
+          // Also remove stored user. Do NOT redirect here—let routing/auth guard handle it.
           localStorage.removeItem(AUTH_CONFIG.session.userStorageKey);
-
-          // Redirect to login
-          window.location.href = AUTH_CONFIG.redirect.unauthorizedUrl;
+          // Clear in-memory token
+          currentAccessToken = null;
         }
         return Promise.reject(refreshError);
       } finally {
@@ -126,19 +141,54 @@ const calculateExpiresAt = (expiresInSeconds?: number): number => {
 };
 
 /**
- * Store token expiration time in localStorage
+ * Normalize axios/server errors into an Error with metadata
  */
-const storeTokenExpiry = (expiresAt: number): void => {
-  localStorage.setItem(
-    AUTH_CONFIG.session.tokenExpiryStorageKey,
-    expiresAt.toString()
-  );
+const createApiError = (error: any, fallbackMessage = "An unexpected error occurred.") => {
+  const responseData = error?.response?.data ?? error?.data ?? null;
+
+  const deriveMessage = (data: any): string | null => {
+    if (!data) return null;
+    if (typeof data === "string") return data;
+    if (data.message) return data.message;
+    if (data.error) return data.error;
+    if (data.detail) return data.detail;
+    if (Array.isArray(data.errors) && data.errors.length) {
+      const first = data.errors[0];
+      if (typeof first === "string") return first;
+      if (first && typeof first === "object") return first.message ?? JSON.stringify(first);
+    }
+    return null;
+  };
+
+  const serverMessage = deriveMessage(responseData);
+  const message = serverMessage ?? error?.message ?? fallbackMessage;
+  const apiError = new Error(message) as any;
+  apiError.status = error?.response?.status ?? error?.status ?? null;
+  apiError.data = responseData;
+  apiError.response = error?.response ?? null;
+  return apiError;
 };
 
 /**
- * Get stored token expiration time
+ * Store token expiration time in localStorage
+ */
+const storeTokenExpiry = (expiresAt: number): void => {
+  if (typeof window === "undefined") return;
+  try {
+    localStorage.setItem(
+      AUTH_CONFIG.session.tokenExpiryStorageKey,
+      expiresAt.toString()
+    );
+  } catch (e) {
+    /* ignore storage errors */
+  }
+};
+
+/**
+ * Get stored token expiration time from localStorage
  */
 const getStoredTokenExpiry = (): number | null => {
+  if (typeof window === "undefined") return null;
   const stored = localStorage.getItem(
     AUTH_CONFIG.session.tokenExpiryStorageKey
   );
@@ -191,13 +241,7 @@ export const authService = {
 
       return data;
     } catch (error: any) {
-      if (error.response) {
-        throw new Error(
-          error.response.data.message ||
-            `Server Error: ${error.response.status}`
-        );
-      }
-      throw new Error("Cannot connect to the server or CORS blocked.");
+      throw createApiError(error, "Cannot connect to the server or CORS blocked.");
     }
   },
 
@@ -235,14 +279,20 @@ export const authService = {
       if (error.response) {
         const backendMsg = (error.response.data && error.response.data.message) || "";
         if (/email.*(exists|already|registered)/i.test(backendMsg)) {
-          throw new Error("Email already registered");
+          const e = new Error("Email already registered") as any;
+          e.status = error.response.status;
+          e.data = error.response.data;
+          throw e;
         }
         if (/username.*(taken|exists|already)/i.test(backendMsg)) {
-          throw new Error("Username already taken");
+          const e = new Error("Username already taken") as any;
+          e.status = error.response.status;
+          e.data = error.response.data;
+          throw e;
         }
-        throw new Error(backendMsg || `Server Error: ${error.response.status}`);
+        throw createApiError(error);
       }
-      throw new Error("Cannot connect to the server or CORS blocked.");
+      throw createApiError(error, "Cannot connect to the server or CORS blocked.");
     }
   },
 
@@ -277,10 +327,17 @@ export const authService = {
 
       return data;
     } catch (error: any) {
-      localStorage.removeItem(AUTH_CONFIG.session.tokenExpiryStorageKey);
-      localStorage.removeItem(AUTH_CONFIG.session.userStorageKey);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.removeItem(AUTH_CONFIG.session.tokenExpiryStorageKey);
+          localStorage.removeItem(AUTH_CONFIG.session.accessTokenStorageKey);
+        } catch (e) {
+          /* ignore */
+        }
+        localStorage.removeItem(AUTH_CONFIG.session.userStorageKey);
+      }
       authService.setSessionToken(null);
-      throw new Error("Session expired or not found.");
+      throw createApiError(error, "Session expired or not found.");
     }
   },
 
@@ -307,10 +364,17 @@ export const authService = {
 
       return data;
     } catch (error: any) {
-      localStorage.removeItem(AUTH_CONFIG.session.tokenExpiryStorageKey);
-      localStorage.removeItem(AUTH_CONFIG.session.userStorageKey);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.removeItem(AUTH_CONFIG.session.tokenExpiryStorageKey);
+          localStorage.removeItem(AUTH_CONFIG.session.accessTokenStorageKey);
+        } catch (e) {
+          /* ignore */
+        }
+        localStorage.removeItem(AUTH_CONFIG.session.userStorageKey);
+      }
       authService.setSessionToken(null);
-      throw new Error("Failed to refresh token.");
+      throw createApiError(error, "Failed to refresh token.");
     }
   },
 
@@ -326,8 +390,15 @@ export const authService = {
       authService.logEvent("ℹ️ [Auth] Backend logout failed, clearing client session.");
     } finally {
       // Clear client-side session
-      localStorage.removeItem(AUTH_CONFIG.session.tokenExpiryStorageKey);
-      localStorage.removeItem(AUTH_CONFIG.session.userStorageKey);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.removeItem(AUTH_CONFIG.session.tokenExpiryStorageKey);
+          localStorage.removeItem(AUTH_CONFIG.session.accessTokenStorageKey);
+        } catch (e) {
+          /* ignore */
+        }
+        localStorage.removeItem(AUTH_CONFIG.session.userStorageKey);
+      }
       authService.setSessionToken(null);
       authService.logEvent("ℹ️ [Auth] Session cleared.");
     }
@@ -361,8 +432,19 @@ export const authService = {
   /**
    * Set or clear the in-memory access token
    */
-  setSessionToken: (token: string | null): void => {
+    setSessionToken: (token: string | null): void => {
     currentAccessToken = token;
+    if (typeof window === "undefined") return;
+    try {
+      if (token) {
+        localStorage.setItem(AUTH_CONFIG.session.accessTokenStorageKey, token);
+      } else {
+        localStorage.removeItem(AUTH_CONFIG.session.accessTokenStorageKey);
+        localStorage.removeItem(AUTH_CONFIG.session.tokenExpiryStorageKey);
+      }
+    } catch (e) {
+      /* ignore */
+    }
   },
 
   /**

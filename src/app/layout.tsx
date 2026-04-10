@@ -4,6 +4,7 @@ import "./globals.css";
 import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { AuthProvider } from "@/features/auth";
+import { ToastProvider } from "@/components/ui/Toast";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -42,7 +43,9 @@ export default function RootLayout({
       )}
     >
       <body className="min-h-full flex flex-col font-ibm bg-[#050505] text-slate-200">
-        <AuthProvider>{children}</AuthProvider>
+        <ToastProvider>
+          <AuthProvider>{children}</AuthProvider>
+        </ToastProvider>
       </body>
     </html>
   );
