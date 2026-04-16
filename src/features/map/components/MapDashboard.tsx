@@ -2,33 +2,47 @@
 
 import React, { useState } from 'react';
 import { MapLibre } from './MapLibre';
-// 🚀 อย่าลืมเช็ค path ตรงนี้ให้ตรงกับโฟลเดอร์ของเฮียนะครับ
-import { HazardType, TimeRange } from '../config/map.config'; 
-
+import { HazardType, TimeRange, MapMode } from '../types';
+  
 export const MapDashboard = () => {
-  // 1. สร้าง State สำหรับเก็บค่าที่ User กำลังเลือกอยู่
-  const [activeHazard, setActiveHazard] = useState<HazardType>('fire');
+  const [activeHazard, setActiveHazard] = useState<HazardType>('viirs');
   const [timeRange, setTimeRange] = useState<TimeRange>(7);
+  const [mapMode, setMapMode] = useState<MapMode>('wms');
 
   return (
     <div className="p-4 h-screen flex flex-col bg-gray-50">
       
-      {/* Header เดิมของเฮีย */}
       <div className="mb-4 flex-shrink-0">
         <h1 className="text-2xl font-bold text-gray-800">ระบบแผนที่ภูมิศาสตร์ (GIS)</h1>
         <p className="text-gray-500">แสดงผลข้อมูลพิกัดและภัยพิบัติด้วย MapLibre GL</p>
       </div>
       
-      {/* กล่องใส่แผนที่ ให้มันขยายเต็มพื้นที่ที่เหลือ (flex-1) */}
       <div className="flex-1 w-full relative rounded-xl overflow-hidden shadow-sm border border-gray-200 bg-white">
         
-        {/* 🎛️ แผงควบคุม (Control Panel) ลอยอยู่บนแผนที่ (z-10) */}
+        {/* 🔘 ปุ่มเลือกโหมดแผนที่ (WMS / TMS / VECTOR) */}
+        <div className="absolute top-4 right-4 z-10 flex gap-2 bg-white/95 p-2 rounded-xl shadow-md border border-gray-200">
+          {(['wms', 'tms', 'vector'] as MapMode[]).map((mode) => (
+            <button
+              key={mode}
+              onClick={() => setMapMode(mode)}
+              className={`px-4 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                mapMode === mode 
+                  ? 'bg-indigo-600 text-white shadow-md' 
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {mode.toUpperCase()}
+            </button>
+          ))}
+        </div>
+
+        {/* 📦 แผงควบคุมภัยพิบัติ */}
         <div className="absolute top-4 left-4 z-10 flex flex-col gap-3 p-4 bg-white/95 backdrop-blur-sm border border-gray-200 rounded-xl shadow-lg">
           <h3 className="text-gray-800 text-sm font-bold">แผงควบคุมภัยพิบัติ</h3>
           
           {/* ปุ่มเลือกประเภทภัย */}
           <div className="flex gap-2">
-            {(['fire', 'flood', 'drought'] as HazardType[]).map((type) => (
+            {(['viirs', 'flood', 'drought'] as HazardType[]).map((type) => (
               <button 
                 key={type}
                 onClick={() => setActiveHazard(type)}
@@ -38,7 +52,7 @@ export const MapDashboard = () => {
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                {type === 'fire' ? '🔥 ไฟป่า' : type === 'flood' ? '🌊 น้ำท่วม' : '☀️ ภัยแล้ง'}
+                {type === 'viirs' ? '🔥 ไฟป่า' : type === 'flood' ? '🌊 น้ำท่วม' : '☀️ ภัยแล้ง'}
               </button>
             ))}
           </div>
@@ -65,6 +79,7 @@ export const MapDashboard = () => {
         <MapLibre 
           activeHazard={activeHazard} 
           timeRange={timeRange} 
+          mapMode={mapMode}
         />
         
       </div>

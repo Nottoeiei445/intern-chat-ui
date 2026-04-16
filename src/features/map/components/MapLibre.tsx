@@ -6,18 +6,18 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { Button } from '@/components/ui/button'; 
 import { LocateFixed } from 'lucide-react';
 import { useHazardLayer } from '../hooks/useHazardLayer';
-import { HazardType, TimeRange } from '../config/map.config';
+import { HazardType, TimeRange, MapMode } from '../types';
 
 interface MapLibreProps {
   activeHazard: HazardType;
   timeRange: TimeRange;
+  mapMode: MapMode;
 }
 
-export const MapLibre = ({ activeHazard, timeRange }: MapLibreProps) => {
+export const MapLibre = ({ activeHazard, timeRange, mapMode }: MapLibreProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<maplibregl.Map | null>(null);
 
-  // ฟังก์ชันหาพิกัด (จะทำงาน "เฉพาะตอนกดปุ่ม" เท่านั้น)
   const handleLocateMe = () => {
     if ("geolocation" in navigator && map) {
       navigator.geolocation.getCurrentPosition((position) => {
@@ -48,11 +48,9 @@ export const MapLibre = ({ activeHazard, timeRange }: MapLibreProps) => {
     const mapInstance = new maplibregl.Map({
       container: mapContainer.current, 
       style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
-      center: [100.5200, 13.7500], // 📍 แผนที่จะนิ่งอยู่ที่นี่เสมอตอนโหลดหน้าเว็บ
+      center: [100.5200, 13.7500],
       zoom: 6,
     });
-
-    // ❌ ผมลบ navigator.geolocation ออกจากตรงนี้แล้ว เพื่อไม่ให้มันเด้งไปเองตอนโหลด
 
     setMap(mapInstance);
 
@@ -62,12 +60,10 @@ export const MapLibre = ({ activeHazard, timeRange }: MapLibreProps) => {
   }, []);
 
   // เสียบปลั๊กเรียกชั้นข้อมูล GISTDA
-  useHazardLayer(map, activeHazard, timeRange);
+  useHazardLayer(map, activeHazard, timeRange, mapMode);
 
   return (
     <div className="relative w-full h-full min-h-[600px] rounded-lg overflow-hidden">
-      
-      {/* ปุ่มหาตำแหน่ง - จะทำงานต่อเมื่อเฮียเป็นคนกดเท่านั้น */}
       <div className="absolute bottom-6 right-6 z-10">
         <Button 
           variant="secondary"

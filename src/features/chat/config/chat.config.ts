@@ -1,7 +1,36 @@
-// ดึง Base URL มาจากไฟล์ .env
-const BASE_URL = process.env.NEXT_PUBLIC_CHAT_API_BASE_URL || '/api/chat';
 
 export const CHAT_CONFIG = {
-  HISTORY: `${BASE_URL}/history`,
-  APPEND: `${BASE_URL}/append`,
+  // API Configuration
+  api: {
+    baseURL: process.env.NEXT_PUBLIC_CHAT_API_BASE_URL || process.env.NEXT_PUBLIC_AUTH_API_URL || "http://localhost:3000",
+    //ถ้า Backend เพื่อนเช็ค User ผ่าน Cookie/Session ต้องเปิด true ไว้
+    withCredentials: true, 
+    
+    headers: {
+      "Content-Type": "application/json",
+      "ngrok-skip-browser-warning": "true", // 🚀 ทะลวง Ngrok จบในที่เดียว
+    },
+  },
+
+  endpoints: {
+    chat: "/chat/",
+    conversation: "/chat/history",
+    history: "/chat/histories",
+  },
+
+  // Chat Validation & Settings
+  settings: {
+    maxMessageLength: 2000,
+    defaultTitleLength: 30, // ตัดชื่อแชทแค่ 30 ตัวอักษร
+    ephemeralModeDefault: false,
+  },
+
+  // Feature Flags
+  features: {
+    enableChatLogging: true,     // เปิด Log ดูการยิง API แชท
+    enableAutoScroll: true,      // เลื่อนหน้าจอลงอัตโนมัติเวลาแชทมา
+    enableStreaming: false,      // เผื่ออนาคตเพื่อนทำระบบข้อความไหลๆ
+  },
 };
+
+export type ChatConfig = typeof CHAT_CONFIG;

@@ -9,4 +9,5 @@ export interface ChatThread {
   title: string;
   messages: Message[];
   createdAt: number;
+  updatedAt: number;
 }
