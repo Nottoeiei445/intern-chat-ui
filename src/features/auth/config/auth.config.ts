@@ -6,7 +6,7 @@
 export const AUTH_CONFIG = {
   // API Configuration
   api: {
-    baseURL: "https://ada-anthropopathic-ai.ngrok-free.dev",
+    baseURL: process.env.NEXT_PUBLIC_AUTH_API_URL || "http://localhost:3000",
     withCredentials: true,
     headers: {
       "Content-Type": "application/json",

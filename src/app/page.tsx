@@ -23,6 +23,7 @@ export default function GISChatPro() {
 
   return (
     <div className="flex h-screen bg-[#050505] text-slate-200 overflow-hidden font-ibm">
+
       <Sidebar 
         isOpen={isSidebarOpen} 
         onToggle={toggleSidebar}
