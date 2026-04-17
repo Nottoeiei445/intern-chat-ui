@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useRe
 import { UserProfile, LoginCredentials, RegisterCredentials } from "../types";
 import { authService } from "../services/auth.service";
 import { AUTH_CONFIG } from "../config/auth.config";
+import { storage } from "../../../lib/storage"; // 🚀 นำเข้าเครื่องมือจัดการ Storage ของเรา!
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -28,12 +29,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState<string | null>(null);
   const [timeUntilExpiry, setTimeUntilExpiry] = useState<number>(0);
 
-  // ใช้ Ref เก็บ Interval เพื่อให้สั่งล้าง (Cleanup) ได้จากทุกที่
   const refreshCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const proactiveRefreshTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // 🧹 ฟังก์ชันสำหรับ "ล้างไพ่" ทุกอย่าง (Internal Helper)
-  // ช่วยทั้งเรื่อง Security (ไม่เหลือข้อมูลค้าง) และ Performance (ล้างแรม)
+  // 🧹 ฟังก์ชันสำหรับ "ล้างไพ่" ทุกอย่าง
   const clearAuthState = useCallback(() => {
     // 1. ล้าง State ใน Memory
     setUser(null);
@@ -41,7 +40,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setError(null);
     setTimeUntilExpiry(0);
 
-    // 2. ล้างตัวดักจับ (Intervals/Timeouts) เพื่อป้องกัน Memory Leak
+    // 2. ล้างตัวดักจับ (Intervals/Timeouts)
     if (refreshCheckIntervalRef.current) {
       clearInterval(refreshCheckIntervalRef.current);
       refreshCheckIntervalRef.current = null;
@@ -51,12 +50,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       proactiveRefreshTimeoutRef.current = null;
     }
 
-    // 3. ล้างขยะใน Storage
-    if (typeof window !== "undefined") {
-      localStorage.removeItem(AUTH_CONFIG.session.accessTokenStorageKey);
-      localStorage.removeItem(AUTH_CONFIG.session.tokenExpiryStorageKey);
-      localStorage.removeItem(AUTH_CONFIG.session.userStorageKey);
-    }
+    // 3. ล้างขยะใน Storage (🚀 เปลี่ยนมาใช้ storage ส่วนกลาง)
+    storage.removeCookie(AUTH_CONFIG.session.accessTokenStorageKey);
+    storage.removeCookie(AUTH_CONFIG.session.tokenExpiryStorageKey);
+    storage.removeLocal(AUTH_CONFIG.session.userStorageKey);
     
     authService.logEvent("🧹 Cleaned up all auth states and intervals.");
   }, []);
@@ -68,15 +65,17 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const initializeSession = async () => {
       try {
         if (AUTH_CONFIG.features.enableSessionPersistence && typeof window !== "undefined") {
-          const storedToken = localStorage.getItem(AUTH_CONFIG.session.accessTokenStorageKey);
-          const storedExpires = localStorage.getItem(AUTH_CONFIG.session.tokenExpiryStorageKey);
+          // 🚀 ดึง Token และวันหมดอายุจาก Cookie แทน LocalStorage
+          const storedToken = storage.getCookie(AUTH_CONFIG.session.accessTokenStorageKey);
+          const storedExpires = storage.getCookie(AUTH_CONFIG.session.tokenExpiryStorageKey);
           const expiresAt = storedExpires ? parseInt(storedExpires, 10) : null;
 
           if (storedToken && expiresAt && Date.now() < expiresAt) {
             authService.setSessionToken(storedToken);
             setAccessToken(storedToken);
 
-            const storedUser = localStorage.getItem(AUTH_CONFIG.session.userStorageKey);
+            // 🚀 ข้อมูล User ดึงจาก LocalStorage ตามเดิม
+            const storedUser = storage.getLocal(AUTH_CONFIG.session.userStorageKey);
             if (storedUser) {
               try {
                 setUser(JSON.parse(storedUser));
@@ -95,7 +94,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           setUser(response.data.user ?? null);
         }
       } catch (err) {
-        // 🧹 ถ้า Initialize พลาด ให้ล้างขยะที่อาจค้างอยู่ทันที
         clearAuthState();
       } finally {
         setIsInitialized(true);
@@ -104,12 +102,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     initializeSession();
     
-    // Cleanup เมื่อ Component ถูกทำลาย (Unmount)
-    return () => clearAuthState();
+    // ⚠️ ถอด `return () => clearAuthState();` ออก!
+    // เพราะเวลาหน้านี้รีเฟรช มันจะเผลอล้าง Token เฮียทิ้งหมดเลย ปล่อยว่างไว้แบบนี้ปลอดภัยกว่า
   }, [clearAuthState]);
 
   // ==========================================
-  // 2. Token Expiration Checker (Performance Point)
+  // 2. Token Expiration Checker
   // ==========================================
   useEffect(() => {
     if (!AUTH_CONFIG.features.enableProactiveRefresh || !accessToken) return;
@@ -126,7 +124,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         } catch (err) {
           authService.logEvent("Proactive refresh failed.");
-          // ถ้า Refresh ไม่ผ่าน (Token อาจจะตายสนิท) ให้สั่ง Logout ล้างเครื่องเลย
           logout(); 
         }
       }
@@ -137,13 +134,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       AUTH_CONFIG.session.tokenCheckIntervalMs
     );
 
-    // 🧹 ต้องมีตัว Return เพื่อล้าง Interval เก่าทิ้งทุกครั้งที่ Token เปลี่ยน
     return () => {
       if (refreshCheckIntervalRef.current) {
         clearInterval(refreshCheckIntervalRef.current);
       }
     };
-  }, [accessToken]);
+  }, [accessToken]); // ปล่อย logout ออกจาก dependency เพื่อลดการ re-render ซ้ำซ้อน
 
   // ==========================================
   // 3. Login & 4. Register
@@ -185,15 +181,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   // ==========================================
-  // 5. Logout Function (Security & Cleanup Master)
+  // 5. Logout Function
   // ==========================================
   const logout = async () => {
     try {
       await authService.logout();
     } finally {
-      // 🧹 สั่งล้างทุกอย่างในเครื่องก่อนดีด User ออกไปหน้า Login
       clearAuthState();
-
       if (typeof window !== "undefined") {
         if (window.location.pathname !== AUTH_CONFIG.redirect.afterLogoutUrl) {
           window.location.href = AUTH_CONFIG.redirect.afterLogoutUrl;
