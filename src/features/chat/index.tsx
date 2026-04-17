@@ -63,7 +63,7 @@ export const ChatFeature = () => {
 
   const handleSendMessage = (val: string) => {
     // ถ้ายังไม่ล็อกอิน ให้ใช้ ephemeral mode (ไม่เก็บประวัติ)
-    const options = (!user && !activeChatId) ? { ephemeral: true } : undefined;
+    const options = !user ? { ephemeral: true } : undefined;
     sendMessage(val, selectedModel, options);
   };
 
