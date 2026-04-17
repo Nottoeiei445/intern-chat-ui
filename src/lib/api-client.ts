@@ -1,5 +1,6 @@
 // src/lib/api-client.ts
 import { ENV } from './env';
+import { storage } from './storage';
 
 export interface ApiError extends Error {
   status?: number;
@@ -14,37 +15,36 @@ const DEFAULT_HEADERS: Record<string, string> = {
 };
 
 const getToken = (): string | null => {
-  if (typeof window === 'undefined') return null;
-  return localStorage.getItem('access_token');
+  return storage.getCookie('access_token'); 
 };
 
-function buildUrl(path: string, params?: Record<string, any>) { // ถ้า path ที่ส่งมาเป็น URL เต็มๆ อยู่แล้ว (เช่น http://example.com/api) ให้ใช้เลย ไม่ต้องต่อกับ BASE_URL
+function buildUrl(path: string, params?: Record<string, any>) { // ถ้า path ที่ส่งมาเป็น URL เต็มๆ อยู่แล้ว ให้ใช้เลย ไม่ต้องต่อกับ BASE_URL
   if (/^https?:\/\//i.test(path)) return path;
 
   const base = BASE_URL.replace(/\/+$/, ''); // ลบ / ท้ายออกให้หมดก่อนต่อกับ path
-  const cleanPath = path.startsWith('/') ? path : `/${path}`; // ถ้า path ไม่มี / ข้างหน้า ให้เติมให้ (เพื่อความแน่นอนในการต่อ URL)
+  const cleanPath = path.startsWith('/') ? path : `/${path}`; // ถ้า path ไม่มี / ข้างหน้า ให้เติมให้
   const url = new URL(`${base}${cleanPath}`); // สร้าง URL จาก base และ path ที่ทำความสะอาดแล้ว
 
   if (params) {
     Object.entries(params).forEach(([k, v]) => {
-      if (v !== undefined && v !== null) url.searchParams.set(k, String(v)); // ถ้า value เป็น undefined หรือ null ให้ข้ามการเพิ่ม query parameter ตัวนั้น (ไม่ต้องใส่ค่าเปล่าๆ ไปให้เซิร์ฟเวอร์)
+      if (v !== undefined && v !== null) url.searchParams.set(k, String(v)); // ถ้า value เป็น undefined หรือ null ให้ข้าม
     });
   }
-  return url.toString(); // คืนค่า URL ที่สร้างเสร็จแล้วเป็นสตริง (พร้อมกับ query parameters ถ้ามี)
+  return url.toString(); 
 }
 
 /**
  * ตัวจัดการ Request หลัก (แบบเดิมที่แกะ JSON ให้เลย)
  */
-async function request<T>( // method, path, และ options สำหรับการส่ง request
+async function request<T>(
   method: string, 
   path: string, 
   options?: { params?: Record<string, any>; body?: any; headers?: Record<string, string> }
 ): Promise<T> {
-  const res = await requestRaw(method, path, options); // ใช้ requestRaw เพื่อส่ง request และรับ Response กลับมาแบบดิบๆ (ยังไม่แกะ JSON)
+  const res = await requestRaw(method, path, options); 
   
   // Handle empty responses (204 No Content)
-  const parsed = res.status === 204 ? null : await res.json().catch(() => null); // ถ้า Response ไม่มีเนื้อหา (เช่น 204) ให้ตั้ง parsed เป็น null แทนการพยายามแปลงเป็น JSON ซึ่งจะทำให้เกิด error ได้
+  const parsed = res.status === 204 ? null : await res.json().catch(() => null); 
 
   if (!res.ok) {
     console.error("--- DEBUG API ERROR ---");
@@ -58,7 +58,7 @@ async function request<T>( // method, path, และ options สำหรับ
     throw err;
   }
 
-  return parsed as T; // คืนค่า parsed JSON ที่ถูกแปลงเป็น type T ตามที่กำหนดใน generic ของฟังก์ชันนี้ (ถ้าไม่มีเนื้อหาเลยจะเป็น null ซึ่งก็ยังถือว่าเป็น T ได้อยู่ดี)
+  return parsed as T; 
 }
 
 /**
@@ -93,7 +93,7 @@ async function requestRaw(
   return fetch(url, init);
 }
 
-export const apiClient = { // ฟังก์ชันสำหรับส่ง Request แบบต่างๆ ที่ใช้ request เป็นพื้นฐานในการทำงาน
+export const apiClient = {
   get: <T>(path: string, params?: Record<string, any>) => 
     request<T>('GET', path, { params }),
   
