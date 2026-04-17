@@ -110,14 +110,14 @@ export const Sidebar = ({
           <MessageSquarePlus size={20} className="shrink-0" />
           {isOpen && (
             <span className="font-ibm text-sm whitespace-nowrap animate-in fade-in duration-500">
-              แชทใหม่
+              New Chat
             </span>
           )}
         </button>
       </div>
 
       <div className={`flex-1 overflow-y-auto px-3 space-y-1 transition-opacity duration-200 ${isOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
-        <p className="px-4 py-2 text-xs font-bold text-slate-500 font-ibm uppercase tracking-wider">แชทล่าสุด</p>
+        <p className="px-4 py-2 text-xs font-bold text-slate-500 font-ibm uppercase tracking-wider">Last Chat</p>
         
         {chats.map((chat) => (
           <div 
@@ -179,7 +179,7 @@ export const Sidebar = ({
       <div className="p-3 border-t border-white/5 shrink-0">
         <div className={`flex items-center gap-3 p-3 rounded-full hover:bg-white/5 text-slate-400 cursor-pointer ${!isOpen && "justify-center"}`}>
           <Settings size={18} />
-          {isOpen && <span className="font-ibm text-sm">การตั้งค่า</span>}
+          {isOpen && <span className="font-ibm text-sm">Settings</span>}
         </div>
       </div>
     </aside>

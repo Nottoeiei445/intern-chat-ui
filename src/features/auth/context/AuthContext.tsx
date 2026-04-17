@@ -102,8 +102,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     initializeSession();
     
-    // ⚠️ ถอด `return () => clearAuthState();` ออก!
-    // เพราะเวลาหน้านี้รีเฟรช มันจะเผลอล้าง Token เฮียทิ้งหมดเลย ปล่อยว่างไว้แบบนี้ปลอดภัยกว่า
   }, [clearAuthState]);
 
   // ==========================================
