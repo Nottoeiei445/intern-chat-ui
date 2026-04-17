@@ -1,0 +1,74 @@
+# ลอจิกที่ซับซ้อน — Knowledge Notes
+
+ส่วนนี้รวบรวมลอจิกที่ยากหรือมีข้อพิพาทในโปรเจค และเป็นเทมเพลตให้ทีมบันทึกวิธีการที่เราใช้แก้ไขปัญหา (เหตุผล, ทางเลือกที่ลอง, ข้อดีข้อเสีย, การทดสอบ และลิงก์ไปยังโค้ด/PR)
+
+## วิธีใช้
+- เมื่อเจอปัญหาลอจิกที่ซับซ้อน ให้เพิ่มหัวข้อใหม่ใต้รายการด้านล่างโดยใช้ **Template บันทึก** (ด้านล่าง) เป็นแนวทาง
+- ใส่ลิงก์ไฟล์/PR/เทสที่เกี่ยวข้องและขั้นตอนการ reproduce ให้ชัดเจน
+
+## รายการลอจิกที่ควรบันทึก
+
+1. Authentication / Token management
+   - ไฟล์ที่เกี่ยวข้อง: src/features/auth/config/auth.config.ts, src/features/auth/context/AuthContext.tsx, src/features/auth/services/auth.service.ts, src/features/auth/TOKEN_MANAGEMENT.md
+   - ทำไมยาก: ขอบเขต SSR/CSR, การรีเฟรช token พร้อมกัน (concurrent refresh), การเก็บ token อย่างปลอดภัยบน client
+   - ควรบันทึก: ปัญหา, โฟลวการรีเฟรช, interceptor ที่ใช้, edge cases, ตัวอย่าง request/response, tests และ PR
+
+2. Real-time Chat / Streamed model responses
+   - ไฟล์ที่เกี่ยวข้อง: src/features/chat/services/ollama.ts, src/features/chat/services/chat.service.ts, src/features/chat/hooks/useChat.ts, src/features/chat/components/MessageList.tsx
+   - ทำไมยาก: การ stream ข้อความแบบเป็นชิ้น, การรวม partial chunk เป็นข้อความสมบูรณ์, ordering, deduplication, reconnection/backpressure
+   - ควรบันทึก: โปรโตคอล (HTTP stream vs WS), parser logic, reconnection/backoff policy, optimistic UI flow, test cases เพื่อจำลอง partial/failed streams
+
+3. Message ordering, deduplication, idempotency
+   - ทำไมยาก: ข้อความซ้ำจาก retries, race condition ระหว่าง stream และ acknowledgement จาก server
+   - ควรบันทึก: นโยบาย idempotency (unique id scheme), merge rules,ตัวอย่าง input/output ก่อนและหลังแก้
+
+4. Virtualized Message List & Scroll management
+   - ไฟล์ที่เกี่ยวข้อง: src/features/chat/components/MessageList.tsx
+   - ทำไมยาก: รักษาตำแหน่ง scroll เมื่อมีข้อความเข้า/โหลดข้อความเก่า, ปัญหา reflow/height measurement
+   - ควรบันทึก: เงื่อนไข auto-scroll, heuristics ที่ใช้, repro steps และ performance trade-offs
+
+5. Map integration & Hazard layer updates
+   - ไฟล์ที่เกี่ยวข้อง: src/features/map/components/MapLibre.tsx, src/features/map/hooks/useHazardLayer.ts
+   - ทำไมยาก: การอัพเดต GeoJSON แบบไดนามิก, ordering ของ layer, performance เมื่อมีฟีเจอร์จำนวนมาก
+   - ควรบันทึก: โครงสร้างข้อมูล (GeoJSON schema), transform/normalize ที่ทำก่อนส่งให้ map, debouncing/throttling, profiling note
+
+6. External model/service integration (Ollama)
+   - ไฟล์ที่เกี่ยวข้อง: src/features/chat/services/ollama.ts
+   - ทำไมยาก: stream parsing, rate limits, timeouts, fallback strategies
+   - ควรบันทึก: รูปแบบ request/response ที่ใช้, policy การ retry, mock strategy สำหรับเทส, และตัวอย่าง prompt/schema
+
+7. API client resilience (retries, cancellation, timeouts)
+   - ไฟล์ที่เกี่ยวข้อง: lib/api-client.ts
+   - ทำไมยาก: แยก transient vs permanent errors, การยกเลิกคำร้อง (AbortController), idempotency
+   - ควรบันทึก: นโยบาย retry/backoff, classification ของ error, ตัวอย่างการใช้งานที่ปลอดภัย
+
+8. Complex hooks with side effects
+   - ทำไมยาก: dependency array ที่ทำให้ rerun โดยไม่ตั้งใจ, memory leaks, cleanup ที่ไม่ครบ
+   - ควรบันทึก: lifecycle assumptions, cleanup code, concurrency control และ unit/integration tests ที่ครอบคลุม
+
+9. Next.js SSR / client boundary issues
+   - ไฟล์ที่เกี่ยวข้อง: app/layout.tsx และ component ที่ใช้ window หรือ browser-only APIs
+   - ทำไมยาก: hydration mismatch, env vars ที่ต่างกันระหว่าง client/server
+   - ควรบันทึก: pattern ที่ใช้เพื่อทำให้ SSR-safe (dynamic import, client-only wrapper), repro steps
+
+10. Performance hotspots, data migrations, security-sensitive logic
+   - ควรบันทึก: ผล benchmark/profiling, acceptance criteria หลังปรับปรุง, migration steps เมื่อ schema เปลี่ยน, threat model และ mitigations
+
+## Template บันทึกความรู้ (ให้คัดลอกเป็นหัวข้อใหม่เมื่อเริ่มบันทึก)
+
+- ชื่อปัญหา:
+- สรุปปัญหา (1-2 ย่อหน้า):
+- ไฟล์ที่เกี่ยวข้อง / ตัวอย่างโค้ด:
+- ทำไมมันยาก (ข้อจำกัด, concurrency, ข้อสมมติ):
+- ข้อเลือกที่พิจารณา (สั้นๆ):
+- ทางเลือกที่เลือกและเหตุผล:
+- รายละเอียดการ implement (สำคัญ: โค้ดสั้นๆ, hook, service, interface ที่เปลี่ยน):
+- tests / steps to reproduce (รวม sample curl/local steps ถ้ามี):
+- metrics / observability ที่ควรตั้งค่าเพื่อติดตาม (logs, traces, counters):
+- PR / commit ที่แก้ไข:
+- TODO / follow-up (เช่น refactor, เพิ่ม test หรือ monitoring):
+- ประวัติการปรับปรุง (วันที่, ผู้แก้, สรุป):
+
+---
+
+ถ้าต้องการ ผมช่วยสแกนโค้ดแล้วสร้าง entry เริ่มต้นตาม module (เช่น `auth`, `chat`, `map`) ให้เป็น draft ได้ บอกผมว่าจะเริ่มที่ไหนครับ

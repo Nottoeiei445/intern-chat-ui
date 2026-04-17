@@ -8,7 +8,7 @@ export const CHAT_CONFIG = {
     
     headers: {
       "Content-Type": "application/json",
-      "ngrok-skip-browser-warning": "true", // 🚀 ทะลวง Ngrok จบในที่เดียว
+      "ngrok-skip-browser-warning": "true", //ทะลวง Ngrok 
     },
   },
 
@@ -16,6 +16,7 @@ export const CHAT_CONFIG = {
     chat: "/chat/",
     conversation: "/chat/history",
     history: "/chat/histories",
+    delete: "/chat/delete", 
   },
 
   // Chat Validation & Settings

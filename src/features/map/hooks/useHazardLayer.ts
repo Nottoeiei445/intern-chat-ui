@@ -1,7 +1,9 @@
-﻿// useHazardLayer.ts
+// src/features/map/hooks/useHazardLayer.ts
+"use client"
+
 import { useEffect } from 'react';
 import maplibregl from 'maplibre-gl';
-import { HAZARD_URLS, HAZARD_TMS_URLS, HAZARD_VECTOR_URLS } from '../config/map.config'; // อย่าลืม Import VECTOR เข้ามาด้วย
+import { mapService } from '../services/map.service';
 import { HazardType, TimeRange, MapMode } from '../types';
 
 export const useHazardLayer = (
@@ -13,71 +15,88 @@ export const useHazardLayer = (
   useEffect(() => {
     if (!map) return;
 
-    const layerId = `hazard-layer`; // เปลี่ยนชื่อให้เป็นกลางๆ ไม่ระบุว่า raster แล้ว
+    const layerId = `hazard-layer`;
     const sourceId = `hazard-source`;
 
     const updateLayer = () => {
-      // 1. ดึง URL ของ Tiles ตามโหมด
-      const tilesUrl = mapMode === 'tms'
-        ? HAZARD_TMS_URLS[type][days]
-        : mapMode === 'vector'
-        ? HAZARD_VECTOR_URLS[type][days]
-        : HAZARD_URLS[type][days];
+      // 🚀 Get URLs via Service
+      const tilesUrl = mapService.getTileUrls(mapMode, type, days);
+      if (tilesUrl.length === 0) {
+        console.warn(`[MAP_LOG] No URLs found for ${type} in ${mapMode} mode.`);
+        return;
+      }
 
-      if (!tilesUrl || tilesUrl.length === 0) return;
-
-      // 2. 🧹 ล้างของเก่าทิ้งก่อน
+      // Cleanup existing resources
       if (map.getLayer(layerId)) map.removeLayer(layerId);
       if (map.getSource(sourceId)) map.removeSource(sourceId);
 
-      // 3. เพิ่ม Source
-      map.addSource(sourceId, {
-        type: mapMode === 'vector' ? 'vector' : 'raster', // ถ้าเป็นโหมด vector ต้องเปลี่ยน type
-        tiles: tilesUrl,
-        tileSize: mapMode === 'vector' ? 512 : 256
-      });
-
-      // 4. วาดเลเยอร์
+      // 1. Setup Source
       if (mapMode === 'vector') {
-        // 🔥 โหมด Vector: ต้องระบายสีเอง
-        map.addLayer({
-          id: layerId,
-          type: 'fill', // สมมติว่าน้ำท่วม/ไฟป่า เป็นรูปพื้นที่ (Polygon)
-          source: sourceId,
-          'source-layer': 'default', // ⚠️ สำคัญมาก! GISTDA อาจจะใช้ชื่ออื่น ถ้าแผนที่ไม่ขึ้นต้องมาเปลี่ยนตรงนี้ (เช่น 'viirs', 'flood')
-          paint: {
-            'fill-color': type === 'viirs' ? '#ef4444' : type === 'flood' ? '#3b82f6' : '#f59e0b',
-            'fill-opacity': 0.6,
-            'fill-outline-color': '#ffffff' // ตัดขอบให้สวยๆ
-          }
+        const isTileJSON = !tilesUrl[0].includes('{z}');
+        map.addSource(sourceId, {
+          type: 'vector',
+          ...(isTileJSON ? { url: tilesUrl[0] } : { tiles: tilesUrl })
+          // Note: tileSize 512 is removed for vector to avoid TS errors
         });
       } else {
-        // 🖼️ โหมด Raster (WMS/TMS)
+        map.addSource(sourceId, {
+          type: 'raster',
+          tiles: tilesUrl,
+          tileSize: 256
+        });
+      }
+
+      // 2. Setup Layer based on Mode
+      if (mapMode === 'vector') {
+        const sourceLayer = mapService.getSourceLayer(type, days);
+        const color = mapService.getLayerStyle(type);
+
+        // Standardizing VIIRS as points (circle) and others as areas (fill)
+        if (type === 'viirs') {
+          map.addLayer({
+            id: layerId,
+            type: 'circle',
+            source: sourceId,
+            'source-layer': sourceLayer,
+            paint: {
+              'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 2, 10, 8],
+              'circle-color': color,
+              'circle-stroke-width': 1,
+              'circle-stroke-color': '#ffffff'
+            }
+          });
+        } else {
+          map.addLayer({
+            id: layerId,
+            type: 'fill',
+            source: sourceId,
+            'source-layer': sourceLayer,
+            paint: {
+              'fill-color': color,
+              'fill-opacity': 0.6,
+              'fill-outline-color': '#ffffff'
+            }
+          });
+        }
+      } else {
+        // Raster Layer (WMS/TMS)
         map.addLayer({
           id: layerId,
           type: 'raster',
           source: sourceId,
-          paint: {
-            'raster-opacity': 0.6,
-            'raster-fade-duration': 300
-          }
+          paint: { 'raster-opacity': 0.6 }
         });
       }
 
-      console.log(`✅ Loaded ${mapMode.toUpperCase()}: ${type} (${days} days)`);
+      console.log(`✅ [SUCCESS] Map Layer Updated: ${type.toUpperCase()} | Mode: ${mapMode.toUpperCase()}`);
     };
 
-    if (map.isStyleLoaded()) {
-      updateLayer();
-    } else {
-      map.once('load', updateLayer);
-    }
+    if (map.isStyleLoaded()) updateLayer();
+    else map.once('load', updateLayer);
 
     return () => {
-      if (map) {
-        if (map.getLayer(layerId)) map.removeLayer(layerId);
-        if (map.getSource(sourceId)) map.removeSource(sourceId);
-      }
+      if (map.getLayer(layerId)) map.removeLayer(layerId);
+      if (map.getSource(sourceId)) map.removeSource(sourceId);
     };
   }, [map, type, days, mapMode]);
 };

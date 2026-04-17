@@ -1,6 +1,8 @@
 ﻿import { HazardType, TimeRange } from '../types';
+import { ENV } from '@/lib/env';
 
-const API_KEY = process.env.NEXT_PUBLIC_COMPANY_API_KEY;
+const API_KEY = ENV.COMPANY_API_KEY;
+const vectorAPI = ENV.MAP_API_KEY;
 
 const getTmsUrl = (baseUrl: string, layerId: string) => {
   return `${baseUrl}/{z}/{x}/{y}?api_key=${API_KEY}`;
@@ -11,8 +13,9 @@ const getWmsUrl = (baseUrl: string, layerId: string) => {
 };
 
 const getVectorUrl = (baseUrl: string) => {
-  return `${baseUrl}/{z}/{x}/{y}?api_key=${API_KEY}`;
-}
+  return `${baseUrl}?api_key=${vectorAPI}`;
+};
+
 
 export const HAZARD_TMS_URLS: Record<HazardType, Record<TimeRange, string[]>> = {
   viirs: {
@@ -61,6 +64,7 @@ export const HAZARD_VECTOR_URLS: Record<HazardType, Record<TimeRange, string[]>>
     1: [getVectorUrl('https://api-gateway.gistda.or.th/api/2.0/resources/maps/viirs/1day/tiles')],
     3: [getVectorUrl('https://api-gateway.gistda.or.th/api/2.0/resources/maps/viirs/3days/tiles')],
     7: [getVectorUrl('https://api-gateway.gistda.or.th/api/2.0/resources/maps/viirs/7days/tiles')],
+    // ตัวนี้คือ Vallaris TileJSON ที่ต้องเอาไปให้ Map Library อ่านต่อ
     30: [getVectorUrl('https://vallaris.dragonfly.gistda.or.th/core/api/tiles/1.0-beta/tiles/69d4508818ed1b4c3857abe0')],
   },
   flood: {
