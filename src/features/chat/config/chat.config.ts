@@ -3,7 +3,6 @@ export const CHAT_CONFIG = {
   // API Configuration
   api: {
     baseURL: process.env.NEXT_PUBLIC_CHAT_API_BASE_URL || process.env.NEXT_PUBLIC_AUTH_API_URL || "http://localhost:3000",
-    //ถ้า Backend เพื่อนเช็ค User ผ่าน Cookie/Session ต้องเปิด true ไว้
     withCredentials: true, 
     
     headers: {

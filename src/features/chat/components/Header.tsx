@@ -53,6 +53,12 @@ export const Header = ({ selectedModel, onModelChange, isSidebarOpen, onToggle }
             <option value="llama3" className="bg-[#111] text-white">
               Llama 3 (8B)
             </option>
+            <option value="gemma4" className="bg-[#111] text-white">
+              gemma4 (8B)
+            </option>
+            <option value="qwen3-vl" className="bg-[#111] text-white">
+              Qwen 3 VL (8B)
+            </option>
           </select>
         </div>
       </div>

@@ -9,14 +9,16 @@ export const chatService = {
   },
 
   // 2. ดึงรายละเอียดข้อความในแชทนั้นๆ
-  getConversationDetail: (conversationId: string) => {
-    return apiClient.get<any>(`${CHAT_CONFIG.endpoints.conversation}/${conversationId}`);
+  getConversationDetail: (conversationId: string, page?: number) => {
+    // ถ้ามีการส่งเลขหน้ามา ให้เติม ?page=... ต่อท้าย URL
+    const url = page 
+      ? `${CHAT_CONFIG.endpoints.conversation}/${conversationId}?page=${page}`
+      : `${CHAT_CONFIG.endpoints.conversation}/${conversationId}`;
+      
+    return apiClient.get<any>(url);
   },
 
-  /**
-   * 3. ส่งข้อความแบบ Stream (SSE)
-   * รองรับ conversationId ที่เป็น null จาก useState ได้ ไม่ต้องกลัวแดง
-   */
+  //3. ส่งข้อความแบบ Stream (SSE)
   sendMessageStream: (payload: { message: string; userId: string; conversationId?: string | null }) => {
     return apiClient.stream(`${CHAT_CONFIG.endpoints.chat}`, payload);
   },
@@ -29,10 +31,7 @@ export const chatService = {
     });
   },
 
-  /**
-   * 🗑️ 5. ลบแชท (เวอร์ชันคลีน: ไม่ส่ง Body)
-   * เลิกส่ง userId ไปกวนหลังบ้าน เพราะหลังบ้านต้องแกะจาก Token เองถึงจะถูก
-   */
+  // 5. ลบแชท 
   deleteConversation: (id: string) => {
     return apiClient.delete<any>(`${CHAT_CONFIG.endpoints.delete}/${id}`);
   }
