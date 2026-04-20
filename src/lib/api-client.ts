@@ -8,6 +8,7 @@ export interface ApiError extends Error {
 }
 
 const BASE_URL = ENV.CHAT_API_BASE_URL || 'http://localhost:3000';
+const GUEST_SESSION_ID = typeof window !== 'undefined' ? crypto.randomUUID() : '';
 
 const DEFAULT_HEADERS: Record<string, string> = {
   'Content-Type': 'application/json',
@@ -76,7 +77,8 @@ async function requestRaw(
 
   const mergedHeaders: Record<string, string> = { 
     ...DEFAULT_HEADERS, 
-    ...headers 
+    ...headers,
+    'x-guest-id': GUEST_SESSION_ID // ส่ง Guest Session ID ไปด้วยทุกคำขอ
   };
   if (token) mergedHeaders.Authorization = `Bearer ${token}`;
 

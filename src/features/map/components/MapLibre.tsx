@@ -44,7 +44,7 @@ export const MapLibre = ({ activeHazard, timeRange, mapMode }: MapLibreProps) =>
   useEffect(() => {
     if (!mapContainer.current) return; 
 
-    // สร้างแผนที่ - จะเริ่มที่พิกัดที่ตั้งไว้เสมอ ไม่เด้งไปไหนเองแล้ว
+    // สร้างแผนที่
     const mapInstance = new maplibregl.Map({
       container: mapContainer.current, 
       style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
@@ -58,8 +58,8 @@ export const MapLibre = ({ activeHazard, timeRange, mapMode }: MapLibreProps) =>
       mapInstance.remove();
     };
   }, []);
-
-  // เสียบปลั๊กเรียกชั้นข้อมูล GISTDA
+  
+  // ใช้ custom hook เพื่อจัดการ hazard layer
   useHazardLayer(map, activeHazard, timeRange, mapMode);
 
   return (
