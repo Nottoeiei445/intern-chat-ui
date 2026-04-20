@@ -65,7 +65,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const initializeSession = async () => {
       try {
         if (AUTH_CONFIG.features.enableSessionPersistence && typeof window !== "undefined") {
-          // 🚀 ดึง Token และวันหมดอายุจาก Cookie แทน LocalStorage
+          //ดึง Token และวันหมดอายุจาก Cookie แทน LocalStorage
           const storedToken = storage.getCookie(AUTH_CONFIG.session.accessTokenStorageKey);
           const storedExpires = storage.getCookie(AUTH_CONFIG.session.tokenExpiryStorageKey);
           const expiresAt = storedExpires ? parseInt(storedExpires, 10) : null;

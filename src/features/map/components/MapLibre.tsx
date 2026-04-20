@@ -36,7 +36,7 @@ export const MapLibre = ({ activeHazard, timeRange, mapMode }: MapLibreProps) =>
           .addTo(map);
           
       }, (error) => {
-        alert("ไม่สามารถเข้าถึงตำแหน่งได้ครับ");
+        alert("Could not get your location. Please allow location access and try again.");
       });
     }
   };

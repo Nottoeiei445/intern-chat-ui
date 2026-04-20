@@ -13,13 +13,12 @@ export const MapDashboard = () => {
     <div className="p-4 h-screen flex flex-col bg-gray-50">
       
       <div className="mb-4 flex-shrink-0">
-        <h1 className="text-2xl font-bold text-gray-800">ระบบแผนที่ภูมิศาสตร์ (GIS)</h1>
-        <p className="text-gray-500">แสดงผลข้อมูลพิกัดและภัยพิบัติด้วย MapLibre GL</p>
+        <h1 className="text-2xl font-bold text-gray-800">Geographic Information System (GIS)</h1>
+        <p className="text-gray-500">Display location and hazard data with MapLibre GL</p>
       </div>
       
       <div className="flex-1 w-full relative rounded-xl overflow-hidden shadow-sm border border-gray-200 bg-white">
         
-        {/* 🔘 ปุ่มเลือกโหมดแผนที่ (WMS / TMS / VECTOR) */}
         <div className="absolute top-4 right-4 z-10 flex gap-2 bg-white/95 p-2 rounded-xl shadow-md border border-gray-200">
           {(['wms', 'tms', 'vector'] as MapMode[]).map((mode) => (
             <button
@@ -36,9 +35,8 @@ export const MapDashboard = () => {
           ))}
         </div>
 
-        {/* 📦 แผงควบคุมภัยพิบัติ */}
         <div className="absolute top-4 left-4 z-10 flex flex-col gap-3 p-4 bg-white/95 backdrop-blur-sm border border-gray-200 rounded-xl shadow-lg">
-          <h3 className="text-gray-800 text-sm font-bold">แผงควบคุมภัยพิบัติ</h3>
+          <h3 className="text-gray-800 text-sm font-bold">Hazard Controls</h3>
           
           {/* ปุ่มเลือกประเภทภัย */}
           <div className="flex gap-2">
@@ -52,12 +50,11 @@ export const MapDashboard = () => {
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                {type === 'viirs' ? '🔥 ไฟป่า' : type === 'flood' ? '🌊 น้ำท่วม' : '☀️ ภัยแล้ง'}
+                {type === 'viirs' ? '🔥 Wildfire' : type === 'flood' ? '🌊 Flood' : '☀️ Drought'}
               </button>
             ))}
           </div>
 
-          {/* ปุ่มเลือกช่วงเวลา */}
           <div className="flex gap-2 border-t border-gray-100 pt-3">
             {([1, 3, 7, 30] as TimeRange[]).map((days) => (
               <button 
@@ -69,7 +66,7 @@ export const MapDashboard = () => {
                     : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                 }`}
               >
-                {days} วัน
+                {days} {days === 1 ? 'Day' : 'Days'}
               </button>
             ))}
           </div>
