@@ -145,14 +145,33 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const login = async (credentials: LoginCredentials) => {
     setIsLoading(true);
     setError(null);
+
     try {
-      const response = await authService.login(credentials);
+      const guestIdFromCookie = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
+
+      const requestPayload = {
+        ...credentials,
+        guest_id: guestIdFromCookie || undefined // ถ้าไม่มีก็ไม่ส่ง
+      };
+
+      const response = await authService.login(requestPayload);
+
       if (response?.data) {
+        // เก็บ Token และข้อมูล User ปกติ
         setAccessToken(response.data.accessToken);
         setUser(response.data.user);
+
+        if (guestIdFromCookie) {
+          console.log("[MIGRATE] Silent migration success for:", guestIdFromCookie);
+          
+          // ล้างคุกกี้แขกทิ้ง เพราะตอนนี้เขากลายเป็น Member เต็มตัวแล้ว
+          storage.removeCookie(AUTH_CONFIG.session.guestIdStorageKey);
+        }
       }
     } catch (err: any) {
-      setError(err.message || "Login failed");
+      // ดึง Error Message จากหลังบ้านมาโชว์ (ถ้ามี)
+      const errorMessage = err.response?.data?.message || err.message || "Login failed";
+      setError(errorMessage);
       throw err;
     } finally {
       setIsLoading(false);

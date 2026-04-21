@@ -13,32 +13,41 @@ const api = axios.create({
 let currentAccessToken: string | null = null;
 
 // ==========================================
-// 🛠️ Helper ภายใน Auth (ลดโค้ดซ้ำ)
+// Helper ภายใน Auth (ลดโค้ดซ้ำ)
 // ==========================================
 const clearAuthSession = () => {
   storage.removeCookie(AUTH_CONFIG.session.tokenExpiryStorageKey);
   storage.removeCookie(AUTH_CONFIG.session.accessTokenStorageKey);
   storage.removeLocal(AUTH_CONFIG.session.userStorageKey);
+  storage.removeLocal(AUTH_CONFIG.session.guestIdStorageKey);
   currentAccessToken = null;
 };
 
-const saveAuthSession = (data: any) => {
-  if (!data) return;
-  
-  const expiresIn = data.expiresIn || AUTH_CONFIG.token.accessTokenExpiryMinutes * 60;
-  const expiresAt = Date.now() + expiresIn * 1000;
+  const saveAuthSession = (data: any) => {
+    if (!data) return;
+    
+    const defaultExpiryMinutes = data.guestId 
+      ? AUTH_CONFIG.token.guestExpiryMinutes 
+      : AUTH_CONFIG.token.accessTokenExpiryMinutes;
 
-  storage.setCookie(AUTH_CONFIG.session.tokenExpiryStorageKey, expiresAt.toString(), expiresAt);
-  
-  if (data.accessToken) {
-    storage.setCookie(AUTH_CONFIG.session.accessTokenStorageKey, data.accessToken, expiresAt);
-    currentAccessToken = data.accessToken;
-  }
-  
-  if (data.user) {
-    storage.setLocal(AUTH_CONFIG.session.userStorageKey, data.user);
-  }
-};
+    const expiresIn = data.expiresIn || defaultExpiryMinutes * 60;
+    const expiresAt = Date.now() + expiresIn * 1000;
+
+    storage.setCookie(AUTH_CONFIG.session.tokenExpiryStorageKey, expiresAt.toString(), expiresAt);
+    
+    if (data.accessToken) {
+      storage.setCookie(AUTH_CONFIG.session.accessTokenStorageKey, data.accessToken, expiresAt);
+      currentAccessToken = data.accessToken;
+    }
+    
+    if (data.guestId) {
+      storage.setCookie(AUTH_CONFIG.session.guestIdStorageKey, data.guestId, expiresAt);
+    }
+    
+    if (data.user) {
+      storage.setLocal(AUTH_CONFIG.session.userStorageKey, data.user);
+    }
+  };
 
 const getStoredTokenExpiry = (): number | null => {
   const stored = storage.getCookie(AUTH_CONFIG.session.tokenExpiryStorageKey);
@@ -147,12 +156,26 @@ const createApiError = (error: any, fallbackMessage = "An unexpected error occur
 // Auth Service Methods
 // ==========================================
 export const authService = {
+  initializeGuest: async (): Promise<any> => {
+    try {
+      const { data } = await api.post(AUTH_CONFIG.endpoints.guestMode);
+      if (data?.data) {
+        saveAuthSession(data.data);
+        authService.logEvent("✅ [Auth] Guest session initialized!");
+      }
+      return data;
+    } catch (error: any) {
+      throw createApiError(error, "Failed to initialize guest mode.");
+    }
+  },
+
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
     try {
       const { data } = await api.post(AUTH_CONFIG.endpoints.login, credentials);
       if (data?.data) {
         saveAuthSession(data.data);
-        authService.logEvent("✅ [Auth] Login successful!");
+        storage.removeCookie(AUTH_CONFIG.session.guestIdStorageKey);
+        authService.logEvent("✅ [Auth] Login successful! (Guest session cleared)");
       }
       return data;
     } catch (error: any) { throw createApiError(error, "Cannot connect to the server or CORS blocked."); }
@@ -164,7 +187,8 @@ export const authService = {
       const { data } = await api.post(AUTH_CONFIG.endpoints.register, payload);
       if (data?.data) {
         saveAuthSession(data.data);
-        authService.logEvent("✅ [Auth] Registration successful!");
+        storage.removeCookie(AUTH_CONFIG.session.guestIdStorageKey);
+        authService.logEvent("✅ [Auth] Registration successful! (Guest session cleared)");
       }
       return data;
     } catch (error: any) {

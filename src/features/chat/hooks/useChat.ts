@@ -1,9 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react"; 
 import { ChatThread, Message } from "../types";
 import { useAuth } from "../../auth/context/AuthContext";
 import { chatService } from "../services/chat.service"; 
+import { authService } from "@/features/auth/services/auth.service";
+import { AUTH_CONFIG } from "@/features/auth/config/auth.config";
+import { storage } from "@/lib/storage";
 
 export function useChat() {
   const { user } = useAuth(); 
@@ -13,30 +16,45 @@ export function useChat() {
   const [isLoading, setIsLoading] = useState(false); 
   const [ephemeralMessages, setEphemeralMessages] = useState<Message[]>([]); 
 
-  // State ใหม่สำหรับจัดการ Pagination ของแต่ละห้องแชท
   const [isFetchingHistory, setIsFetchingHistory] = useState(false);
   const [paginationConfig, setPaginationConfig] = useState<Record<string, { page: number, hasMore: boolean }>>({});
 
-  // Helper: Sort chats
-  const sortChats = (list: ChatThread[]) => { 
+  const [isSessionReady, setIsSessionReady] = useState(false);
+
+  const sortChats = useCallback((list: ChatThread[]) => { 
     return [...list].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)); 
-  };
+  }, []);
+
+  // 0. Initialize Session
+  useEffect(() => {
+    const initSession = async () => {
+      const hasToken = storage.getCookie(AUTH_CONFIG.session.accessTokenStorageKey);
+      if(!hasToken) {
+        console.log("[INIT] No access token found, attempting guest login...");
+        try {
+          await authService.initializeGuest();
+        } catch (error) {
+          console.error("Guest initialization failed:", error);
+        }
+      }
+      setIsSessionReady(true);
+    };
+    initSession();
+  }, []);
 
   // 1. Fetch All Histories
-  useEffect(() => { 
-    const fetchAllHistories = async () => { 
-      if (!user?.id) return; 
-      
-      console.group("📡 [INIT] Fetching Chat Histories"); 
+  useEffect(() => {
+    const fetchAllHistories = async () => {
+      if (!isSessionReady) return;
+
+      console.group("[INIT] Fetching Chat Histories"); 
       
       try {
-        const responseData = await chatService.getHistories(user.id); 
+        const responseData = await chatService.getHistories(); 
         const rawList = responseData.data || responseData; 
 
-        // SOFT DELETE LOGIC
         const filteredList = rawList.filter((item: any) => { 
           const isActive = item.is_active !== false && item.deleted !== true; 
-          if (!isActive) console.warn(`🚫 Ignored Soft Deleted ID: ${item.id}`); 
           return isActive; 
         });
 
@@ -50,97 +68,110 @@ export function useChat() {
 
         const sorted = sortChats(mappedChats); 
         setChats(sorted); 
-        console.table(sorted.slice(0, 5)); 
         
-        if (sorted.length > 0 && !activeChatId) { 
-          setActiveChatId(sorted[0].id); 
+        // ถ้าเป็น Guest ให้บังคับ active เป็น guestId เลย จะได้หาเจอ
+        const guestId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
+        if (!user && guestId) {
+          setActiveChatId(guestId as string);
+        } else if (sorted.length > 0) { 
+          setActiveChatId(prev => prev ? prev : sorted[0].id); 
         }
       } catch (error) {
-        console.error("❌ Failed to fetch histories:", error); 
+        console.error("Failed to fetch histories:", error); 
       } finally {
         console.groupEnd(); 
       }
     };
+    
     fetchAllHistories(); 
-  }, [user]); 
+  }, [isSessionReady, sortChats, user]);
 
-  // 2. Fetch Chat Detail (Messages) - โหลดหน้าแรก
+  // 2. Fetch Chat Detail (Messages)
   useEffect(() => {
     const fetchChatDetail = async () => { 
-      if (!activeChatId || activeChatId.startsWith('session_') || chats.length === 0) return; 
-      
-      const currentChat = chats.find(c => c.id === activeChatId); 
-      
-      // ถ้ามี messages อยู่แล้ว ให้ตรวจสอบว่ามี config ใน state หรือยัง
-      if (currentChat && currentChat.messages && currentChat.messages.length > 0) {
-        if (!paginationConfig[activeChatId]) {
-          setPaginationConfig(prev => ({ 
-            ...prev, 
-            [activeChatId]: { page: 1, hasMore: currentChat.messages.length >= 5 } 
-          }));
-        }
-        return; 
-      }
+      // ดึง Guest ID และกำหนดเงื่อนไข: ถ้าไม่มี user ให้ใช้ guestId
+      const guestId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
+      const targetId = !user && guestId ? (guestId as string) : activeChatId;
+
+      if (!targetId || targetId.startsWith('session_')) return; 
+      if (paginationConfig[targetId]) return; 
 
       setIsLoading(true); 
       try {
-        // ส่ง page 1 ไปดึงข้อมูลหน้าแรก (backend ต้องรองรับพารามิเตอร์นี้)
-        const responseData = await chatService.getConversationDetail(activeChatId, 1); 
-        const messages = responseData.data?.messages || responseData.messages || responseData.data || []; 
+        const responseData = await chatService.getConversationDetail(targetId, 1); 
+        let messages = [];
+        if (Array.isArray(responseData?.data?.messages)) messages = responseData.data.messages;
+        else if (Array.isArray(responseData?.messages)) messages = responseData.messages;
+        else if (Array.isArray(responseData?.data)) messages = responseData.data;
+        else if (Array.isArray(responseData)) messages = responseData;
         
-        setChats(prev => prev.map(chat =>  
-          chat.id === activeChatId ? { ...chat, messages: messages } : chat 
-        ));
+        setChats(prev => {
+          const chatExists = prev.some(chat => chat.id === targetId);
+          if (!chatExists && targetId === guestId) {
+            return [{
+              id: targetId,
+              title: "Guest Session",
+              messages: messages,
+              createdAt: Date.now(),
+              updatedAt: Date.now()
+            }, ...prev];
+          }
+          return prev.map(chat => chat.id === targetId ? { ...chat, messages: messages } : chat);
+        });
 
-        // บันทึก config หน้าแรกลง state (สมมติว่าถ้าได้ข้อความมา 20 แสดงว่าอาจจะมีหน้าถัดไป)
         setPaginationConfig(prev => ({
           ...prev,
-          [activeChatId]: { page: 1, hasMore: messages.length >= 5 }
+          [targetId]: { page: 1, hasMore: messages.length >= 5 }
         }));
 
       } catch (error) {
-        console.error("❌ Failed to load messages:", error);
+        console.error("Failed to load messages:", error);
       } finally {
         setIsLoading(false);
       }
     };
     fetchChatDetail(); 
-  }, [activeChatId, chats.length]); 
+  }, [activeChatId, paginationConfig, user]); 
 
-  // ฟังก์ชันใหม่: ดึงข้อมูลหน้าถัดไป (เก่าขึ้น)
+  // Fetch Next Page
   const fetchNextPage = async () => {
-    if (!activeChatId || activeChatId.startsWith('session_')) return;
+    const guestId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
+    const targetId = !user && guestId ? (guestId as string) : activeChatId;
 
-    const config = paginationConfig[activeChatId] || { page: 1, hasMore: true };
+    if (!targetId || targetId.startsWith('session_')) return;
+
+    const config = paginationConfig[targetId] || { page: 1, hasMore: true };
     if (!config.hasMore || isFetchingHistory) return;
 
     setIsFetchingHistory(true);
     const nextPage = config.page + 1;
 
     try {
-      // เรียก API โดยส่งเลขหน้าถัดไป (backend ต้องรองรับ)
-      const responseData = await chatService.getConversationDetail(activeChatId, nextPage);
-      const olderMessages = responseData.data?.messages || responseData.messages || responseData.data || [];
+      const responseData = await chatService.getConversationDetail(targetId, nextPage);
+      let olderMessages = [];
+      if (Array.isArray(responseData?.data?.messages)) olderMessages = responseData.data.messages;
+      else if (Array.isArray(responseData?.messages)) olderMessages = responseData.messages;
+      else if (Array.isArray(responseData?.data)) olderMessages = responseData.data;
+      else if (Array.isArray(responseData)) olderMessages = responseData;
 
       if (olderMessages.length === 0) {
         setPaginationConfig(prev => ({ 
           ...prev, 
-          [activeChatId]: { ...config, hasMore: false } 
+          [targetId]: { ...config, hasMore: false } 
         }));
       } else {
-        // เอาข้อความเก่าไปต่อไว้ "ด้านบน" ของ array เดิม
         setChats(prev => prev.map(chat =>
-          chat.id === activeChatId
+          chat.id === targetId
             ? { ...chat, messages: [...olderMessages, ...chat.messages] }
             : chat
         ));
         setPaginationConfig(prev => ({ 
           ...prev, 
-          [activeChatId]: { page: nextPage, hasMore: olderMessages.length >= 5 } 
+          [targetId]: { page: nextPage, hasMore: olderMessages.length >= 5 } 
         }));
       }
     } catch (error) {
-      console.error("❌ Failed to fetch older messages:", error);
+      console.error("Failed to fetch older messages:", error);
     } finally {
       setIsFetchingHistory(false);
     }
@@ -148,7 +179,7 @@ export function useChat() {
 
   const createNewChat = () => setActiveChatId(null); 
 
-  // 3. Send Message (เวอร์ชัน Stream SSE)
+  // 3. Send Message
   const sendMessage = async (
     input: string, 
     model: string, 
@@ -157,14 +188,11 @@ export function useChat() {
   ) => { 
     if (!input.trim() && images.length === 0) return; 
     
-    const ephemeral = (!user?.id) ? true : (options?.ephemeral ?? false);
+    const guestId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
+    const ephemeral = options?.ephemeral ?? false;
 
-    if (!ephemeral && !user?.id) { 
-      console.error("❌ Member mode requires login"); 
-      return;
-    }
-
-    let currentId = activeChatId; 
+    // ถ้าไม่มี user ให้ใช้ guestId
+    let currentId = !user && guestId ? (guestId as string) : activeChatId; 
     
     const userMsg: Message = { 
       role: "user", 
@@ -198,14 +226,13 @@ export function useChat() {
     try {
       const payload = { 
         message: input, 
-        userId: user?.id || 'guest_user', 
         model: model, 
         ephemeral: ephemeral,
         ...(images.length > 0 && { images }), 
         ...((isNewSession || ephemeral) ? {} : { conversationId: currentId })
       };
-      const response = await chatService.sendMessageStream(payload);
       
+      const response = await chatService.sendMessageStream(payload);
       const realConversationId = response.headers.get('X-Conversation-Id') || response.headers.get('conversation_id');
       const assistantMsg: Message = { role: "assistant", content: "" };
 
@@ -274,7 +301,7 @@ export function useChat() {
         }
       }
     } catch (error) {
-      console.error("❌ Stream failed:", error);
+      console.error("Stream failed:", error);
     } finally {
       setIsLoading(false);
     }
@@ -282,15 +309,12 @@ export function useChat() {
 
   // 4. Delete Chat
   const deleteChat = async (id: string) => {
-    if (!user?.id) return;
-
-    console.log(`🗑️ [PROCESS] Requesting server to delete conversation: ${id}`);
-    
+    console.log(`[PROCESS] Requesting server to delete conversation: ${id}`);
     setIsLoading(true);
 
     try {
       await chatService.deleteConversation(id); 
-      console.log(`✅ [SUCCESS] Server confirmed deletion`);
+      console.log(`[SUCCESS] Server confirmed deletion`);
 
       const filtered = chats.filter(c => c.id !== id);
       setChats(filtered);
@@ -298,9 +322,8 @@ export function useChat() {
       if (activeChatId === id) {
         setActiveChatId(filtered[0]?.id || null);
       }
-
     } catch (error: any) {
-      console.error("❌ [FAILURE] Server rejected deletion:", error);
+      console.error("[FAILURE] Server rejected deletion:", error);
       alert(`Failed to delete chat. Server responded with an error.`);
     } finally {
       setIsLoading(false);
@@ -309,20 +332,29 @@ export function useChat() {
 
   // 5. Rename Chat
   const renameChat = async (id: string, newTitle: string) => {
-    if (!user?.id) return;
-
     const originalChats = [...chats];
     setChats(prev => prev.map(chat => chat.id === id ? { ...chat, title: newTitle } : chat));
     
     try {
-      await chatService.renameConversation(id, user.id, newTitle);
+      await chatService.renameConversation(id, newTitle);
     } catch (error) {
-      console.error("❌ [FAILURE] Failed to rename chat:", error);
+      console.error("[FAILURE] Failed to rename chat:", error);
       setChats(originalChats); 
     }
   };
 
-  // ดึงค่า hasMore ของห้องแชทปัจจุบัน
+  const migrationInfo = useMemo(() => {
+    const gId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
+    const guestChat = chats.find(c => String(c.id) === String(gId));
+    const hasContent = (guestChat?.messages.length || 0) > 0;
+
+    return {
+      guestId: gId as string | null,
+      canMigrate: !!gId && hasContent,
+    };
+  }, [chats]);
+
+
   const currentHasMore = activeChatId ? (paginationConfig[activeChatId]?.hasMore ?? false) : false;
 
   return { 
@@ -337,6 +369,9 @@ export function useChat() {
     ephemeralMessages,
     fetchNextPage,
     isFetchingHistory,
-    hasMore: currentHasMore
+    hasMore: currentHasMore,
+    isSessionReady, 
+    guestId: migrationInfo.guestId,
+    canMigrate: migrationInfo.canMigrate
   };
 }

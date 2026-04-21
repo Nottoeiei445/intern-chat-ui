@@ -36,14 +36,6 @@ export const ChatFeature = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState("llama3");
 
-  // จัดการเลือกแชทแรกอัตโนมัติเมื่อ User ล็อกอินและมีข้อมูล
-  useEffect(() => {
-    if (user && !activeChatId && chats.length > 0) {
-      setActiveChatId(chats[0].id);
-    } else if (!user) {
-      setActiveChatId(null);
-    }
-  }, [user, chats, activeChatId, setActiveChatId]);
 
   // คำนวณข้อความที่จะแสดงผล
   const messagesToShow = useMemo(() => {
@@ -65,8 +57,7 @@ export const ChatFeature = () => {
   };
 
   const handleSendMessage = (val: string, images: string[] = []) => {
-    const options = !user ? { ephemeral: true } : undefined;
-    sendMessage(val, selectedModel, images, options);
+    sendMessage(val, selectedModel, images);
   };
 
   return (

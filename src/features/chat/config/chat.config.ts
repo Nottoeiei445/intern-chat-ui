@@ -16,6 +16,7 @@ export const CHAT_CONFIG = {
     conversation: "/chat/history",
     history: "/chat/histories",
     delete: "/chat/delete", 
+    
   },
 
   // Chat Validation & Settings
@@ -29,7 +30,7 @@ export const CHAT_CONFIG = {
   features: {
     enableChatLogging: true,     // เปิด Log ดูการยิง API แชท
     enableAutoScroll: true,      // เลื่อนหน้าจอลงอัตโนมัติเวลาแชทมา
-    enableStreaming: false,      // เผื่ออนาคตเพื่อนทำระบบข้อความไหลๆ
+    enableStreaming: true,      // เผื่ออนาคตเพื่อนทำระบบข้อความไหลๆ
   },
 };
 

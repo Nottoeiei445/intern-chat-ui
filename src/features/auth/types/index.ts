@@ -9,6 +9,7 @@ export interface UserProfile {
 export interface LoginCredentials {
   email: string;
   password: string;
+  guest_id?: string | null; // เพิ่ม guest_id สำหรับการย้ายข้อมูลจาก Guest มา User
 }
 
 export interface RegisterCredentials {

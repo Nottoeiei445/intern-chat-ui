@@ -37,6 +37,29 @@ export const ChatInput = ({ onSendMessage, isLoading }: Props) => {
     if (fileInputRef.current) fileInputRef.current.value = ""; 
   };
 
+  const handlePaste = async (e: React.ClipboardEvent) => {
+    const items = e.clipboardData.items;
+    const newImages: string[] = [];
+
+    for (let i = 0; i < items.length; i++) {
+      // เช็คว่าสิ่งที่ Paste มาเป็นไฟล์ และเป็นรูปภาพหรือไม่
+      if (items[i].type.indexOf("image") !== -1) {
+        const file = items[i].getAsFile();
+        if (file) {
+          // เช็คโควตา 5 รูปเหมือนเดิมครับเฮีย
+          if (images.length + newImages.length >= 5) break;
+
+          const b64 = await fileToBase64(file);
+          newImages.push(b64);
+        }
+      }
+    }
+
+    if (newImages.length > 0) {
+      setImages(prev => [...prev, ...newImages]);
+    }
+  };
+
   const removeImage = (index: number) => {
     setImages(prev => prev.filter((_, i) => i !== index));
   };
@@ -100,6 +123,7 @@ export const ChatInput = ({ onSendMessage, isLoading }: Props) => {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
           />
           
           <div className="flex items-center justify-between px-2 pb-1">

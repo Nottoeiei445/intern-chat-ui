@@ -5,7 +5,7 @@ declare global {
       NEXT_PUBLIC_COMPANY_API_KEY: string;
       NEXT_PUBLIC_CHAT_API_BASE_URL: string;
       NEXT_PUBLIC_AUTH_API_URL: string;
-      NEXT_PUBLIC_MAP_API_KEY: string;
+      NEXT_PUBLIC_MAP_API_KEY_VECTOR_TILES: string;
     }
   }
 }
@@ -13,7 +13,7 @@ declare global {
 // 2. สร้าง Object สำหรับเก็บ Environment Variables ที่เราต้องการใช้ในแอป (แบบนี้จะได้ autocomplete และ type checking)
 export const ENV = {
   COMPANY_API_KEY: process.env.NEXT_PUBLIC_COMPANY_API_KEY,
-  MAP_API_KEY: process.env.NEXT_PUBLIC_MAP_API_KEY,
+  MAP_API_KEY: process.env.NEXT_PUBLIC_MAP_API_KEY_VECTOR_TILES,
   CHAT_API_BASE_URL: process.env.NEXT_PUBLIC_CHAT_API_BASE_URL,
   AUTH_API_URL: process.env.NEXT_PUBLIC_AUTH_API_URL,
 } as const;
