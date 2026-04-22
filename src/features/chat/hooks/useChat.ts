@@ -67,14 +67,25 @@ export function useChat() {
         }));
 
         const sorted = sortChats(mappedChats); 
-        setChats(sorted); 
         
-        // ถ้าเป็น Guest ให้บังคับ active เป็น guestId เลย จะได้หาเจอ
+        setChats(prev => {
+          const serverChats = sorted.map(newChat => {
+            const existingChat = prev.find(c => c.id === newChat.id);
+            if (existingChat && existingChat.messages.length > 0) {
+              return { ...newChat, messages: existingChat.messages };
+            }
+            return newChat;
+          });
+
+          const localChats = prev.filter(p => !serverChats.some(s => s.id === p.id));
+          return [...localChats, ...serverChats].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        });
+        
         const guestId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
         if (!user && guestId) {
           setActiveChatId(guestId as string);
-        } else if (sorted.length > 0) { 
-          setActiveChatId(prev => prev ? prev : sorted[0].id); 
+        } else if (sorted.length > 0 && !activeChatId) { 
+          setActiveChatId(sorted[0].id); 
         }
       } catch (error) {
         console.error("Failed to fetch histories:", error); 
@@ -89,7 +100,6 @@ export function useChat() {
   // 2. Fetch Chat Detail (Messages)
   useEffect(() => {
     const fetchChatDetail = async () => { 
-      // ดึง Guest ID และกำหนดเงื่อนไข: ถ้าไม่มี user ให้ใช้ guestId
       const guestId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
       const targetId = !user && guestId ? (guestId as string) : activeChatId;
 
@@ -181,131 +191,170 @@ export function useChat() {
 
   // 3. Send Message
   const sendMessage = async (
-    input: string, 
-    model: string, 
-    images: string[] = [], 
-    options?: { ephemeral?: boolean }
-  ) => { 
-    if (!input.trim() && images.length === 0) return; 
-    
-    const guestId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
-    const ephemeral = options?.ephemeral ?? false;
+  input: string, 
+  model: string, 
+  images: string[] = [], 
+  options?: { ephemeral?: boolean }
+) => { 
+  if (!input.trim() && images.length === 0) return; 
+  
+  const ephemeral = options?.ephemeral ?? false;
 
-    // ถ้าไม่มี user ให้ใช้ guestId
-    let currentId = !user && guestId ? (guestId as string) : activeChatId; 
-    
-    const userMsg: Message = { 
-      role: "user", 
-      content: input,
-      ...(images.length > 0 && { images }) 
-    }; 
-    
-    let isNewSession = false; 
+  let initialId = activeChatId;
+  if (!initialId && !user) {
+    initialId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey) as string || null;
+  }
+  
+  let currentId = initialId;
+  const userMsg: Message = { 
+    role: "user", 
+    content: input,
+    ...(images.length > 0 && { images }) 
+  }; 
+  
+  let isNewSession = false; 
 
-    if (ephemeral) {
-      setEphemeralMessages(prev => [...prev, userMsg]); 
-    } else if (currentId && !currentId.startsWith('session_')) { 
-      setChats(prev => {
-        const updated = prev.map(chat => 
-          chat.id === currentId 
-            ? { ...chat, messages: [...chat.messages, userMsg], updatedAt: Date.now() } 
-            : chat
-        );
-        return sortChats(updated); 
-      });
+  if (ephemeral) {
+    setEphemeralMessages(prev => [...prev, userMsg]); 
+  } else if (currentId && !currentId.startsWith('session_')) { 
+    setChats(prev => {
+      const updated = prev.map(chat => 
+        chat.id === currentId 
+          ? { ...chat, messages: [...chat.messages, userMsg], updatedAt: Date.now() } 
+          : chat
+      );
+      return sortChats(updated); 
+    });
+  } else {
+    isNewSession = true; 
+    const tempId = `session_${Date.now()}`; 
+    setChats(prev => [{ 
+      id: tempId, 
+      title: input.slice(0, 30), 
+      messages: [userMsg], 
+      model: model, 
+      createdAt: Date.now(), 
+      updatedAt: Date.now() 
+    }, ...prev]); 
+    setActiveChatId(tempId); 
+    currentId = tempId; 
+  }
+
+  setIsLoading(true); 
+
+  try {
+    const payload = { 
+      message: input, 
+      model: model, 
+      ephemeral: ephemeral,
+      ...(images.length > 0 && { images }), 
+      ...((isNewSession || ephemeral) ? {} : { conversationId: currentId })
+    };
+    
+    const response = await chatService.sendMessageStream(payload);
+    
+    // 🚀 1. แอบเก็บ ID ไว้ก่อน ห้ามเอาไปยัดใส่ State เด็ดขาด!
+    let realIdToSwapLater = response.headers.get('X-Conversation-Id') || response.headers.get('conversation_id');
+    
+    const assistantMsg: Message = { role: "assistant", content: "" };
+
+    if (!ephemeral) {
+      // 🚀 2. หย่อนกล่องข้อความเปล่าๆ ลงไปใน ID ชั่วคราว (session_xxx) ก่อน
+      setChats(prev => prev.map(chat => 
+        chat.id === currentId 
+          ? { ...chat, messages: [...chat.messages, assistantMsg] } 
+          : chat
+      ));
     } else {
-      isNewSession = true; 
-      const tempId = `session_${Date.now()}`; 
-      setChats(prev => [{ id: tempId, title: input.slice(0, 30), messages: [userMsg], model: model, createdAt: Date.now(), updatedAt: Date.now() }, ...prev]); 
-      setActiveChatId(tempId); 
-      currentId = tempId; 
+      setEphemeralMessages(prev => [...prev, assistantMsg]);
     }
+    
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let accumulatedContent = "";
+    let buffer = "";
 
-    setIsLoading(true); 
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-    try {
-      const payload = { 
-        message: input, 
-        model: model, 
-        ephemeral: ephemeral,
-        ...(images.length > 0 && { images }), 
-        ...((isNewSession || ephemeral) ? {} : { conversationId: currentId })
-      };
-      
-      const response = await chatService.sendMessageStream(payload);
-      const realConversationId = response.headers.get('X-Conversation-Id') || response.headers.get('conversation_id');
-      const assistantMsg: Message = { role: "assistant", content: "" };
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || "";
 
-      if (!ephemeral) {
-        setChats(prev => prev.map(chat => 
-          chat.id === currentId 
-            ? { ...chat, id: realConversationId || chat.id, messages: [...chat.messages, assistantMsg] } 
-            : chat
-        ));
-        if (isNewSession && realConversationId) {
-          setActiveChatId(realConversationId);
-          currentId = realConversationId;
-        }
-      } else {
-        setEphemeralMessages(prev => [...prev, assistantMsg]);
-      }
-      
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let accumulatedContent = "";
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const jsonStr = line.replace('data: ', '').trim();
+              if (!jsonStr || jsonStr === '[DONE]') continue;
 
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
-
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const jsonStr = line.replace('data: ', '').trim();
-                if (!jsonStr) continue;
-
-                const data = JSON.parse(jsonStr);
-                const textChunk = data.text || data.content || "";
-                accumulatedContent += textChunk;
-
-                const displayContent = accumulatedContent.split("<thinking>").pop()?.trim() || accumulatedContent;
-
-                if (ephemeral) {
-                  setEphemeralMessages(prev => {
-                    const newMsgs = [...prev];
-                    const lastIdx = newMsgs.length - 1;
-                    if (newMsgs[lastIdx]?.role === "assistant") {
-                      newMsgs[lastIdx] = { ...newMsgs[lastIdx], content: displayContent };
-                    }
-                    return newMsgs;
-                  });
-                } else {
-                  setChats(prev => prev.map(chat => 
-                    chat.id === currentId 
-                      ? {
-                          ...chat,
-                          messages: chat.messages.map((msg, idx) => 
-                            idx === chat.messages.length - 1 ? { ...msg, content: displayContent } : msg
-                          )
-                        }
-                      : chat
-                  ));
+              const data = JSON.parse(jsonStr);
+              
+              // 🚀 3. ถ้า Header ไม่มี ID ให้มาควานหาใน Stream แล้วเก็บไว้ (ยังไม่สลับ!)
+              if (isNewSession && !realIdToSwapLater && !ephemeral) {
+                const streamId = data.conversation_id || data.conversationId || data.chat_id || data.chatId;
+                if (streamId) {
+                  realIdToSwapLater = String(streamId);
                 }
-              } catch (e) {}
+              }
+
+              const textChunk = data.text || data.content || "";
+              accumulatedContent += textChunk;
+
+              const displayContent = accumulatedContent.split("<thinking>").pop()?.trim() || accumulatedContent;
+
+              if (ephemeral) {
+                setEphemeralMessages(prev => {
+                  const newMsgs = [...prev];
+                  const lastIdx = newMsgs.length - 1;
+                  if (newMsgs[lastIdx]?.role === "assistant") {
+                    newMsgs[lastIdx] = { ...newMsgs[lastIdx], content: displayContent };
+                  }
+                  return newMsgs;
+                });
+              } else {
+                setChats(prev => prev.map(chat => 
+                  chat.id === currentId 
+                    ? {
+                        ...chat,
+                        messages: chat.messages.map((msg, idx) => 
+                          idx === chat.messages.length - 1 ? { ...msg, content: displayContent } : msg
+                        )
+                      }
+                    : chat
+                ));
+              }
+            } catch (e) {
+              console.error("JSON Parse Error", e);
             }
           }
         }
       }
-    } catch (error) {
-      console.error("Stream failed:", error);
-    } finally {
-      setIsLoading(false);
     }
-  };
+
+    // 🚀 4. [พระเอกอยู่ตรงนี้] สตรีมจบปุ๊บ ค่อยสลับ ID ทีเดียวแบบเนียนๆ
+    if (!ephemeral && isNewSession && realIdToSwapLater) {
+      const finalRealId = realIdToSwapLater; // การันตีค่า
+      
+      // ดัก useEffect ไม่ให้ดึง API ทับหน้าจอ
+      setPaginationConfig(prev => ({ ...prev, [finalRealId]: { page: 1, hasMore: false } }));
+      
+      // สลับ ID ในรายการแชท
+      setChats(prev => prev.map(chat => 
+        chat.id === currentId ? { ...chat, id: finalRealId } : chat
+      ));
+      
+      // สลับโฟกัสหน้าจอ
+      setActiveChatId(finalRealId);
+    }
+
+  } catch (error) {
+    console.error("Stream failed:", error);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // 4. Delete Chat
   const deleteChat = async (id: string) => {
@@ -331,18 +380,46 @@ export function useChat() {
   };
 
   // 5. Rename Chat
-  const renameChat = async (id: string, newTitle: string) => {
-    const originalChats = [...chats];
-    setChats(prev => prev.map(chat => chat.id === id ? { ...chat, title: newTitle } : chat));
-    
-    try {
-      await chatService.renameConversation(id, newTitle);
-    } catch (error) {
-      console.error("[FAILURE] Failed to rename chat:", error);
-      setChats(originalChats); 
-    }
-  };
+    const renameChat = async (id: string, newTitle: string) => { // เปลี่ยนชื่อแชท
+      const originalChats = [...chats]; // เก็บสำรองของเดิมไว้ก่อนเผื่อแก้ไขกลับ
+      setChats(prev => prev.map(chat => chat.id === id ? { ...chat, title: newTitle } : chat));   // อัปเดตชื่อใน UI ทันทีแบบ Optimistic UI
+      
+      try { 
+        await chatService.renameConversation(id, newTitle); // ส่งคำขอเปลี่ยนชื่อไปยังเซิร์ฟเวอร์
+      } catch (error) {
+        console.error("[FAILURE] Failed to rename chat:", error);
+        setChats(originalChats); 
+      }
+    };
+ /*
+    const editAndResend = async (messageId: string, newContent: string, model: string) => {
+    setIsLoading(true);
+  try {
+    // 1. ส่งขอแก้ไขไปหลังบ้าน
+    await chatService.editMessage(messageId, newContent);
 
+    // 2. อัปเดต UI: แก้ไขข้อความ User และลบข้อความ Assistant ตัวสุดท้ายทิ้ง
+    setChats(prev => prev.map(chat => {
+      if (chat.id === activeChatId) {
+        const msgIndex = chat.messages.findIndex(m => m.id === messageId);
+        // เก็บแค่ข้อความที่อยู่ก่อนหน้าตัวที่แก้ไข และตัวที่แก้ไขเอง
+        const updatedMessages = chat.messages.slice(0, msgIndex + 1).map(m => 
+          m.id === messageId ? { ...m, content: newContent } : m
+        );
+        return { ...chat, messages: updatedMessages };
+      }
+      return chat;
+    }));
+
+    await sendMessage("", model, [], { isRegenerate: true }); 
+
+  } catch (error) {
+    console.error("Edit failed:", error);
+  } finally {
+    setIsLoading(false);
+  }
+};
+*/
   const migrationInfo = useMemo(() => {
     const gId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
     const guestChat = chats.find(c => String(c.id) === String(gId));
@@ -353,7 +430,6 @@ export function useChat() {
       canMigrate: !!gId && hasContent,
     };
   }, [chats]);
-
 
   const currentHasMore = activeChatId ? (paginationConfig[activeChatId]?.hasMore ?? false) : false;
 

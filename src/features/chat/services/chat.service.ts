@@ -31,8 +31,8 @@ export const chatService = {
   },
 
   renameConversation: (id: string, newTitle: string, userId?: string) => {
-    const payload: any = { title: newTitle };
-    if (userId) payload.userId = userId;
+    const payload: any = { title: newTitle }; // เริ่มต้น payload ด้วยข้อมูลที่จำเป็น
+    if (userId) payload.userId = userId; 
 
     return apiClient.put<any>(`${CHAT_CONFIG.endpoints.conversation}/${id}`, payload);
   },
@@ -40,5 +40,10 @@ export const chatService = {
   // 5. ลบแชท 
   deleteConversation: (id: string) => {
     return apiClient.delete<any>(`${CHAT_CONFIG.endpoints.delete}/${id}`);
-  }
+  },
+
+editMessage: (messageId: string, newContent: string) => {
+  return apiClient.put(`/chat/editmessage/${messageId}`, { newContent });
+},
+
 };
