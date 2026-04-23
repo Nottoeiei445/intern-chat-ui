@@ -6,6 +6,7 @@ declare global {
       NEXT_PUBLIC_CHAT_API_BASE_URL: string;
       NEXT_PUBLIC_AUTH_API_URL: string;
       NEXT_PUBLIC_MAP_API_KEY_VECTOR_TILES: string;
+      NEXT_PUBLIC_MAP_VALLARIS_API_KEY: string;
     }
   }
 }
@@ -16,4 +17,5 @@ export const ENV = {
   MAP_API_KEY: process.env.NEXT_PUBLIC_MAP_API_KEY_VECTOR_TILES,
   CHAT_API_BASE_URL: process.env.NEXT_PUBLIC_CHAT_API_BASE_URL,
   AUTH_API_URL: process.env.NEXT_PUBLIC_AUTH_API_URL,
+  MAP_VALLARIS_API_KEY: process.env.NEXT_PUBLIC_MAP_VALLARIS_API_KEY,
 } as const;
