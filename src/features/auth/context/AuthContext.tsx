@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, ReactNode, useRe
 import { UserProfile, LoginCredentials, RegisterCredentials } from "../types";
 import { authService } from "../services/auth.service";
 import { AUTH_CONFIG } from "../config/auth.config";
-import { storage } from "../../../lib/storage"; // 🚀 นำเข้าเครื่องมือจัดการ Storage ของเรา!
+import { storage } from "../../../lib/storage";
 
 interface AuthContextType {
   user: UserProfile | null;
@@ -50,7 +50,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       proactiveRefreshTimeoutRef.current = null;
     }
 
-    // 3. ล้างขยะใน Storage (🚀 เปลี่ยนมาใช้ storage ส่วนกลาง)
+    // 3. ล้างขยะใน Storage
     storage.removeCookie(AUTH_CONFIG.session.accessTokenStorageKey);
     storage.removeCookie(AUTH_CONFIG.session.tokenExpiryStorageKey);
     storage.removeLocal(AUTH_CONFIG.session.userStorageKey);
@@ -74,7 +74,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             authService.setSessionToken(storedToken);
             setAccessToken(storedToken);
 
-            // 🚀 ข้อมูล User ดึงจาก LocalStorage ตามเดิม
             const storedUser = storage.getLocal(AUTH_CONFIG.session.userStorageKey);
             if (storedUser) {
               try {

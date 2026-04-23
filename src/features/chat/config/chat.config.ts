@@ -32,6 +32,8 @@ export const CHAT_CONFIG = {
     enableAutoScroll: true,      // เลื่อนหน้าจอลงอัตโนมัติเวลาแชทมา
     enableStreaming: true,      // เผื่ออนาคตเพื่อนทำระบบข้อความไหลๆ
   },
+
+  
 };
 
 export type ChatConfig = typeof CHAT_CONFIG;

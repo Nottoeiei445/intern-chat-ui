@@ -24,7 +24,6 @@ const clearAuthSession = () => {
 const saveAuthSession = (data: any) => {
   if (!data) return;
   
-  // 🚀 มาตรฐานใหม่: ใช้ guest_id ตัวเดียว (เช็กทั้งสองแบบเผื่อหลังบ้านส่งมาพลาด)
   const gId = data.guest_id || data.guestId;
   
   const defaultExpiryMinutes = gId 

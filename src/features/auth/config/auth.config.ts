@@ -1,5 +1,5 @@
 // src/features/auth/config/auth.config.ts
-import { ENV } from '@/lib/env'; // 🚀 Import ENV เข้ามา
+import { ENV } from '@/lib/env'; 
 
 /**
  * Auth Configuration
@@ -8,7 +8,6 @@ import { ENV } from '@/lib/env'; // 🚀 Import ENV เข้ามา
 export const AUTH_CONFIG = {
   // API Configuration
   api: {
-    // 🚀 เปลี่ยนมาใช้ ENV.AUTH_API_URL
     baseURL: ENV.AUTH_API_URL || "http://localhost:3000",
     withCredentials: true,
     headers: {
@@ -40,6 +39,9 @@ export const AUTH_CONFIG = {
     tokenExpiryStorageKey: "expires_at",
     userStorageKey: "user",
     guestIdStorageKey: "guest_id",
+    guestStartTimeStorageKey: "guest_start_time",
+    guestWarningMinutesBeforeExpiry: 3,
+    guestCheckIntervalMs: 60000, // Check every minute for guest expiry
   },
 
   redirect: {

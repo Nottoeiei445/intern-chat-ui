@@ -19,7 +19,6 @@ export const useHazardLayer = (
     const sourceId = `hazard-source`;
 
     const updateLayer = () => {
-      // 🚀 Get URLs via Service
       const tilesUrl = mapService.getTileUrls(mapMode, type, days);
       if (tilesUrl.length === 0) {
         console.warn(`[MAP_LOG] No URLs found for ${type} in ${mapMode} mode.`);
