@@ -1,8 +1,9 @@
-// src/features/auth/services/auth.service.ts
+"use client"
+
 import axios from "axios";
 import { AuthResponse, LoginCredentials, RegisterCredentials } from "../types";
 import { AUTH_CONFIG } from "../config/auth.config";
-import { storage } from "../../../lib/storage"; // 🚀 เรียกใช้จากส่วนกลางที่เราเพิ่งสร้าง
+import { storage } from "../../../lib/storage";
 
 const api = axios.create({
   baseURL: AUTH_CONFIG.api.baseURL,
@@ -12,20 +13,24 @@ const api = axios.create({
 
 let currentAccessToken: string | null = null;
 
-// ==========================================
-// 🛠️ Helper ภายใน Auth (ลดโค้ดซ้ำ)
-// ==========================================
 const clearAuthSession = () => {
   storage.removeCookie(AUTH_CONFIG.session.tokenExpiryStorageKey);
   storage.removeCookie(AUTH_CONFIG.session.accessTokenStorageKey);
   storage.removeLocal(AUTH_CONFIG.session.userStorageKey);
+  storage.removeCookie(AUTH_CONFIG.session.guestIdStorageKey);
   currentAccessToken = null;
 };
 
 const saveAuthSession = (data: any) => {
   if (!data) return;
   
-  const expiresIn = data.expiresIn || AUTH_CONFIG.token.accessTokenExpiryMinutes * 60;
+  const gId = data.guest_id || data.guestId;
+  
+  const defaultExpiryMinutes = gId 
+    ? AUTH_CONFIG.token.guestExpiryMinutes 
+    : AUTH_CONFIG.token.accessTokenExpiryMinutes;
+
+  const expiresIn = data.expiresIn || defaultExpiryMinutes * 60;
   const expiresAt = Date.now() + expiresIn * 1000;
 
   storage.setCookie(AUTH_CONFIG.session.tokenExpiryStorageKey, expiresAt.toString(), expiresAt);
@@ -33,6 +38,10 @@ const saveAuthSession = (data: any) => {
   if (data.accessToken) {
     storage.setCookie(AUTH_CONFIG.session.accessTokenStorageKey, data.accessToken, expiresAt);
     currentAccessToken = data.accessToken;
+  }
+  
+  if (gId) {
+    storage.setCookie(AUTH_CONFIG.session.guestIdStorageKey, gId, expiresAt);
   }
   
   if (data.user) {
@@ -45,12 +54,8 @@ const getStoredTokenExpiry = (): number | null => {
   return stored ? parseInt(stored, 10) : null;
 };
 
-// ==========================================
-// Interceptors
-// ==========================================
 api.interceptors.request.use(
   (config) => {
-    // 🚀 เปลี่ยนมาดึงผ่าน storage.getCookie
     const token = currentAccessToken || storage.getCookie(AUTH_CONFIG.session.accessTokenStorageKey);
     if (token) {
       config.headers = config.headers || {};
@@ -102,12 +107,12 @@ api.interceptors.response.use(
         );
 
         if (response.data?.data?.accessToken) {
-          saveAuthSession(response.data.data); // 🚀 เก็บลงที่ใหม่
+          saveAuthSession(response.data.data);
           onRefreshed(response.data.data.accessToken);
           return api(originalRequest);
         }
       } catch (refreshError) {
-        clearAuthSession(); // 🚀 ล้างที่เดียวจบ
+        clearAuthSession();
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
@@ -117,9 +122,6 @@ api.interceptors.response.use(
   }
 );
 
-// ==========================================
-// Helper Error Functions
-// ==========================================
 const createApiError = (error: any, fallbackMessage = "An unexpected error occurred.") => {
   const responseData = error?.response?.data ?? error?.data ?? null;
   const deriveMessage = (data: any): string | null => {
@@ -143,27 +145,57 @@ const createApiError = (error: any, fallbackMessage = "An unexpected error occur
   return apiError;
 };
 
-// ==========================================
-// Auth Service Methods
-// ==========================================
 export const authService = {
-  login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
+  initializeGuest: async (): Promise<any> => {
     try {
-      const { data } = await api.post(AUTH_CONFIG.endpoints.login, credentials);
+      const { data } = await api.post(AUTH_CONFIG.endpoints.guestMode);
       if (data?.data) {
         saveAuthSession(data.data);
+        authService.logEvent("✅ [Auth] Guest session initialized!");
+      }
+      return data;
+    } catch (error: any) {
+      throw createApiError(error, "Failed to initialize guest mode.");
+    }
+  },
+
+  login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
+    try {
+      const guest_id = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
+      
+      const finalPayload = {
+        ...credentials,
+        ...(guest_id && { guest_id })
+      };
+
+      const { data } = await api.post(AUTH_CONFIG.endpoints.login, finalPayload);
+      if (data?.data) {
+        saveAuthSession(data.data);
+        storage.removeCookie(AUTH_CONFIG.session.guestIdStorageKey);
         authService.logEvent("✅ [Auth] Login successful!");
       }
       return data;
-    } catch (error: any) { throw createApiError(error, "Cannot connect to the server or CORS blocked."); }
+    } catch (error: any) { 
+      throw createApiError(error, "Login failed."); 
+    }
   },
 
   register: async (credentials: RegisterCredentials): Promise<AuthResponse> => {
     try {
       const { confirmPassword, ...payload } = credentials;
-      const { data } = await api.post(AUTH_CONFIG.endpoints.register, payload);
+      
+      const guest_id = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
+      
+      const finalPayload = {
+        ...payload,
+        ...(guest_id && { guest_id }) 
+      };
+
+      const { data } = await api.post(AUTH_CONFIG.endpoints.register, finalPayload);
+      
       if (data?.data) {
         saveAuthSession(data.data);
+        storage.removeCookie(AUTH_CONFIG.session.guestIdStorageKey);
         authService.logEvent("✅ [Auth] Registration successful!");
       }
       return data;
@@ -173,7 +205,7 @@ export const authService = {
         if (/email.*(exists|already|registered)/i.test(backendMsg)) throw createApiError(error, "Email already registered");
         if (/username.*(taken|exists|already)/i.test(backendMsg)) throw createApiError(error, "Username already taken");
       }
-      throw createApiError(error, "Cannot connect to the server or CORS blocked.");
+      throw createApiError(error, "Registration failed.");
     }
   },
 
@@ -192,7 +224,7 @@ export const authService = {
       return data;
     } catch (error: any) {
       clearAuthSession();
-      throw createApiError(error, "Session expired or not found.");
+      throw createApiError(error, "Session expired.");
     }
   },
 
@@ -201,7 +233,6 @@ export const authService = {
       const { data } = await api.post(AUTH_CONFIG.endpoints.refresh);
       if (data?.data) {
         saveAuthSession(data.data);
-        authService.logEvent("✅ [Auth] Token refreshed successfully.");
       }
       return data;
     } catch (error: any) {
@@ -214,10 +245,9 @@ export const authService = {
     try {
       await api.post(AUTH_CONFIG.endpoints.logout);
     } catch (error) {
-      authService.logEvent("ℹ️ [Auth] Backend logout failed, clearing client session.");
+      authService.logEvent("ℹ️ [Auth] Backend logout failed.");
     } finally {
       clearAuthSession();
-      authService.logEvent("ℹ️ [Auth] Session cleared.");
     }
   },
 

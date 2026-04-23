@@ -8,18 +8,18 @@ import { HazardType, TimeRange, MapMode } from '../types';
 
 export const useHazardLayer = (
   map: maplibregl.Map | null,
-  type: HazardType,
+  type: HazardType | null, // 🚀 1. อนุญาตให้ค่าเป็น null ได้ (เพื่อบอกว่ายังไม่ได้เลือก)
   days: TimeRange,
   mapMode: MapMode = 'wms'
 ) => {
   useEffect(() => {
-    if (!map) return;
+    // 🚀 2. ด่านสกัด: ถ้า map ยังไม่มา หรือ User ยังไม่เลือก type ให้หยุดทำงานและไม่โหลดข้อมูลใดๆ!
+    if (!map || !type) return;
 
     const layerId = `hazard-layer`;
     const sourceId = `hazard-source`;
 
     const updateLayer = () => {
-      // 🚀 Get URLs via Service
       const tilesUrl = mapService.getTileUrls(mapMode, type, days);
       if (tilesUrl.length === 0) {
         console.warn(`[MAP_LOG] No URLs found for ${type} in ${mapMode} mode.`);
@@ -95,6 +95,7 @@ export const useHazardLayer = (
     else map.once('load', updateLayer);
 
     return () => {
+      // 🚀 Cleanup ตรงนี้จะทำงานตอนเปลี่ยนหน้า หรือตอนที่ User กดปิด Hazard (type เป็น null)
       if (map.getLayer(layerId)) map.removeLayer(layerId);
       if (map.getSource(sourceId)) map.removeSource(sourceId);
     };

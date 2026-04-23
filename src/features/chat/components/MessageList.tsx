@@ -1,8 +1,9 @@
 "use client"
 
 import { useRef, useEffect, useLayoutEffect } from "react"
-import { MapPin, Sparkles, User, Bot } from "lucide-react"
+import { MapPin, Sparkles } from "lucide-react"
 import { Message } from "../types"
+import { MessageItem } from "./MessageItem"
 
 interface Props {
   messages: Message[];
@@ -10,9 +11,10 @@ interface Props {
   onLoadMore?: () => void;
   hasMore?: boolean;
   isFetchingHistory?: boolean;
+  onEditMessage?: (id: string, newContent: string) => void;
 }
 
-export const MessageList = ({ messages, isLoading, onLoadMore, hasMore, isFetchingHistory }: Props) => {
+export const MessageList = ({ messages, isLoading, onLoadMore, hasMore, isFetchingHistory, onEditMessage }: Props) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   
@@ -73,6 +75,14 @@ export const MessageList = ({ messages, isLoading, onLoadMore, hasMore, isFetchi
     }
   }
 
+  let lastUserIdx = -1;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === "user") {
+      lastUserIdx = i;
+      break;
+    }
+  }
+
   return (
     <div 
       ref={scrollContainerRef} 
@@ -96,49 +106,15 @@ export const MessageList = ({ messages, isLoading, onLoadMore, hasMore, isFetchi
       )}
       
       {messages.map((msg, index) => (
-        <div key={index} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-          <div className="max-w-[85%] space-y-3">
-            {msg.thinking && (
-              <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 text-xs text-slate-500 font-mono">
-                <div className="flex items-center gap-2 mb-2 text-blue-500/50 uppercase tracking-tighter font-bold">
-                  <Sparkles size={12} /> Chain of Thought
-                </div>
-                {msg.thinking}
-              </div>
-            )}
-            <div className={`flex flex-col gap-4 p-5 rounded-3xl ${
-              msg.role === "user" ? "bg-blue-600 text-white rounded-tr-none shadow-xl" : "bg-[#111] border border-white/5 rounded-tl-none"
-            }`}>
-              <div className="flex gap-4">
-                <div className="opacity-40 text-slate-200">
-                  {msg.role === "user" ? <User size={20}/> : <Bot size={20}/>}
-                </div>
-                <div className="flex-1 space-y-4">
-                  {msg.content && (
-                    <p className="text-sm leading-relaxed whitespace-pre-wrap text-slate-200">
-                      {msg.content}
-                    </p>
-                  )}
-
-                  {msg.images && msg.images.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {msg.images.map((imgSrc, imgIdx) => (
-                        <div key={imgIdx} className="relative max-w-[200px] max-h-[200px] overflow-hidden rounded-xl border border-white/10 shadow-lg">
-                          <img 
-                            src={imgSrc} 
-                            alt={`attachment-${imgIdx}`}
-                            className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                            onLoad={() => { if (!isFetchingHistory) scrollToBottom() }}
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <MessageItem 
+          key={msg.id || index}
+          msg={msg}
+          isLatestUser={index === lastUserIdx}
+          isLoading={isLoading}
+          isFetchingHistory={isFetchingHistory ?? false}
+          scrollToBottom={scrollToBottom}
+          onEditMessage={onEditMessage}
+        />
       ))}
       
       {isLoading && (

@@ -36,5 +36,18 @@ export const mapService = {
       drought: '#f59e0b' // Orange
     };
     return colors[type] || '#cccccc';
+  },
+
+  getProvinces: async () => {
+    const url = "https://app.vallarismaps.com/core/api/features/1.1/collections/69e99410cacd2e5010722e28/items?api_key=nFQPAxZz4PAUh1Fo3kK5GE5uRQw8Nsf4M2A0xCb1JaGCmsm4eGTFFba0WiBBd37F";
+    try {
+      const response = await fetch(url);
+      if (!response.ok) throw new Error("Failed to fetch provinces");
+      return await response.json();
+    } catch (error) {
+      console.error("MapService Error:", error);
+      return null;
+    }
   }
+
 };

@@ -1,9 +1,13 @@
 "use client"
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react"; 
 import { ChatThread, Message } from "../types";
 import { useAuth } from "../../auth/context/AuthContext";
 import { chatService } from "../services/chat.service"; 
+import { authService } from "@/features/auth/services/auth.service";
+import { AUTH_CONFIG } from "@/features/auth/config/auth.config";
+import { storage } from "@/lib/storage";
+import { send } from "process";
 
 export function useChat() {
   const { user } = useAuth(); 
@@ -13,30 +17,47 @@ export function useChat() {
   const [isLoading, setIsLoading] = useState(false); 
   const [ephemeralMessages, setEphemeralMessages] = useState<Message[]>([]); 
 
-  // State ใหม่สำหรับจัดการ Pagination ของแต่ละห้องแชท
   const [isFetchingHistory, setIsFetchingHistory] = useState(false);
   const [paginationConfig, setPaginationConfig] = useState<Record<string, { page: number, hasMore: boolean }>>({});
 
-  // Helper: Sort chats
-  const sortChats = (list: ChatThread[]) => { 
+  const [isSessionReady, setIsSessionReady] = useState(false);
+  const [showExpiryWarning, setShowExpiryWarning] = useState(false);
+  const [isGuestExpired, setIsGuestExpired] = useState(false);
+
+  const sortChats = useCallback((list: ChatThread[]) => { 
     return [...list].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)); 
-  };
+  }, []);
+
+  // 0. Initialize Session
+  useEffect(() => {
+    const initSession = async () => {
+      const hasToken = storage.getCookie(AUTH_CONFIG.session.accessTokenStorageKey);
+      if(!hasToken) {
+        console.log("[INIT] No access token found, attempting guest login...");
+        try {
+          await authService.initializeGuest();
+        } catch (error) {
+          console.error("Guest initialization failed:", error);
+        }
+      }
+      setIsSessionReady(true);
+    };
+    initSession();
+  }, []);
 
   // 1. Fetch All Histories
-  useEffect(() => { 
-    const fetchAllHistories = async () => { 
-      if (!user?.id) return; 
-      
-      console.group("📡 [INIT] Fetching Chat Histories"); 
+  useEffect(() => {
+    const fetchAllHistories = async () => {
+      if (!isSessionReady) return;
+
+      console.group("[INIT] Fetching Chat Histories"); 
       
       try {
-        const responseData = await chatService.getHistories(user.id); 
+        const responseData = await chatService.getHistories(); 
         const rawList = responseData.data || responseData; 
 
-        // SOFT DELETE LOGIC
         const filteredList = rawList.filter((item: any) => { 
           const isActive = item.is_active !== false && item.deleted !== true; 
-          if (!isActive) console.warn(`🚫 Ignored Soft Deleted ID: ${item.id}`); 
           return isActive; 
         });
 
@@ -49,98 +70,121 @@ export function useChat() {
         }));
 
         const sorted = sortChats(mappedChats); 
-        setChats(sorted); 
-        console.table(sorted.slice(0, 5)); 
         
-        if (sorted.length > 0 && !activeChatId) { 
+        setChats(prev => {
+          const serverChats = sorted.map(newChat => {
+            const existingChat = prev.find(c => c.id === newChat.id);
+            if (existingChat && existingChat.messages.length > 0) {
+              return { ...newChat, messages: existingChat.messages };
+            }
+            return newChat;
+          });
+
+          const localChats = prev.filter(p => !serverChats.some(s => s.id === p.id));
+          return [...localChats, ...serverChats].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+        });
+        
+        const guestId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
+        if (!user && guestId) {
+          setActiveChatId(guestId as string);
+        } else if (sorted.length > 0 && !activeChatId) { 
           setActiveChatId(sorted[0].id); 
         }
       } catch (error) {
-        console.error("❌ Failed to fetch histories:", error); 
+        console.error("Failed to fetch histories:", error); 
       } finally {
         console.groupEnd(); 
       }
     };
+    
     fetchAllHistories(); 
-  }, [user]); 
+  }, [isSessionReady, sortChats, user]);
 
-  // 2. Fetch Chat Detail (Messages) - โหลดหน้าแรก
+  // 2. Fetch Chat Detail (Messages)
   useEffect(() => {
     const fetchChatDetail = async () => { 
-      if (!activeChatId || activeChatId.startsWith('session_') || chats.length === 0) return; 
-      
-      const currentChat = chats.find(c => c.id === activeChatId); 
-      
-      // ถ้ามี messages อยู่แล้ว ให้ตรวจสอบว่ามี config ใน state หรือยัง
-      if (currentChat && currentChat.messages && currentChat.messages.length > 0) {
-        if (!paginationConfig[activeChatId]) {
-          setPaginationConfig(prev => ({ 
-            ...prev, 
-            [activeChatId]: { page: 1, hasMore: currentChat.messages.length >= 5 } 
-          }));
-        }
-        return; 
-      }
+      const guestId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
+      const targetId = !user && guestId ? (guestId as string) : activeChatId;
+
+      if (!targetId || targetId.startsWith('session_')) return; 
+      if (paginationConfig[targetId]) return; 
 
       setIsLoading(true); 
       try {
-        // ส่ง page 1 ไปดึงข้อมูลหน้าแรก (backend ต้องรองรับพารามิเตอร์นี้)
-        const responseData = await chatService.getConversationDetail(activeChatId, 1); 
-        const messages = responseData.data?.messages || responseData.messages || responseData.data || []; 
+        const responseData = await chatService.getConversationDetail(targetId, 1); 
+        let messages = [];
+        if (Array.isArray(responseData?.data?.messages)) messages = responseData.data.messages;
+        else if (Array.isArray(responseData?.messages)) messages = responseData.messages;
+        else if (Array.isArray(responseData?.data)) messages = responseData.data;
+        else if (Array.isArray(responseData)) messages = responseData;
         
-        setChats(prev => prev.map(chat =>  
-          chat.id === activeChatId ? { ...chat, messages: messages } : chat 
-        ));
+        setChats(prev => {
+          const chatExists = prev.some(chat => chat.id === targetId);
+          if (!chatExists && targetId === guestId) {
+            return [{
+              id: targetId,
+              title: "Guest Session",
+              messages: messages,
+              createdAt: Date.now(),
+              updatedAt: Date.now()
+            }, ...prev];
+          }
+          return prev.map(chat => chat.id === targetId ? { ...chat, messages: messages } : chat);
+        });
 
-        // บันทึก config หน้าแรกลง state (สมมติว่าถ้าได้ข้อความมา 20 แสดงว่าอาจจะมีหน้าถัดไป)
         setPaginationConfig(prev => ({
           ...prev,
-          [activeChatId]: { page: 1, hasMore: messages.length >= 5 }
+          [targetId]: { page: 1, hasMore: messages.length >= 5 }
         }));
 
       } catch (error) {
-        console.error("❌ Failed to load messages:", error);
+        console.error("Failed to load messages:", error);
       } finally {
         setIsLoading(false);
       }
     };
     fetchChatDetail(); 
-  }, [activeChatId, chats.length]); 
+  }, [activeChatId, paginationConfig, user]); 
 
-  // ฟังก์ชันใหม่: ดึงข้อมูลหน้าถัดไป (เก่าขึ้น)
+  // Fetch Next Page
   const fetchNextPage = async () => {
-    if (!activeChatId || activeChatId.startsWith('session_')) return;
+    const guestId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
+    const targetId = !user && guestId ? (guestId as string) : activeChatId;
 
-    const config = paginationConfig[activeChatId] || { page: 1, hasMore: true };
+    if (!targetId || targetId.startsWith('session_')) return;
+
+    const config = paginationConfig[targetId] || { page: 1, hasMore: true };
     if (!config.hasMore || isFetchingHistory) return;
 
     setIsFetchingHistory(true);
     const nextPage = config.page + 1;
 
     try {
-      // เรียก API โดยส่งเลขหน้าถัดไป (backend ต้องรองรับ)
-      const responseData = await chatService.getConversationDetail(activeChatId, nextPage);
-      const olderMessages = responseData.data?.messages || responseData.messages || responseData.data || [];
+      const responseData = await chatService.getConversationDetail(targetId, nextPage);
+      let olderMessages = [];
+      if (Array.isArray(responseData?.data?.messages)) olderMessages = responseData.data.messages;
+      else if (Array.isArray(responseData?.messages)) olderMessages = responseData.messages;
+      else if (Array.isArray(responseData?.data)) olderMessages = responseData.data;
+      else if (Array.isArray(responseData)) olderMessages = responseData;
 
       if (olderMessages.length === 0) {
         setPaginationConfig(prev => ({ 
           ...prev, 
-          [activeChatId]: { ...config, hasMore: false } 
+          [targetId]: { ...config, hasMore: false } 
         }));
       } else {
-        // เอาข้อความเก่าไปต่อไว้ "ด้านบน" ของ array เดิม
         setChats(prev => prev.map(chat =>
-          chat.id === activeChatId
+          chat.id === targetId
             ? { ...chat, messages: [...olderMessages, ...chat.messages] }
             : chat
         ));
         setPaginationConfig(prev => ({ 
           ...prev, 
-          [activeChatId]: { page: nextPage, hasMore: olderMessages.length >= 5 } 
+          [targetId]: { page: nextPage, hasMore: olderMessages.length >= 5 } 
         }));
       }
     } catch (error) {
-      console.error("❌ Failed to fetch older messages:", error);
+      console.error("Failed to fetch older messages:", error);
     } finally {
       setIsFetchingHistory(false);
     }
@@ -148,32 +192,34 @@ export function useChat() {
 
   const createNewChat = () => setActiveChatId(null); 
 
-  // 3. Send Message (เวอร์ชัน Stream SSE)
+  // 3. Send Message
   const sendMessage = async (
-    input: string, 
-    model: string, 
-    images: string[] = [], 
-    options?: { ephemeral?: boolean }
-  ) => { 
-    if (!input.trim() && images.length === 0) return; 
-    
-    const ephemeral = (!user?.id) ? true : (options?.ephemeral ?? false);
+  input: string, 
+  model: string, 
+  images: string[] = [], 
+  options?: { ephemeral?: boolean; isRegenerate?: boolean }
+) => { 
+  if (!input.trim() && images.length === 0) return; 
+  
+  const ephemeral = options?.ephemeral ?? false;
+  const isRegenerate = options?.isRegenerate ?? false;
 
-    if (!ephemeral && !user?.id) { 
-      console.error("❌ Member mode requires login"); 
-      return;
-    }
+  if(!input.trim() && images.length === 0 && !isRegenerate) return;
+  let initialId = activeChatId;
+  if (!initialId && !user) {
+    initialId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey) as string || null;
+  }
+  
+  let currentId = initialId;
+  let isNewSession = false; 
 
-    let currentId = activeChatId; 
-    
+  if (!isRegenerate) {
     const userMsg: Message = { 
       role: "user", 
       content: input,
       ...(images.length > 0 && { images }) 
     }; 
     
-    let isNewSession = false; 
-
     if (ephemeral) {
       setEphemeralMessages(prev => [...prev, userMsg]); 
     } else if (currentId && !currentId.startsWith('session_')) { 
@@ -188,109 +234,169 @@ export function useChat() {
     } else {
       isNewSession = true; 
       const tempId = `session_${Date.now()}`; 
-      setChats(prev => [{ id: tempId, title: input.slice(0, 30), messages: [userMsg], model: model, createdAt: Date.now(), updatedAt: Date.now() }, ...prev]); 
+      setChats(prev => [{ 
+        id: tempId, 
+        title: input.slice(0, 30), 
+        messages: [userMsg], 
+        model: model, 
+        createdAt: Date.now(), 
+        updatedAt: Date.now() 
+      }, ...prev]); 
       setActiveChatId(tempId); 
       currentId = tempId; 
     }
+  }
 
-    setIsLoading(true); 
+  setIsLoading(true); 
 
-    try {
-      const payload = { 
-        message: input, 
-        userId: user?.id || 'guest_user', 
-        model: model, 
-        ephemeral: ephemeral,
-        ...(images.length > 0 && { images }), 
-        ...((isNewSession || ephemeral) ? {} : { conversationId: currentId })
-      };
-      const response = await chatService.sendMessageStream(payload);
-      
-      const realConversationId = response.headers.get('X-Conversation-Id') || response.headers.get('conversation_id');
-      const assistantMsg: Message = { role: "assistant", content: "" };
+  try {
+    const payload = { 
+      message: input, 
+      model: model, 
+      ephemeral: ephemeral,
+      is_generate: isRegenerate,
+      ...(images.length > 0 && { images }), 
+      ...((isNewSession || ephemeral) ? {} : { conversationId: currentId })
+    };
+    
+    const response = await chatService.sendMessageStream(payload);
+    
+    let realIdToSwapLater = response.headers.get('X-Conversation-Id') || response.headers.get('conversation_id');
+    
+    const assistantMsg: Message = { role: "assistant", content: "" };
 
-      if (!ephemeral) {
-        setChats(prev => prev.map(chat => 
-          chat.id === currentId 
-            ? { ...chat, id: realConversationId || chat.id, messages: [...chat.messages, assistantMsg] } 
-            : chat
-        ));
-        if (isNewSession && realConversationId) {
-          setActiveChatId(realConversationId);
-          currentId = realConversationId;
-        }
-      } else {
-        setEphemeralMessages(prev => [...prev, assistantMsg]);
-      }
-      
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let accumulatedContent = "";
+    if (!ephemeral) {
+      setChats(prev => prev.map(chat => 
+        chat.id === currentId 
+          ? { ...chat, messages: [...chat.messages, assistantMsg] } 
+          : chat
+      ));
+    } else {
+      setEphemeralMessages(prev => [...prev, assistantMsg]);
+    }
+    
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let accumulatedContent = "";
+    let buffer = "";
 
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+    if (reader) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
 
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || "";
 
-          for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const jsonStr = line.replace('data: ', '').trim();
-                if (!jsonStr) continue;
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const jsonStr = line.replace('data: ', '').trim();
+              if (!jsonStr || jsonStr === '[DONE]') continue;
 
-                const data = JSON.parse(jsonStr);
-                const textChunk = data.text || data.content || "";
-                accumulatedContent += textChunk;
+              const data = JSON.parse(jsonStr);
+              const incomingUserId = data.usermessage_id || data.userMessageId;
+              const incomingAssistantId = data.assistantmessage_Id || data.assistantMessageId;
 
-                const displayContent = accumulatedContent.split("<thinking>").pop()?.trim() || accumulatedContent;
-
-                if (ephemeral) {
-                  setEphemeralMessages(prev => {
-                    const newMsgs = [...prev];
-                    const lastIdx = newMsgs.length - 1;
-                    if (newMsgs[lastIdx]?.role === "assistant") {
-                      newMsgs[lastIdx] = { ...newMsgs[lastIdx], content: displayContent };
-                    }
-                    return newMsgs;
-                  });
-                } else {
-                  setChats(prev => prev.map(chat => 
-                    chat.id === currentId 
-                      ? {
-                          ...chat,
-                          messages: chat.messages.map((msg, idx) => 
-                            idx === chat.messages.length - 1 ? { ...msg, content: displayContent } : msg
-                          )
+              if (incomingUserId || incomingAssistantId) {
+                setChats(prev => prev.map(chat => {
+                  if(chat.id === currentId) {
+                    const safeMsgs = [...chat.messages];
+                    
+                    if (incomingUserId) {
+                      for (let i = safeMsgs.length - 1; i >= 0; i--) {
+                        if (safeMsgs[i].role === "user" && !safeMsgs[i].id) {
+                          safeMsgs[i] = { ...safeMsgs[i], id: incomingUserId }; // 👈 ยัด ID ฝั่ง User
+                          break;
                         }
-                      : chat
-                  ));
+                      }
+                    }
+                    if (incomingAssistantId) {
+                      for (let i = safeMsgs.length - 1; i >= 0; i--) {
+                        if (safeMsgs[i].role === "assistant" && !safeMsgs[i].id) {
+                          safeMsgs[i] = { ...safeMsgs[i], id: incomingAssistantId }; // 👈 ยัด ID ฝั่ง AI
+                          break;
+                        }
+                      }
+                    }
+                    return { ...chat, messages: safeMsgs };
+                  }
+                  return chat;
+                }));
+              }
+    
+              if (isNewSession && !realIdToSwapLater && !ephemeral) {
+                const streamId = data.conversation_id || data.conversationId || data.chat_id || data.chatId;
+                if (streamId) {
+                  realIdToSwapLater = String(streamId);
                 }
-              } catch (e) {}
+              }
+
+              const textChunk = data.text || data.content || "";
+              accumulatedContent += textChunk;
+
+              const displayContent = accumulatedContent.split("<thinking>").pop()?.trim() || accumulatedContent;
+
+              if (ephemeral) {
+                setEphemeralMessages(prev => {
+                  const newMsgs = [...prev];
+                  const lastIdx = newMsgs.length - 1;
+                  if (newMsgs[lastIdx]?.role === "assistant") {
+                    newMsgs[lastIdx] = { ...newMsgs[lastIdx], content: displayContent };
+                  }
+                  return newMsgs;
+                });
+              } else {
+                setChats(prev => prev.map(chat => 
+                  chat.id === currentId 
+                    ? {
+                        ...chat,
+                        messages: chat.messages.map((msg, idx) => 
+                          idx === chat.messages.length - 1 ? { ...msg, content: displayContent } : msg
+                        )
+                      }
+                    : chat
+                ));
+              }
+            } catch (e) {
+              console.error("JSON Parse Error", e);
             }
           }
         }
       }
-    } catch (error) {
-      console.error("❌ Stream failed:", error);
-    } finally {
-      setIsLoading(false);
     }
-  };
+
+    if (!ephemeral && isNewSession && realIdToSwapLater) {
+      const finalRealId = realIdToSwapLater; // การันตีค่า
+      
+      // ดัก useEffect ไม่ให้ดึง API ทับหน้าจอ
+      setPaginationConfig(prev => ({ ...prev, [finalRealId]: { page: 1, hasMore: false } }));
+      
+      // สลับ ID ในรายการแชท
+      setChats(prev => prev.map(chat => 
+        chat.id === currentId ? { ...chat, id: finalRealId } : chat
+      ));
+      
+      // สลับโฟกัสหน้าจอ
+      setActiveChatId(finalRealId);
+    }
+
+  } catch (error) {
+    console.error("Stream failed:", error);
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   // 4. Delete Chat
   const deleteChat = async (id: string) => {
-    if (!user?.id) return;
-
-    console.log(`🗑️ [PROCESS] Requesting server to delete conversation: ${id}`);
-    
+    console.log(`[PROCESS] Requesting server to delete conversation: ${id}`);
     setIsLoading(true);
 
     try {
       await chatService.deleteConversation(id); 
-      console.log(`✅ [SUCCESS] Server confirmed deletion`);
+      console.log(`[SUCCESS] Server confirmed deletion`);
 
       const filtered = chats.filter(c => c.id !== id);
       setChats(filtered);
@@ -298,9 +404,8 @@ export function useChat() {
       if (activeChatId === id) {
         setActiveChatId(filtered[0]?.id || null);
       }
-
     } catch (error: any) {
-      console.error("❌ [FAILURE] Server rejected deletion:", error);
+      console.error("[FAILURE] Server rejected deletion:", error);
       alert(`Failed to delete chat. Server responded with an error.`);
     } finally {
       setIsLoading(false);
@@ -308,21 +413,103 @@ export function useChat() {
   };
 
   // 5. Rename Chat
-  const renameChat = async (id: string, newTitle: string) => {
-    if (!user?.id) return;
+    const renameChat = async (id: string, newTitle: string) => { // เปลี่ยนชื่อแชท
+      const originalChats = [...chats]; // เก็บสำรองของเดิมไว้ก่อนเผื่อแก้ไขกลับ
+      setChats(prev => prev.map(chat => chat.id === id ? { ...chat, title: newTitle } : chat));   // อัปเดตชื่อใน UI ทันทีแบบ Optimistic UI
+      
+      try { 
+        await chatService.renameConversation(id, newTitle); // ส่งคำขอเปลี่ยนชื่อไปยังเซิร์ฟเวอร์
+      } catch (error) {
+        console.error("[FAILURE] Failed to rename chat:", error);
+        setChats(originalChats); 
+      }
+    };
+ 
+    const editAndResend = async (messageId: string, newContent: string, model: string) => {
+      if (!activeChatId) return;
+      setIsLoading(true);
+      try {
+        await chatService.editMessage(messageId, newContent);
+        setChats(prev => prev.map(chat => {
+          if (chat.id === activeChatId) {
+            const msgIndex = chat.messages.findIndex(m => m.id === messageId);
+            if (msgIndex == -1) return chat;
+            const updatedMessages = chat.messages.slice(0, msgIndex + 1).map(m=> 
+              m.id === messageId ? { ...m, content: newContent } : m
+            );
+            return { ...chat, messages: updatedMessages };
+          }
+          return chat;
+        }));
+       await sendMessage(newContent, model, [], { isRegenerate: true });
+      } catch (error) {
+        console.error("Failed to edit message:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-    const originalChats = [...chats];
-    setChats(prev => prev.map(chat => chat.id === id ? { ...chat, title: newTitle } : chat));
-    
-    try {
-      await chatService.renameConversation(id, user.id, newTitle);
-    } catch (error) {
-      console.error("❌ [FAILURE] Failed to rename chat:", error);
-      setChats(originalChats); 
+  const migrationInfo = useMemo(() => {
+    const gId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
+    const guestChat = chats.find(c => String(c.id) === String(gId));
+    const hasContent = (guestChat?.messages.length || 0) > 0;
+
+    return {
+      guestId: gId as string | null,
+      canMigrate: !!gId && hasContent,
+    };
+  }, [chats]);
+
+  useEffect(() => {
+    if (user) {
+      // ถ้าเป็น User ให้เคลียร์เวลา Guest และสถานะทั้งหมดทิ้งไปเลย
+      localStorage.removeItem(AUTH_CONFIG.session.guestStartTimeStorageKey);
+      setShowExpiryWarning(false);
+      setIsGuestExpired(false);
+      return;
     }
-  };
 
-  // ดึงค่า hasMore ของห้องแชทปัจจุบัน
+    const checkExpiry = () => {
+      let startTime = localStorage.getItem(AUTH_CONFIG.session.guestStartTimeStorageKey);
+      
+      // ถ้าเพิ่งมาครั้งแรก หรือเพิ่งโดนรีเซ็ตไป ให้เริ่มจับเวลาใหม่
+      if (!startTime) {
+        startTime = Date.now().toString();
+        localStorage.setItem(AUTH_CONFIG.session.guestStartTimeStorageKey, startTime);
+        setIsGuestExpired(false); // เริ่มเซสชันใหม่ สถานะต้องไม่หมดอายุ
+      }
+
+      const elapsed = Date.now() - parseInt(startTime);
+      
+      // ดึงเวลาจาก Config (แปลงนาทีเป็นมิลลิวินาที)
+      const timeLimitMs = AUTH_CONFIG.token.guestExpiryMinutes * 60 * 1000;
+      const warningTimeMs = AUTH_CONFIG.session.guestWarningMinutesBeforeExpiry * 60 * 1000;
+      const remaining = timeLimitMs - elapsed;
+
+      if (remaining <= 0) {
+        setShowExpiryWarning(false); // ปิดหน้าต่างเตือน (เพราะหมดเวลาแล้ว)
+        setIsGuestExpired(true);     // เปิดสถานะหมดอายุ ให้ UI เอาไปโชว์
+        localStorage.removeItem(AUTH_CONFIG.session.guestStartTimeStorageKey);
+        
+        // ล้างหน้าจอแชทเก่าออก
+        setChats([]);
+        setActiveChatId(null); 
+        setPaginationConfig({});
+        
+      } else if (remaining <= warningTimeMs) {
+        setShowExpiryWarning(true);
+      }
+    };
+
+    // เช็คทันทีตอนโหลดครั้งแรก
+    checkExpiry();
+    
+    // ตั้งเวลาเช็ควนลูปตาม Config
+    const interval = setInterval(checkExpiry, AUTH_CONFIG.session.guestCheckIntervalMs); 
+    
+    return () => clearInterval(interval);
+  }, [user]);
+
   const currentHasMore = activeChatId ? (paginationConfig[activeChatId]?.hasMore ?? false) : false;
 
   return { 
@@ -334,9 +521,17 @@ export function useChat() {
     createNewChat, 
     deleteChat, 
     renameChat, 
+    editAndResend,
     ephemeralMessages,
     fetchNextPage,
     isFetchingHistory,
-    hasMore: currentHasMore
-  };
+    hasMore: currentHasMore,
+    isSessionReady, 
+    guestId: migrationInfo.guestId,
+    canMigrate: migrationInfo.canMigrate,
+    showExpiryWarning,
+    setShowExpiryWarning,
+    isGuestExpired,
+    setIsGuestExpired
+    };
 }

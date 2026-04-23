@@ -3,6 +3,7 @@ import { ENV } from '@/lib/env';
 
 const API_KEY = ENV.COMPANY_API_KEY;
 const vectorAPI = ENV.MAP_API_KEY;
+const vallarisAPI = ENV.MAP_VALLARIS_API_KEY;
 
 const getTmsUrl = (baseUrl: string, layerId: string) => {
   return `${baseUrl}/{z}/{x}/{y}?api_key=${API_KEY}`;
@@ -79,3 +80,7 @@ export const HAZARD_VECTOR_URLS: Record<HazardType, Record<TimeRange, string[]>>
     30: [getVectorUrl('https://api-gateway.gistda.or.th/api/2.0/resources/maps/drought/30days/tiles')],
   },
 };
+
+export const PROVINCE_GEOJSON_URL = `https://app.vallarismaps.com/core/api/features/1.1/collections/69e99410cacd2e5010722e28/items?api_key=${vallarisAPI}`;
+
+export const DISTRICT_GEOJSON_URL = `https://app.vallarismaps.com/core/api/features/1.1/collections/69e9a9c0da828e8ffc6d535e/items?api_key=${vallarisAPI}`;
