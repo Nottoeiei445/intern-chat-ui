@@ -7,7 +7,8 @@ import { chatService } from "../services/chat.service";
 import { authService } from "@/features/auth/services/auth.service";
 import { AUTH_CONFIG } from "@/features/auth/config/auth.config";
 import { storage } from "@/lib/storage";
-import { send } from "process";
+import { useRouter } from "next/navigation";
+import { chatWithOllama } from "../services/ollama";
 
 export function useChat() {
   const { user } = useAuth(); 
@@ -23,6 +24,7 @@ export function useChat() {
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [showExpiryWarning, setShowExpiryWarning] = useState(false);
   const [isGuestExpired, setIsGuestExpired] = useState(false);
+  const router = useRouter();
 
   const sortChats = useCallback((list: ChatThread[]) => { 
     return [...list].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)); 
@@ -192,202 +194,224 @@ export function useChat() {
 
   const createNewChat = () => setActiveChatId(null); 
 
+
   // 3. Send Message
   const sendMessage = async (
-  input: string, 
-  model: string, 
-  images: string[] = [], 
-  options?: { ephemeral?: boolean; isRegenerate?: boolean }
-) => { 
-  if (!input.trim() && images.length === 0) return; 
-  
-  const ephemeral = options?.ephemeral ?? false;
-  const isRegenerate = options?.isRegenerate ?? false;
-
-  if(!input.trim() && images.length === 0 && !isRegenerate) return;
-  let initialId = activeChatId;
-  if (!initialId && !user) {
-    initialId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey) as string || null;
-  }
-  
-  let currentId = initialId;
-  let isNewSession = false; 
-
-  if (!isRegenerate) {
-    const userMsg: Message = { 
-      role: "user", 
-      content: input,
-      ...(images.length > 0 && { images }) 
-    }; 
+    input: string, 
+    model: string, 
+    images: string[] = [], 
+    options?: { ephemeral?: boolean; isRegenerate?: boolean }
+  ) => { 
+    if (!input.trim() && images.length === 0) return; 
     
-    if (ephemeral) {
-      setEphemeralMessages(prev => [...prev, userMsg]); 
-    } else if (currentId && !currentId.startsWith('session_')) { 
-      setChats(prev => {
-        const updated = prev.map(chat => 
-          chat.id === currentId 
-            ? { ...chat, messages: [...chat.messages, userMsg], updatedAt: Date.now() } 
-            : chat
-        );
-        return sortChats(updated); 
-      });
-    } else {
-      isNewSession = true; 
-      const tempId = `session_${Date.now()}`; 
-      setChats(prev => [{ 
-        id: tempId, 
-        title: input.slice(0, 30), 
-        messages: [userMsg], 
+    const ephemeral = options?.ephemeral ?? false;
+    const isRegenerate = options?.isRegenerate ?? false;
+
+    if(!input.trim() && images.length === 0 && !isRegenerate) return;
+    let initialId = activeChatId;
+    if (!initialId && !user) {
+      initialId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey) as string || null;
+    }
+    
+    let currentId = initialId;
+    let isNewSession = false; 
+
+    // ตัวแปรเก็บข้อความล่าสุด เพื่อเอาไว้ส่งให้ Ollama
+    let userMsgToSent: Message = { role: "user", content: input };
+
+    if (!isRegenerate) {
+      const userMsg: Message = { 
+        role: "user", 
+        content: input,
+        ...(images.length > 0 && { images }) 
+      }; 
+      userMsgToSent = userMsg; // เก็บไว้ใช้
+      
+      if (ephemeral) {
+        setEphemeralMessages(prev => [...prev, userMsg]); 
+      } else if (currentId && !currentId.startsWith('session_')) { 
+        setChats(prev => {
+          const updated = prev.map(chat => 
+            chat.id === currentId 
+              ? { ...chat, messages: [...chat.messages, userMsg], updatedAt: Date.now() } 
+              : chat
+          );
+          return sortChats(updated); 
+        });
+      } else {
+        isNewSession = true; 
+        const tempId = `session_${Date.now()}`; 
+        setChats(prev => [{ 
+          id: tempId, 
+          title: input.slice(0, 30), 
+          messages: [userMsg], 
+          model: model, 
+          createdAt: Date.now(), 
+          updatedAt: Date.now() 
+        }, ...prev]); 
+        setActiveChatId(tempId); 
+        currentId = tempId; 
+      }
+    }
+
+    setIsLoading(true); 
+
+    try {
+      const payload = { 
+        message: input, 
         model: model, 
-        createdAt: Date.now(), 
-        updatedAt: Date.now() 
-      }, ...prev]); 
-      setActiveChatId(tempId); 
-      currentId = tempId; 
-    }
-  }
+        ephemeral: ephemeral,
+        is_generate: isRegenerate,
+        ...(images.length > 0 && { images }), 
+        ...((isNewSession || ephemeral) ? {} : { conversationId: currentId })
+      };
+      
+      // 🛑 1. สับสวิตช์: ปิดการเรียก API ตัวจริงไว้ชั่วคราว
+      // const response = await chatService.sendMessageStream(payload);
+      
+      // 🚀 2. สร้างก้อนข้อความเพื่อส่งให้ Ollama Local
+      const currentChat = chats.find(c => c.id === currentId);
+      const previousMessages = currentChat ? currentChat.messages : [];
+      const messagesToSend = [...previousMessages, userMsgToSent]; // รวมอดีตและปัจจุบัน
+      
+      // 🚀 3. เรียกใช้ AI บนเครื่องตัวเองแทน
+      const response = await chatWithOllama(model, messagesToSend);
+      
+      let realIdToSwapLater = response.headers.get('X-Conversation-Id') || response.headers.get('conversation_id');
+      
+      const assistantMsg: Message = { role: "assistant", content: "" };
 
-  setIsLoading(true); 
+      if (!ephemeral) {
+        setChats(prev => prev.map(chat => 
+          chat.id === currentId 
+            ? { ...chat, messages: [...chat.messages, assistantMsg] } 
+            : chat
+        ));
+      } else {
+        setEphemeralMessages(prev => [...prev, assistantMsg]);
+      }
+      
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let accumulatedContent = "";
+      let buffer = "";
 
-  try {
-    const payload = { 
-      message: input, 
-      model: model, 
-      ephemeral: ephemeral,
-      is_generate: isRegenerate,
-      ...(images.length > 0 && { images }), 
-      ...((isNewSession || ephemeral) ? {} : { conversationId: currentId })
-    };
-    
-    const response = await chatService.sendMessageStream(payload);
-    
-    let realIdToSwapLater = response.headers.get('X-Conversation-Id') || response.headers.get('conversation_id');
-    
-    const assistantMsg: Message = { role: "assistant", content: "" };
+      if (reader) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-    if (!ephemeral) {
-      setChats(prev => prev.map(chat => 
-        chat.id === currentId 
-          ? { ...chat, messages: [...chat.messages, assistantMsg] } 
-          : chat
-      ));
-    } else {
-      setEphemeralMessages(prev => [...prev, assistantMsg]);
-    }
-    
-    const reader = response.body?.getReader();
-    const decoder = new TextDecoder();
-    let accumulatedContent = "";
-    let buffer = "";
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || "";
 
-    if (reader) {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const jsonStr = line.replace('data: ', '').trim();
+                if (!jsonStr || jsonStr === '[DONE]') continue;
 
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() || "";
+                const data = JSON.parse(jsonStr);
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            try {
-              const jsonStr = line.replace('data: ', '').trim();
-              if (!jsonStr || jsonStr === '[DONE]') continue;
-
-              const data = JSON.parse(jsonStr);
-              const incomingUserId = data.usermessage_id || data.userMessageId;
-              const incomingAssistantId = data.assistantmessage_Id || data.assistantMessageId;
-
-              if (incomingUserId || incomingAssistantId) {
-                setChats(prev => prev.map(chat => {
-                  if(chat.id === currentId) {
-                    const safeMsgs = [...chat.messages];
-                    
-                    if (incomingUserId) {
-                      for (let i = safeMsgs.length - 1; i >= 0; i--) {
-                        if (safeMsgs[i].role === "user" && !safeMsgs[i].id) {
-                          safeMsgs[i] = { ...safeMsgs[i], id: incomingUserId }; // 👈 ยัด ID ฝั่ง User
-                          break;
-                        }
-                      }
-                    }
-                    if (incomingAssistantId) {
-                      for (let i = safeMsgs.length - 1; i >= 0; i--) {
-                        if (safeMsgs[i].role === "assistant" && !safeMsgs[i].id) {
-                          safeMsgs[i] = { ...safeMsgs[i], id: incomingAssistantId }; // 👈 ยัด ID ฝั่ง AI
-                          break;
-                        }
-                      }
-                    }
-                    return { ...chat, messages: safeMsgs };
-                  }
-                  return chat;
-                }));
-              }
-    
-              if (isNewSession && !realIdToSwapLater && !ephemeral) {
-                const streamId = data.conversation_id || data.conversationId || data.chat_id || data.chatId;
-                if (streamId) {
-                  realIdToSwapLater = String(streamId);
+                // 🚀🚀 4. ดักจับ Tool Call วาร์ปหน้าเว็บ!! 🚀🚀
+                if (data.action === 'REDIRECT' && data.path) {
+                  console.log("🔥 AI สั่งทำงาน: เตรียมวาร์ปไปหน้า", data.path);
+                  router.push(data.path); // เปลี่ยนหน้าปุ๊บ
+                  continue; // ข้ามการทำงานที่เหลือไปเลย ไม่ต้องแสดงข้อความ
                 }
-              }
+                // 🚀🚀 จบดักจับ 🚀🚀
 
-              const textChunk = data.text || data.content || "";
-              accumulatedContent += textChunk;
+                const incomingUserId = data.usermessage_id || data.userMessageId;
+                const incomingAssistantId = data.assistantmessage_Id || data.assistantMessageId;
 
-              const displayContent = accumulatedContent.split("<thinking>").pop()?.trim() || accumulatedContent;
-
-              if (ephemeral) {
-                setEphemeralMessages(prev => {
-                  const newMsgs = [...prev];
-                  const lastIdx = newMsgs.length - 1;
-                  if (newMsgs[lastIdx]?.role === "assistant") {
-                    newMsgs[lastIdx] = { ...newMsgs[lastIdx], content: displayContent };
-                  }
-                  return newMsgs;
-                });
-              } else {
-                setChats(prev => prev.map(chat => 
-                  chat.id === currentId 
-                    ? {
-                        ...chat,
-                        messages: chat.messages.map((msg, idx) => 
-                          idx === chat.messages.length - 1 ? { ...msg, content: displayContent } : msg
-                        )
+                if (incomingUserId || incomingAssistantId) {
+                  setChats(prev => prev.map(chat => {
+                    if(chat.id === currentId) {
+                      const safeMsgs = [...chat.messages];
+                      
+                      if (incomingUserId) {
+                        for (let i = safeMsgs.length - 1; i >= 0; i--) {
+                          if (safeMsgs[i].role === "user" && !safeMsgs[i].id) {
+                            safeMsgs[i] = { ...safeMsgs[i], id: incomingUserId }; 
+                            break;
+                          }
+                        }
                       }
-                    : chat
-                ));
+                      if (incomingAssistantId) {
+                        for (let i = safeMsgs.length - 1; i >= 0; i--) {
+                          if (safeMsgs[i].role === "assistant" && !safeMsgs[i].id) {
+                            safeMsgs[i] = { ...safeMsgs[i], id: incomingAssistantId }; 
+                            break;
+                          }
+                        }
+                      }
+                      return { ...chat, messages: safeMsgs };
+                    }
+                    return chat;
+                  }));
+                }
+      
+                if (isNewSession && !realIdToSwapLater && !ephemeral) {
+                  const streamId = data.conversation_id || data.conversationId || data.chat_id || data.chatId;
+                  if (streamId) {
+                    realIdToSwapLater = String(streamId);
+                  }
+                }
+
+                const textChunk = data.text || data.content || "";
+                accumulatedContent += textChunk;
+
+                const displayContent = accumulatedContent.split("<thinking>").pop()?.trim() || accumulatedContent;
+
+                if (ephemeral) {
+                  setEphemeralMessages(prev => {
+                    const newMsgs = [...prev];
+                    const lastIdx = newMsgs.length - 1;
+                    if (newMsgs[lastIdx]?.role === "assistant") {
+                      newMsgs[lastIdx] = { ...newMsgs[lastIdx], content: displayContent };
+                    }
+                    return newMsgs;
+                  });
+                } else {
+                  setChats(prev => prev.map(chat => 
+                    chat.id === currentId 
+                      ? {
+                          ...chat,
+                          messages: chat.messages.map((msg, idx) => 
+                            idx === chat.messages.length - 1 ? { ...msg, content: displayContent } : msg
+                          )
+                        }
+                      : chat
+                  ));
+                }
+              } catch (e) {
+                console.error("JSON Parse Error", e);
               }
-            } catch (e) {
-              console.error("JSON Parse Error", e);
             }
           }
         }
       }
-    }
 
-    if (!ephemeral && isNewSession && realIdToSwapLater) {
-      const finalRealId = realIdToSwapLater; // การันตีค่า
-      
-      // ดัก useEffect ไม่ให้ดึง API ทับหน้าจอ
-      setPaginationConfig(prev => ({ ...prev, [finalRealId]: { page: 1, hasMore: false } }));
-      
-      // สลับ ID ในรายการแชท
-      setChats(prev => prev.map(chat => 
-        chat.id === currentId ? { ...chat, id: finalRealId } : chat
-      ));
-      
-      // สลับโฟกัสหน้าจอ
-      setActiveChatId(finalRealId);
-    }
+      if (!ephemeral && isNewSession && realIdToSwapLater) {
+        const finalRealId = realIdToSwapLater; 
+        
+        setPaginationConfig(prev => ({ ...prev, [finalRealId]: { page: 1, hasMore: false } }));
+        
+        setChats(prev => prev.map(chat => 
+          chat.id === currentId ? { ...chat, id: finalRealId } : chat
+        ));
+        
+        setActiveChatId(finalRealId);
+      }
 
-  } catch (error) {
-    console.error("Stream failed:", error);
-  } finally {
-    setIsLoading(false);
-  }
-};
+    } catch (error) {
+      console.error("Stream failed:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
 
   // 4. Delete Chat
   const deleteChat = async (id: string) => {
@@ -429,26 +453,32 @@ export function useChat() {
       if (!activeChatId) return;
       setIsLoading(true);
       try {
+        // 1. ส่ง ID เก่าไปบอกเพื่อนหลังบ้านว่าขอแก้ตัวนี้นะ
         await chatService.editMessage(messageId, newContent, true);
+
         setChats(prev => prev.map(chat => {
           if (chat.id === activeChatId) {
             const msgIndex = chat.messages.findIndex(m => m.id === messageId);
             if (msgIndex == -1) return chat;
+            
             const updatedMessages = chat.messages.slice(0, msgIndex + 1).map(m=> 
-              m.id === messageId ? { ...m, content: newContent } : m
+              m.id === messageId ? { ...m, content: newContent, id: "temp_edit_" + Date.now() } : m
             );
+            
             return { ...chat, messages: updatedMessages };
           }
           return chat;
         }));
-       await sendMessage(newContent, model, [], { isRegenerate: true });
+        
+        // 2. เรียก sendMessage ให้มันไปดึง ID ใหม่จาก Stream มายัดให้เอง!
+        await sendMessage(newContent, model, [], { isRegenerate: true });
+        
       } catch (error) {
         console.error("Failed to edit message:", error);
       } finally {
         setIsLoading(false);
       }
     };
-
   const migrationInfo = useMemo(() => {
     const gId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
     const guestChat = chats.find(c => String(c.id) === String(gId));
