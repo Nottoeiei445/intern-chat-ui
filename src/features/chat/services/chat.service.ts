@@ -42,8 +42,8 @@ export const chatService = {
     return apiClient.delete<any>(`${CHAT_CONFIG.endpoints.delete}/${id}`);
   },
 
-editMessage: (messageId: string, newContent: string) => {
-  return apiClient.put(`/chat/editmessage/${messageId}`, { newContent });
+editMessage: (messageId: string, newContent: string, is_generate: boolean = false) => {
+  return apiClient.put(`/chat/editmessage/${messageId}`, { newContent, is_generate });
 },
 
 };

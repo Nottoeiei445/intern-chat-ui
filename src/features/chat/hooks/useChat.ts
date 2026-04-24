@@ -429,7 +429,7 @@ export function useChat() {
       if (!activeChatId) return;
       setIsLoading(true);
       try {
-        await chatService.editMessage(messageId, newContent);
+        await chatService.editMessage(messageId, newContent, true);
         setChats(prev => prev.map(chat => {
           if (chat.id === activeChatId) {
             const msgIndex = chat.messages.findIndex(m => m.id === messageId);
