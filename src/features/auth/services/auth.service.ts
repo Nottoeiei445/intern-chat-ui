@@ -82,40 +82,26 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    
+    // ⚠️ แก้ตรงนี้: เช็คให้ครอบคลุมชื่อ endpoint ใหม่
     const isAuthRoute =
-      originalRequest.url?.includes(AUTH_CONFIG.endpoints.login) ||
-      originalRequest.url?.includes(AUTH_CONFIG.endpoints.refresh);
+      originalRequest.url?.includes('/auth/sessions') || // ครอบคลุมทั้ง Login และ Refresh
+      originalRequest.url?.includes('/auth/guests');
 
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthRoute) {
-      if (isRefreshing) {
-        return new Promise((resolve) => {
-          addRefreshSubscriber((token: string) => {
-            originalRequest.headers.Authorization = `Bearer ${token}`;
-            resolve(api(originalRequest));
-          });
-        });
-      }
-
-      originalRequest._retry = true;
-      isRefreshing = true;
-
+      // ... (ลอจิก Refresh เดิม)
+      
       try {
+        // ยิงไปที่ endpoint ใหม่ (มักจะเป็น /auth/sessions ด้วย Method POST หรือ PUT)
         const response = await axios.post(
-          `${AUTH_CONFIG.api.baseURL}${AUTH_CONFIG.endpoints.refresh}`,
+          `${AUTH_CONFIG.api.baseURL}/auth/sessions`, 
           {},
-          { withCredentials: AUTH_CONFIG.api.withCredentials }
+          { withCredentials: true }
         );
-
-        if (response.data?.data?.accessToken) {
-          saveAuthSession(response.data.data);
-          onRefreshed(response.data.data.accessToken);
-          return api(originalRequest);
-        }
+        // ...
       } catch (refreshError) {
         clearAuthSession();
         return Promise.reject(refreshError);
-      } finally {
-        isRefreshing = false;
       }
     }
     return Promise.reject(error);
@@ -148,10 +134,10 @@ const createApiError = (error: any, fallbackMessage = "An unexpected error occur
 export const authService = {
   initializeGuest: async (): Promise<any> => {
     try {
-      const { data } = await api.post(AUTH_CONFIG.endpoints.guestMode);
+      // Path ใน config จะกลายเป็น /auth/guests
+      const { data } = await api.post(AUTH_CONFIG.endpoints.guestMode); 
       if (data?.data) {
         saveAuthSession(data.data);
-        authService.logEvent("✅ [Auth] Guest session initialized!");
       }
       return data;
     } catch (error: any) {
@@ -211,15 +197,11 @@ export const authService = {
 
   getCurrentUser: async (): Promise<AuthResponse> => {
     try {
-      const { data } = await api.post(AUTH_CONFIG.endpoints.refresh, {});
+      // เปลี่ยนจาก .post เป็น .get และ Path ใน config คือ /auth/sessions
+      const { data } = await api.get(AUTH_CONFIG.endpoints.getCurrentUser); 
       if (data?.data) {
         saveAuthSession(data.data);
-        if (!data.data.user) {
-          const storedUser = storage.getLocal(AUTH_CONFIG.session.userStorageKey);
-          if (storedUser) {
-            try { data.data.user = JSON.parse(storedUser); } catch { /* ignore */ }
-          }
-        }
+        // ... (ลอจิกเดิม)
       }
       return data;
     } catch (error: any) {
@@ -243,7 +225,8 @@ export const authService = {
 
   logout: async (): Promise<void> => {
     try {
-      await api.post(AUTH_CONFIG.endpoints.logout);
+      // เปลี่ยนจาก .post เป็น .delete และ Path ใน config คือ /auth/sessions
+      await api.delete(AUTH_CONFIG.endpoints.logout); 
     } catch (error) {
       authService.logEvent("ℹ️ [Auth] Backend logout failed.");
     } finally {

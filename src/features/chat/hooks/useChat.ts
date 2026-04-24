@@ -216,16 +216,12 @@ export function useChat() {
     let currentId = initialId;
     let isNewSession = false; 
 
-    // ตัวแปรเก็บข้อความล่าสุด เพื่อเอาไว้ส่งให้ Ollama
-    let userMsgToSent: Message = { role: "user", content: input };
-
     if (!isRegenerate) {
       const userMsg: Message = { 
         role: "user", 
         content: input,
         ...(images.length > 0 && { images }) 
       }; 
-      userMsgToSent = userMsg; // เก็บไว้ใช้
       
       if (ephemeral) {
         setEphemeralMessages(prev => [...prev, userMsg]); 
@@ -266,16 +262,7 @@ export function useChat() {
         ...((isNewSession || ephemeral) ? {} : { conversationId: currentId })
       };
       
-      // 🛑 1. สับสวิตช์: ปิดการเรียก API ตัวจริงไว้ชั่วคราว
-      // const response = await chatService.sendMessageStream(payload);
-      
-      // 🚀 2. สร้างก้อนข้อความเพื่อส่งให้ Ollama Local
-      const currentChat = chats.find(c => c.id === currentId);
-      const previousMessages = currentChat ? currentChat.messages : [];
-      const messagesToSend = [...previousMessages, userMsgToSent]; // รวมอดีตและปัจจุบัน
-      
-      // 🚀 3. เรียกใช้ AI บนเครื่องตัวเองแทน
-      const response = await chatWithOllama(model, messagesToSend);
+      const response = await chatService.sendMessageStream(payload);
       
       let realIdToSwapLater = response.headers.get('X-Conversation-Id') || response.headers.get('conversation_id');
       
@@ -312,15 +299,6 @@ export function useChat() {
                 if (!jsonStr || jsonStr === '[DONE]') continue;
 
                 const data = JSON.parse(jsonStr);
-
-                // 🚀🚀 4. ดักจับ Tool Call วาร์ปหน้าเว็บ!! 🚀🚀
-                if (data.action === 'REDIRECT' && data.path) {
-                  console.log("🔥 AI สั่งทำงาน: เตรียมวาร์ปไปหน้า", data.path);
-                  router.push(data.path); // เปลี่ยนหน้าปุ๊บ
-                  continue; // ข้ามการทำงานที่เหลือไปเลย ไม่ต้องแสดงข้อความ
-                }
-                // 🚀🚀 จบดักจับ 🚀🚀
-
                 const incomingUserId = data.usermessage_id || data.userMessageId;
                 const incomingAssistantId = data.assistantmessage_Id || data.assistantMessageId;
 
@@ -331,8 +309,8 @@ export function useChat() {
                       
                       if (incomingUserId) {
                         for (let i = safeMsgs.length - 1; i >= 0; i--) {
-                          if (safeMsgs[i].role === "user" && !safeMsgs[i].id) {
-                            safeMsgs[i] = { ...safeMsgs[i], id: incomingUserId }; 
+                          if (safeMsgs[i].role === "user" && (!safeMsgs[i].id || safeMsgs[i].id?.startsWith("temp_edit_"))) {
+                            safeMsgs[i] = { ...safeMsgs[i], id: incomingUserId }; // 👈 ยัด ID ฝั่ง User
                             break;
                           }
                         }
@@ -340,7 +318,7 @@ export function useChat() {
                       if (incomingAssistantId) {
                         for (let i = safeMsgs.length - 1; i >= 0; i--) {
                           if (safeMsgs[i].role === "assistant" && !safeMsgs[i].id) {
-                            safeMsgs[i] = { ...safeMsgs[i], id: incomingAssistantId }; 
+                            safeMsgs[i] = { ...safeMsgs[i], id: incomingAssistantId }; // 👈 ยัด ID ฝั่ง AI
                             break;
                           }
                         }
@@ -393,14 +371,17 @@ export function useChat() {
       }
 
       if (!ephemeral && isNewSession && realIdToSwapLater) {
-        const finalRealId = realIdToSwapLater; 
+        const finalRealId = realIdToSwapLater; // การันตีค่า
         
+        // ดัก useEffect ไม่ให้ดึง API ทับหน้าจอ
         setPaginationConfig(prev => ({ ...prev, [finalRealId]: { page: 1, hasMore: false } }));
         
+        // สลับ ID ในรายการแชท
         setChats(prev => prev.map(chat => 
           chat.id === currentId ? { ...chat, id: finalRealId } : chat
         ));
         
+        // สลับโฟกัสหน้าจอ
         setActiveChatId(finalRealId);
       }
 
@@ -409,7 +390,7 @@ export function useChat() {
     } finally {
       setIsLoading(false);
     }
-  };
+};
 
 
 

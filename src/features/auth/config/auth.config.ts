@@ -1,5 +1,7 @@
 // src/features/auth/config/auth.config.ts
 import { ENV } from '@/lib/env'; 
+import { get } from 'http';
+import { refresh } from 'next/cache';
 
 /**
  * Auth Configuration
@@ -24,12 +26,12 @@ export const AUTH_CONFIG = {
   },
 
   endpoints: {
-    login: "/auth/login",
-    refresh: "/auth/refresh",
-    logout: "/auth/logout",
-    getCurrentUser: "/auth/me",
-    register: "/auth/register",
-    guestMode: "/auth/guestmode",
+    login: "/auth/sessions",         // POST: สร้าง Session (Login)
+    refresh: "/auth/sessions", // POST: รีเฟรช Token
+    getCurrentUser: "/auth/sessions", // GET: ดึงข้อมูล Session ปัจจุบัน (Me)
+    logout: "/auth/sessions",        // DELETE: ทำลาย Session (ถ้าเพื่อนทำไว้นะ)
+    register: "/auth/register",      // POST: ลงทะเบียน (เหมือนเดิม)
+    guestMode: "/auth/guests",       // POST: สร้าง Guest session
   },
 
   session: {

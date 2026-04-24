@@ -10,10 +10,8 @@ export const chatService = {
 
   // 2. ดึงรายละเอียดข้อความในแชทนั้นๆ
   getConversationDetail: (conversationId: string, page?: number) => {
-    // ถ้ามีการส่งเลขหน้ามา ให้เติม ?page=... ต่อท้าย URL
-    const url = page 
-      ? `${CHAT_CONFIG.endpoints.conversation}/${conversationId}?page=${page}`
-      : `${CHAT_CONFIG.endpoints.conversation}/${conversationId}`;
+    let url = `${CHAT_CONFIG.endpoints.conversation}/${conversationId}/messages`;
+    if (page) url += `?page=${page}`;
       
     return apiClient.get<any>(url);
   },
@@ -39,11 +37,14 @@ export const chatService = {
 
   // 5. ลบแชท 
   deleteConversation: (id: string) => {
-    return apiClient.delete<any>(`${CHAT_CONFIG.endpoints.delete}/${id}`);
+    return apiClient.delete<any>(`${CHAT_CONFIG.endpoints.conversation}/${id}`);
   },
 
 editMessage: (messageId: string, newContent: string, is_generate: boolean = false) => {
-  return apiClient.put(`/chat/editmessage/${messageId}`, { newContent, is_generate });
-},
+    return apiClient.put(`${CHAT_CONFIG.endpoints.message}/${messageId}`, { 
+      newContent, 
+      is_generate 
+    });
+  },
 
 };

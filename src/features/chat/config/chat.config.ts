@@ -12,11 +12,10 @@ export const CHAT_CONFIG = {
   },
 
   endpoints: {
-    chat: "/chat/",
-    conversation: "/chat/history",
-    history: "/chat/histories",
-    delete: "/chat/delete", 
-    
+    chat: "/chat",
+    history: "/chat/conversations",
+    conversation: "/chat/conversations",
+    message: "/chat/messages",   
   },
 
   // Chat Validation & Settings

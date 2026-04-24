@@ -1,4 +1,4 @@
-  const sendMessage = async (
+const sendMessage = async (
     input: string, 
     model: string, 
     images: string[] = [], 
@@ -18,7 +18,6 @@
     let currentId = initialId;
     let isNewSession = false; 
 
-    // ตัวแปรเก็บข้อความล่าสุด เพื่อเอาไว้ส่งให้ Ollama
     let userMsgToSent: Message = { role: "user", content: input };
 
     if (!isRegenerate) {
@@ -27,7 +26,7 @@
         content: input,
         ...(images.length > 0 && { images }) 
       }; 
-      userMsgToSent = userMsg; // เก็บไว้ใช้
+      userMsgToSent = userMsg;
       
       if (ephemeral) {
         setEphemeralMessages(prev => [...prev, userMsg]); 
@@ -59,42 +58,27 @@
     setIsLoading(true); 
 
     try {
-      const payload = { 
-        message: input, 
-        model: model, 
-        ephemeral: ephemeral,
-        is_generate: isRegenerate,
-        ...(images.length > 0 && { images }), 
-        ...((isNewSession || ephemeral) ? {} : { conversationId: currentId })
-      };
-      
-      // 🛑 1. สับสวิตช์: ปิดการเรียก API ตัวจริงไว้ชั่วคราว
-      // const response = await chatService.sendMessageStream(payload);
-      
-      // 🚀 2. สร้างก้อนข้อความเพื่อส่งให้ Ollama Local
+      // เรียกใช้ AI Local (Ollama)
       const currentChat = chats.find(c => c.id === currentId);
       const previousMessages = currentChat ? currentChat.messages : [];
-      const messagesToSend = [...previousMessages, userMsgToSent]; // รวมอดีตและปัจจุบัน
+      const messagesToSend = [...previousMessages, userMsgToSent];
       
-      // 🚀 3. เรียกใช้ AI บนเครื่องตัวเองแทน
       const response = await chatWithOllama(model, messagesToSend);
       
       let realIdToSwapLater = response.headers.get('X-Conversation-Id') || response.headers.get('conversation_id');
-      
       const assistantMsg: Message = { role: "assistant", content: "" };
 
       if (!ephemeral) {
         setChats(prev => prev.map(chat => 
-          chat.id === currentId 
-            ? { ...chat, messages: [...chat.messages, assistantMsg] } 
-            : chat
+          chat.id === currentId ? { ...chat, messages: [...chat.messages, assistantMsg] } : chat
         ));
       } else {
         setEphemeralMessages(prev => [...prev, assistantMsg]);
       }
       
       const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
+      const decoder = new TextEncoder();
+      const textDecoder = new TextDecoder();
       let accumulatedContent = "";
       let buffer = "";
 
@@ -103,7 +87,7 @@
           const { done, value } = await reader.read();
           if (done) break;
 
-          buffer += decoder.decode(value, { stream: true });
+          buffer += textDecoder.decode(value, { stream: true });
           const lines = buffer.split('\n');
           buffer = lines.pop() || "";
 
@@ -115,11 +99,17 @@
 
                 const data = JSON.parse(jsonStr);
 
-                // 🚀🚀 4. ดักจับ Tool Call วาร์ปหน้าเว็บ!! 🚀🚀
-                if (data.action === 'REDIRECT' && data.path) {
-                  console.log("🔥 AI สั่งทำงาน: เตรียมวาร์ปไปหน้า", data.path);
-                  router.push(data.path); // เปลี่ยนหน้าปุ๊บ
-                  continue; // ข้ามการทำงานที่เหลือไปเลย ไม่ต้องแสดงข้อความ
+                // 4. ดักจับ Tool Call (คุมแผนที่ / เปิดปิด Panel) 
+                if (data.action === 'MAP_CONTROL') {
+                  console.log("🎯 AI Command Received:", data.method, data.args);
+                  
+                  // ตะโกนบอกทุกคนในวินโดว์ว่ามีคำสั่งมาแล้ว! 
+                  // (MapDashboard กับ MapPage จะรอฟังอยู่ที่นี่)
+                  window.dispatchEvent(new CustomEvent('map-command', { 
+                    detail: { method: data.method, args: data.args } 
+                  }));
+                  
+                  continue; 
                 }
                 // 🚀🚀 จบดักจับ 🚀🚀
 
@@ -130,10 +120,9 @@
                   setChats(prev => prev.map(chat => {
                     if(chat.id === currentId) {
                       const safeMsgs = [...chat.messages];
-                      
                       if (incomingUserId) {
                         for (let i = safeMsgs.length - 1; i >= 0; i--) {
-                          if (safeMsgs[i].role === "user" && !safeMsgs[i].id) {
+                          if (safeMsgs[i].role === "user" && (!safeMsgs[i].id || safeMsgs[i].id?.startsWith("temp_edit_"))) {
                             safeMsgs[i] = { ...safeMsgs[i], id: incomingUserId }; 
                             break;
                           }
@@ -152,17 +141,9 @@
                     return chat;
                   }));
                 }
-      
-                if (isNewSession && !realIdToSwapLater && !ephemeral) {
-                  const streamId = data.conversation_id || data.conversationId || data.chat_id || data.chatId;
-                  if (streamId) {
-                    realIdToSwapLater = String(streamId);
-                  }
-                }
 
                 const textChunk = data.text || data.content || "";
                 accumulatedContent += textChunk;
-
                 const displayContent = accumulatedContent.split("<thinking>").pop()?.trim() || accumulatedContent;
 
                 if (ephemeral) {
@@ -195,15 +176,9 @@
       }
 
       if (!ephemeral && isNewSession && realIdToSwapLater) {
-        const finalRealId = realIdToSwapLater; 
-        
-        setPaginationConfig(prev => ({ ...prev, [finalRealId]: { page: 1, hasMore: false } }));
-        
-        setChats(prev => prev.map(chat => 
-          chat.id === currentId ? { ...chat, id: finalRealId } : chat
-        ));
-        
-        setActiveChatId(finalRealId);
+        setPaginationConfig(prev => ({ ...prev, [realIdToSwapLater]: { page: 1, hasMore: false } }));
+        setChats(prev => prev.map(chat => chat.id === currentId ? { ...chat, id: realIdToSwapLater } : chat));
+        setActiveChatId(realIdToSwapLater);
       }
 
     } catch (error) {
