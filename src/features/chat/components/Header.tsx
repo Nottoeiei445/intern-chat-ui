@@ -47,7 +47,7 @@ export const Header = ({ selectedModel, onModelChange, isSidebarOpen, onToggle }
             onChange={(e) => onModelChange(e.target.value)}
             className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
           >
-            <option value="qwen2.5:7b" className="bg-[#111] text-white">
+            <option value="qwen2.5" className="bg-[#111] text-white">
               Qwen 2.5 (7B)
             </option>
             <option value="llama3" className="bg-[#111] text-white">

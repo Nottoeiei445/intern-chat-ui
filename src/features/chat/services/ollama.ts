@@ -12,7 +12,6 @@ export const chatWithOllama = async (model: string, messages: Message[]) => {
     model: ollama(model || 'qwen2.5'),
     messages: messages.map(m => ({ role: m.role, content: m.content })) as any,
     tools: {
-      // 🗺️ Tool 1: เปิด/ปิด Panel แชท
       openMap: tool({
         description: "เรียกใช้เมื่อผู้ใช้สั่งให้เปิดหน้าต่างแชท หรือต้องการขยาย Panel ควบคุม",
         inputSchema: z.object({
@@ -20,7 +19,7 @@ export const chatWithOllama = async (model: string, messages: Message[]) => {
         }),
       }),
 
-      // 🛰️ Tool 2: สั่งงานแผนที่ (Hazard, Timeline, Boundary)
+      // Tool 2: สั่งงานแผนที่ (Hazard, Timeline, Boundary)
       controlMap: tool({
         description: "ใช้สำหรับควบคุมแผนที่ GIS เช่น เปิด/ปิดเลเยอร์ไฟป่า(wildfire), น้ำท่วม(flood), ภัยแล้ง(drought) หรือตั้งค่าจังหวัด/อำเภอ และเลือกช่วงเวลา (1, 3, 7, 30 วัน)",
         inputSchema: z.object({
@@ -44,7 +43,6 @@ export const chatWithOllama = async (model: string, messages: Message[]) => {
             const payload = JSON.stringify({ text: part.text });
             controller.enqueue(encoder.encode(`data: ${payload}\n\n`));
           } 
-          // 🚀 ปรับตรงนี้ให้เป็น MAP_CONTROL แบบ Generic รองรับทุก Tool
           else if (part.type === "tool-call") {
             const payload = JSON.stringify({ 
               action: "MAP_CONTROL", 

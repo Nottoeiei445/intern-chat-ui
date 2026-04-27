@@ -17,7 +17,6 @@ export const AuthGuard = ({ children }: Props) => {
     }
   }, [isLoading, user, router]);
 
-  // Loading state (while auth initializing)
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#050505] flex items-center justify-center">
