@@ -2,7 +2,7 @@ const sendMessage = async (
     input: string, 
     model: string, 
     images: string[] = [], 
-    options?: { ephemeral?: boolean; isRegenerate?: boolean }
+    options?: { ephemeral?: boolean; isRegenerate?: boolean; explicitChatId?: string } // 🚀 เพิ่มตัวนี้
   ) => { 
     if (!input.trim() && images.length === 0) return; 
     
@@ -10,7 +10,9 @@ const sendMessage = async (
     const isRegenerate = options?.isRegenerate ?? false;
 
     if(!input.trim() && images.length === 0 && !isRegenerate) return;
-    let initialId = activeChatId;
+    
+    // 🚀 ใช้ explicitChatId ถ้ามีส่งมา (แก้ปัญหา State อัปเดตไม่ทัน)
+    let initialId = options?.explicitChatId || activeChatId;
     if (!initialId && !user) {
       initialId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey) as string || null;
     }
@@ -27,16 +29,35 @@ const sendMessage = async (
       
       if (ephemeral) {
         setEphemeralMessages(prev => [...prev, userMsg]); 
-      } else if (currentId && !currentId.startsWith('session_')) { 
+      } 
+      else if (currentId && !currentId.startsWith('session_')) { 
         setChats(prev => {
-          const updated = prev.map(chat => 
-            chat.id === currentId 
-              ? { ...chat, messages: [...chat.messages, userMsg], updatedAt: Date.now() } 
-              : chat
-          );
-          return sortChats(updated); 
+          const exists = prev.some(c => c.id === currentId);
+
+          if (!exists) {
+            // ✅ ถ้ายังไม่มี (เพิ่งได้ Guest ID มาใหม่): ให้สร้างกล่องแชท "พร้อมยัดข้อความ User" ลงไปเลย!
+            return [{
+              id: currentId as string,
+              title: input.slice(0, 30) || "Guest Session",
+              messages: [userMsg], 
+              model: model,
+              createdAt: Date.now(),
+              updatedAt: Date.now()
+            }, ...prev];
+          } 
+          else {
+            // ✅ ถ้ามีอยู่แล้ว: ก็แค่เอาข้อความไปต่อท้ายตามปกติ
+            const updated = prev.map(chat => 
+              chat.id === currentId 
+                ? { ...chat, messages: [...chat.messages, userMsg], updatedAt: Date.now() } 
+                : chat
+            );
+            return sortChats(updated); 
+          }
         });
-      } else {
+        setActiveChatId(currentId);
+      } 
+      else {
         isNewSession = true; 
         const tempId = `session_${Date.now()}`; 
         setChats(prev => [{ 
@@ -51,6 +72,8 @@ const sendMessage = async (
         currentId = tempId; 
       }
     }
+
+    setIsLoading(true);
 
     setIsLoading(true); 
 
@@ -111,16 +134,16 @@ const sendMessage = async (
                       
                       if (incomingUserId) {
                         for (let i = safeMsgs.length - 1; i >= 0; i--) {
-                          if (safeMsgs[i].role === "user" && (!safeMsgs[i].id || safeMsgs[i].id?.startsWith("temp_edit_"))) {
-                            safeMsgs[i] = { ...safeMsgs[i], id: incomingUserId }; // 👈 ยัด ID ฝั่ง User
+                          if (safeMsgs[i].role === "user" && (!safeMsgs[i].id || String(safeMsgs[i].id).startsWith("temp_"))) {
+                            safeMsgs[i] = { ...safeMsgs[i], id: incomingUserId };
                             break;
                           }
                         }
                       }
                       if (incomingAssistantId) {
                         for (let i = safeMsgs.length - 1; i >= 0; i--) {
-                          if (safeMsgs[i].role === "assistant" && !safeMsgs[i].id) {
-                            safeMsgs[i] = { ...safeMsgs[i], id: incomingAssistantId }; // 👈 ยัด ID ฝั่ง AI
+                          if (safeMsgs[i].role === "assistant" && (!safeMsgs[i].id || String(safeMsgs[i].id).startsWith("temp_"))) {
+                            safeMsgs[i] = { ...safeMsgs[i], id: incomingAssistantId };
                             break;
                           }
                         }
@@ -144,6 +167,7 @@ const sendMessage = async (
                 const displayContent = accumulatedContent.split("<thinking>").pop()?.trim() || accumulatedContent;
 
                 if (ephemeral) {
+                  // ... (ของเดิม)
                   setEphemeralMessages(prev => {
                     const newMsgs = [...prev];
                     const lastIdx = newMsgs.length - 1;
@@ -153,16 +177,26 @@ const sendMessage = async (
                     return newMsgs;
                   });
                 } else {
-                  setChats(prev => prev.map(chat => 
-                    chat.id === currentId 
-                      ? {
-                          ...chat,
-                          messages: chat.messages.map((msg, idx) => 
-                            idx === chat.messages.length - 1 ? { ...msg, content: displayContent } : msg
-                          )
-                        }
-                      : chat
-                  ));
+                  setChats(prev => prev.map(chat => {
+                    if (chat.id === currentId) {
+                      const safeMsgs = [...chat.messages];
+                      const lastIdx = safeMsgs.length - 1;
+
+                      if (lastIdx >= 0 && safeMsgs[lastIdx].role === "assistant") {
+                        // ถ้าบรรทัดสุดท้ายเป็น AI อยู่แล้ว ก็แค่อัปเดตข้อความ
+                        safeMsgs[lastIdx] = { ...safeMsgs[lastIdx], content: displayContent };
+                      } else {
+                        // 🚀 ถ้าไม่มี AI ให้สร้างใหม่ พร้อมใส่ ID ชั่วคราว และเวลาเกิด!
+                        safeMsgs.push({ 
+                          id: `temp_assistant_${Date.now()}`, // บัตรประชาชนชั่วคราว
+                          role: "assistant", 
+                          content: displayContent,
+                        });
+                      }
+                      return { ...chat, messages: safeMsgs };
+                    }
+                    return chat;
+                  }));
                 }
               } catch (e) {
                 console.error("JSON Parse Error", e);

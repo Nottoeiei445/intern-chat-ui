@@ -1,7 +1,8 @@
 "use client"
 
 import { useRef, useEffect, useLayoutEffect } from "react"
-import { MapPin, Sparkles } from "lucide-react"
+// 🚀 1. Import ไอคอนที่ขาดหายไปให้ครบ
+import { MapPin, Sparkles, User, Layers } from "lucide-react" 
 import { Message } from "../types"
 import { MessageItem } from "./MessageItem"
 
@@ -12,9 +13,19 @@ interface Props {
   hasMore?: boolean;
   isFetchingHistory?: boolean;
   onEditMessage?: (id: string, newContent: string) => void;
+  // 🚀 2. เพิ่ม Prop นี้เพื่อรับค่าจากปุ่มตัวอย่างส่งกลับไปไฟล์แม่
+  onSelectTemplate?: (text: string) => void; 
 }
 
-export const MessageList = ({ messages, isLoading, onLoadMore, hasMore, isFetchingHistory, onEditMessage }: Props) => {
+export const MessageList = ({ 
+  messages, 
+  isLoading, 
+  onLoadMore, 
+  hasMore, 
+  isFetchingHistory, 
+  onEditMessage,
+  onSelectTemplate // 🚀 รับมาใช้งาน
+}: Props) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   
@@ -97,11 +108,48 @@ export const MessageList = ({ messages, isLoading, onLoadMore, hasMore, isFetchi
         </div>
       )}
 
+      {/* 🚀 3. หน้า Empty State สุดล้ำสไตล์ GIS Analysis AI */}
       {messages.length === 0 && !isFetchingHistory && (
-        <div className="h-full flex flex-col items-center justify-center opacity-20 pointer-events-none text-slate-200">
-          <MapPin size={64} className="mb-4 text-blue-500" />
-          <h2 className="text-2xl font-black">GIS ANALYSIS AI</h2>
-          <p className="text-sm">Start a conversation to analyze geospatial data.</p>
+        <div className="h-full flex flex-col items-center justify-center p-4 min-h-[60vh]">
+          {/* Hero Element */}
+          <div className="relative mb-12">
+            <div className="absolute inset-0 bg-blue-500/20 blur-[100px] rounded-full animate-pulse" />
+            <div className="relative bg-[#111] border border-white/10 p-8 rounded-full shadow-2xl">
+              <MapPin size={48} className="text-blue-500" />
+            </div>
+          </div>
+
+          {/* Header */}
+          <div className="text-center mb-12 space-y-2">
+            <h2 className="text-3xl font-black tracking-tighter text-white uppercase italic">
+              Geospatial <span className="text-blue-500">Intelligence</span>
+            </h2>
+            <p className="text-slate-500 text-sm font-ibm max-w-md">
+              Start by choosing a task to analyze geospatial data.
+            </p>
+          </div>
+
+          {/* Bento Grid: กดแล้วส่งค่าผ่าน onSelectTemplate กลับไปไฟล์แม่ */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl w-full px-4">
+            {[
+              { title: "Population Density", desc: "Analyze how people are distributed.", icon: <User size={18}/> },
+              { title: "Radius Search", desc: "Find locations within specific range.", icon: <MapPin size={18}/> },
+              { title: "Environmental Layers", desc: "Compare vegetation and city zones.", icon: <Sparkles size={18}/> },
+              { title: "Custom Analysis", desc: "Upload your CSV/GeoJSON data.", icon: <Layers size={18}/> }
+            ].map((item, i) => (
+              <button 
+                key={i}
+                onClick={() => onSelectTemplate?.(item.title)} // 🚀 ส่งค่ากลับ
+                className="group flex flex-col items-start p-5 bg-white/[0.02] border border-white/5 rounded-2xl hover:bg-white/[0.05] hover:border-blue-500/50 transition-all text-left"
+              >
+                <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400 mb-3 group-hover:scale-110 transition-transform">
+                  {item.icon}
+                </div>
+                <h3 className="text-white font-bold text-sm mb-1">{item.title}</h3>
+                <p className="text-slate-500 text-xs leading-relaxed">{item.desc}</p>
+              </button>
+            ))}
+          </div>
         </div>
       )}
       

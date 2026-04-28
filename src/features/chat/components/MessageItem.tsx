@@ -1,10 +1,19 @@
 "use client"
 
 import { useState } from "react"
-import { Sparkles, User, Bot, Copy, Pencil } from "lucide-react"
+import { Sparkles, User, Bot, Copy, Pencil, Lock } from "lucide-react"
 import { Message } from "../types"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
+import { useAuth } from "../../auth/context/AuthContext" // 🚀 เช็ค Path ตรงนี้ด้วยนะครับว่าตรงกับโปรเจกต์พี่ไหม
+
+// 🚀 นำเข้า Shadcn UI Tooltip
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 
 interface MessageItemProps {
   msg: Message;
@@ -25,8 +34,13 @@ export const MessageItem = ({
 }: MessageItemProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
+  
+  // 🚀 เรียกใช้ Context เพื่อเช็คสถานะ
+  const { user } = useAuth();
+  const isGuest = !user; 
 
   const handleEditClick = () => {
+    if (isGuest) return; // ดักไว้เผื่อเหนียว
     setEditValue(msg.content);
     setIsEditing(true);
   };
@@ -48,6 +62,7 @@ export const MessageItem = ({
       
       {msg.role === "user" && !isEditing && (
         <div className="opacity-0 group-hover:opacity-100 flex items-center pr-2 pt-5 gap-1 transition-opacity">
+          {/* ✅ ปุ่ม Copy ปล่อยให้กดได้ทุกคน */}
           <Button 
             variant="ghost" 
             size="icon" 
@@ -56,15 +71,40 @@ export const MessageItem = ({
           >
             <Copy size={14} />
           </Button>
+          
           {isLatestUser && msg.id && (
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              className="h-8 w-8 text-slate-500 hover:text-blue-400 hover:bg-white/10" 
-              onClick={handleEditClick}
-            >
-              <Pencil size={14} />
-            </Button>
+            // 🚀 หุ้ม Tooltip เฉพาะปุ่ม Edit
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  {/* ทริค span เพื่อให้ Tooltip ทำงานตอน disabled */}
+                  <span className={isGuest ? "cursor-not-allowed inline-block" : ""}>
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      disabled={isGuest}
+                      className={`h-8 w-8 transition-colors ${
+                        isGuest 
+                          ? "text-slate-400 opacity-100"
+                          : "text-slate-500 hover:text-blue-400 hover:bg-white/10"
+                      }`} 
+                      onClick={handleEditClick}
+                    >
+                      <Pencil size={14} />
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {/* เนื้อหา Tooltip ที่จะเด้งตอนเป็น Guest */}
+                {isGuest && (
+                  <TooltipContent side="top" className="bg-[#2b2c2e] text-slate-200 border-white/10 font-ibm text-xs">
+                    <div className="flex items-center gap-2">
+                      <Lock size={12} className="text-blue-400" />
+                      <p>Sign in to edit message</p>
+                    </div>
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
           )}
         </div>
       )}

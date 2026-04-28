@@ -15,7 +15,8 @@ export const CHAT_CONFIG = {
     chat: "/chat",
     history: "/chat/conversations",
     conversation: "/chat/conversations",
-    message: "/chat/messages",   
+    message: "/chat/messages",
+    models: "/chat/models",  
   },
 
   // Chat Validation & Settings

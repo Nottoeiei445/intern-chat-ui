@@ -136,6 +136,7 @@ const handleSendMessage = async (val: string, images: string[] = []) => {
             hasMore={hasMore}
             isFetchingHistory={isFetchingHistory}
             onEditMessage={(id, newContent) => editAndResend(id, newContent, selectedModel)}
+            onSelectTemplate={(text) => handleSendMessage(text)} 
           />
         </div>
 

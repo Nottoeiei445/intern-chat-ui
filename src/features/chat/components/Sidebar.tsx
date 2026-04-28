@@ -1,10 +1,26 @@
 "use client"
 
 import { useState } from "react";
-import { Menu, MessageSquarePlus, Settings, MessageSquare, Trash2, Pencil, Check, X } from "lucide-react";
+import { Menu, MessageSquarePlus, Settings, MessageSquare, Trash2, Pencil, Check, X, Lock, Sparkles } from "lucide-react";
 import { ChatThread } from "../types";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../auth/context/AuthContext";
+
+// 🚀 นำเข้า Shadcn UI Components
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
 
 interface SidebarProps {
   isOpen: boolean;
@@ -29,15 +45,17 @@ export const Sidebar = ({
 }: SidebarProps) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [tempTitle, setTempTitle] = useState("");
+  
+  // 🚀 State สำหรับควบคุม Modal ของ Guest
+  const [showGuestModal, setShowGuestModal] = useState(false);
+  
   const router = useRouter();
   const { user } = useAuth();
+  const isGuest = !user; // ตัวแปรเช็คความหล่อ
 
   const handleStartEdit = (e: React.MouseEvent, chat: ChatThread) => {
     e.stopPropagation();
-    if (!user) {
-      router.push("/login");
-      return;
-    }
+    if (isGuest) return; // ถ้าเป็น Guest ไม่ต้องทำอะไร (โดน Tooltip ดักไว้แล้ว)
     setEditingId(chat.id);
     setTempTitle(chat.title || "");
   };
@@ -57,131 +75,209 @@ export const Sidebar = ({
 
   const handleNewClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!user) {
-      router.push("/login");
+    if (isGuest) {
+      setShowGuestModal(true); // 🚀 เด้ง Modal โชว์ของ
       return;
     }
     onNew();
   };
 
   const handleSelect = (chatId: string | null) => {
-    if (!user) {
-      router.push("/login");
-      return;
-    }
-    onSelect(chatId);
-  };
+  if (isGuest) {
+    if (chatId === activeId) return; 
+    
+    setShowGuestModal(true);
+    return;
+  }
+  onSelect(chatId);
+};
 
   const handleDelete = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (!user) {
-      router.push("/login");
-      return;
-    }
+    if (isGuest) return; // ดักไว้เผื่อทะลุ Tooltip
     onDelete(id);
   };
 
+  // ----------------------------------------------------------------------
+  // Render
+  // ----------------------------------------------------------------------
   return (
-    <aside 
-      className={`
-        ${isOpen ? "w-64" : "w-[68px]"} 
-        flex flex-col bg-[#1e1f20] transition-all duration-300 ease-in-out z-50 h-full overflow-hidden shrink-0
-      `}
-    >
-      <div className="h-16 flex items-center px-[18px] shrink-0">
-        <button 
-          onClick={onToggle}
-          className="p-2 hover:bg-white/10 rounded-full text-slate-300 transition-colors"
-        >
-          <Menu size={22} />
-        </button>
-      </div>
+    <TooltipProvider delayDuration={200}>
+      <aside 
+        className={`
+          ${isOpen ? "w-64" : "w-[68px]"} 
+          flex flex-col bg-[#1e1f20] transition-all duration-300 ease-in-out z-50 h-full overflow-hidden shrink-0
+        `}
+      >
+        <div className="h-16 flex items-center px-[18px] shrink-0">
+          <button 
+            onClick={onToggle}
+            className="p-2 hover:bg-white/10 rounded-full text-slate-300 transition-colors"
+          >
+            <Menu size={22} />
+          </button>
+        </div>
 
-      <div className="px-3 mb-6 mt-2 shrink-0">
-        <button 
-          onClick={handleNewClick}
-          className={`
-            flex items-center gap-3 bg-[#2b2c2e] hover:bg-[#37393b] text-slate-200 
-            h-10 rounded-full transition-all duration-300
-            ${isOpen ? "px-4 w-fit" : "w-10 justify-center px-0 mx-auto"}
-            ${!user ? "opacity-60" : ""}
-          `}
-        >
-          <MessageSquarePlus size={20} className="shrink-0" />
-          {isOpen && (
-            <span className="font-ibm text-sm whitespace-nowrap animate-in fade-in duration-500">
-              New Chat
-            </span>
-          )}
-        </button>
-      </div>
-
-      <div className={`flex-1 overflow-y-auto px-3 space-y-1 transition-opacity duration-200 ${isOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
-        <p className="px-4 py-2 text-xs font-bold text-slate-500 font-ibm uppercase tracking-wider">Last Chat</p>
-        
-        {chats.map((chat) => (
-          <div 
-            key={chat.id}
-            onClick={() => !editingId && handleSelect(chat.id)}
+        <div className="px-3 mb-6 mt-2 shrink-0">
+          <button 
+            onClick={handleNewClick}
             className={`
-              flex items-center justify-between gap-3 p-3 rounded-full cursor-pointer group transition-colors
-              ${activeId === chat.id ? "bg-blue-600/20 text-blue-400" : "hover:bg-white/5 text-slate-300"}
+              flex items-center gap-3 bg-[#2b2c2e] hover:bg-[#37393b] text-slate-200 
+              h-10 rounded-full transition-all duration-300
+              ${isOpen ? "px-4 w-fit" : "w-10 justify-center px-0 mx-auto"}
+              ${isGuest ? "opacity-80" : ""} 
             `}
           >
-            <div className="flex items-center gap-3 overflow-hidden flex-1">
-              <MessageSquare size={18} className={`shrink-0 ${activeId === chat.id ? "text-blue-400" : "text-slate-500"}`} />
-              
-              {editingId === chat.id ? (
-                <input
-                  autoFocus
-                  className="bg-[#050505] border border-blue-500/50 rounded px-2 py-0.5 text-sm w-full outline-none font-ibm"
-                  value={tempTitle}
-                  onChange={(e) => setTempTitle(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleSave(e, chat.id)}
-                  onClick={(e) => e.stopPropagation()}
-                />
-              ) : (
-                <span className="font-ibm text-sm truncate">{chat.title || "บทสนทนาใหม่"}</span>
-              )}
-            </div>
-            
-            <div className="flex items-center gap-1 shrink-0">
-              {editingId === chat.id ? (
-                <>
-                  <button onClick={(e) => handleSave(e, chat.id)} className="p-1 hover:text-green-400">
-                    <Check size={14} />
-                  </button>
-                  <button onClick={handleCancel} className="p-1 hover:text-red-400">
-                    <X size={14} />
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button 
-                    onClick={(e) => handleStartEdit(e, chat)}
-                    className="opacity-0 group-hover:opacity-100 p-1 hover:text-blue-400 transition-all"
-                  >
-                    <Pencil size={14} />
-                  </button>
-                  <button 
-                    onClick={(e) => handleDelete(e, chat.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 hover:text-red-400 transition-all"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      <div className="p-3 border-t border-white/5 shrink-0">
-        <div className={`flex items-center gap-3 p-3 rounded-full hover:bg-white/5 text-slate-400 cursor-pointer ${!isOpen && "justify-center"}`}>
-          <Settings size={18} />
-          {isOpen && <span className="font-ibm text-sm">Settings</span>}
+            <MessageSquarePlus size={20} className="shrink-0" />
+            {isOpen && (
+              <span className="font-ibm text-sm whitespace-nowrap animate-in fade-in duration-500">
+                New Chat
+              </span>
+            )}
+          </button>
         </div>
-      </div>
-    </aside>
+
+        <div className={`flex-1 overflow-y-auto px-3 space-y-1 transition-opacity duration-200 ${isOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
+          <p className="px-4 py-2 text-xs font-bold text-slate-500 font-ibm uppercase tracking-wider">Last Chat</p>
+          
+          {chats.map((chat) => (
+            <div 
+              key={chat.id}
+              onClick={() => !editingId && handleSelect(chat.id)}
+              className={`
+                flex items-center justify-between gap-3 p-3 rounded-full cursor-pointer group transition-colors
+                ${activeId === chat.id ? "bg-blue-600/20 text-blue-400" : "hover:bg-white/5 text-slate-300"}
+              `}
+            >
+              <div className="flex items-center gap-3 overflow-hidden flex-1">
+                <MessageSquare size={18} className={`shrink-0 ${activeId === chat.id ? "text-blue-400" : "text-slate-500"}`} />
+                
+                {editingId === chat.id ? (
+                  <input
+                    autoFocus
+                    className="bg-[#050505] border border-blue-500/50 rounded px-2 py-0.5 text-sm w-full outline-none font-ibm"
+                    value={tempTitle}
+                    onChange={(e) => setTempTitle(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSave(e, chat.id)}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                ) : (
+                  <span className="font-ibm text-sm truncate">{chat.title || "บทสนทนาใหม่"}</span>
+                )}
+              </div>
+              
+              <div className="flex items-center gap-1 shrink-0">
+                {editingId === chat.id ? (
+                  <>
+                    <button onClick={(e) => handleSave(e, chat.id)} className="p-1 hover:text-green-400">
+                      <Check size={14} />
+                    </button>
+                    <button onClick={handleCancel} className="p-1 hover:text-red-400">
+                      <X size={14} />
+                    </button>
+                  </>
+                ) : (
+                  <>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {/* 🚀 Tooltip สำหรับปุ่ม Edit */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className={isGuest ? "cursor-not-allowed inline-block" : ""}>
+                          <button 
+                            onClick={(e) => handleStartEdit(e, chat)}
+                            className={`p-1 transition-all ${
+                              isGuest 
+                                ? "opacity-40 pointer-events-none" 
+                                : "opacity-0 group-hover:opacity-100 hover:text-blue-400"
+                            }`}
+                          >
+                            <Pencil size={14} />
+                          </button>
+                        </span>
+                      </TooltipTrigger>
+                      {isGuest && (
+                        <TooltipContent side="top" className="bg-[#2b2c2e] text-slate-200 border-white/10 font-ibm text-xs">
+                          <div className="flex items-center gap-2">
+                            <Lock size={12} className="text-blue-400" />
+                            <p>Sign in to rename</p>
+                          </div>
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+
+                    {/* 🚀 Tooltip สำหรับปุ่ม Delete */}
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className={isGuest ? "cursor-not-allowed inline-block" : ""}>
+                          <button 
+                            onClick={(e) => handleDelete(e, chat.id)}
+                            className={`p-1 transition-all ${
+                              isGuest 
+                                ? "opacity-40 pointer-events-none" 
+                                : "opacity-0 group-hover:opacity-100 hover:text-red-400"
+                            }`}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </span>
+                      </TooltipTrigger>
+                      {isGuest && (
+                        <TooltipContent side="top" className="bg-[#2b2c2e] text-slate-200 border-white/10 font-ibm text-xs">
+                          <div className="flex items-center gap-2">
+                            <Lock size={12} className="text-red-400" />
+                            <p>Sign in to delete</p>
+                          </div>
+                        </TooltipContent>
+                      )}
+                    </Tooltip>
+                  </div>
+                  </>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="p-3 border-t border-white/5 shrink-0">
+          <div className={`flex items-center gap-3 p-3 rounded-full hover:bg-white/5 text-slate-400 cursor-pointer ${!isOpen && "justify-center"}`}>
+            <Settings size={18} />
+            {isOpen && <span className="font-ibm text-sm">Settings</span>}
+          </div>
+        </div>
+
+        {/* 🚀 Modal Upsell สำหรับ Guest */}
+        <Dialog open={showGuestModal} onOpenChange={setShowGuestModal}>
+          <DialogContent className="sm:max-w-md bg-[#111] border-slate-800 text-slate-200 shadow-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-xl font-ibm">
+                <Sparkles className="text-blue-500" size={20} />
+                Unlock Full Features
+              </DialogTitle>
+              <DialogDescription className="text-slate-400 pt-2 font-ibm text-sm">
+                Guest sessions are limited to a single active conversation. Log in or create an account to save your chat history, start new topics, and customize your experience!
+              </DialogDescription>
+            </DialogHeader>
+            
+            <DialogFooter className="sm:justify-end gap-2 mt-4">
+              <button 
+                type="button" 
+                onClick={() => setShowGuestModal(false)}
+                className="px-4 py-2 rounded-xl hover:bg-white/5 text-slate-300 font-ibm text-sm transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                type="button" 
+                onClick={() => router.push("/login")}
+                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-ibm text-sm transition-colors shadow-lg"
+              >
+                Sign in to continue
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+      </aside>
+    </TooltipProvider>
   );
 };

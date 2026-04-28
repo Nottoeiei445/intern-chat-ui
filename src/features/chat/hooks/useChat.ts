@@ -113,7 +113,8 @@ export function useChat() {
       if (!targetId || targetId.startsWith('session_')) return; 
       if (paginationConfig[targetId]) return; 
 
-      setIsLoading(true); 
+      setIsFetchingHistory(true); 
+      
       try {
         const responseData = await chatService.getConversationDetail(targetId, 1); 
         let messages = [];
@@ -123,6 +124,14 @@ export function useChat() {
         else if (Array.isArray(responseData)) messages = responseData;
         
         setChats(prev => {
+          const existingChat = prev.find(chat => chat.id === targetId);
+          if (existingChat && existingChat.messages.length > 0) {
+            const lastMsg = existingChat.messages[existingChat.messages.length - 1];
+            if (lastMsg.role === "user") {
+              return prev;
+            }
+          }
+
           const chatExists = prev.some(chat => chat.id === targetId);
           if (!chatExists && targetId === guestId) {
             return [{
@@ -144,11 +153,12 @@ export function useChat() {
       } catch (error) {
         console.error("Failed to load messages:", error);
       } finally {
-        setIsLoading(false);
+        setIsFetchingHistory(false);
       }
     };
+    
     fetchChatDetail(); 
-  }, [activeChatId, paginationConfig, user]); 
+  }, [activeChatId, paginationConfig, user]);
 
   // Fetch Next Page
   const fetchNextPage = async () => {
@@ -229,9 +239,9 @@ export function useChat() {
       
       if (ephemeral) {
         setEphemeralMessages(prev => [...prev, userMsg]); 
-      } else if (currentId && !currentId.startsWith('session_')) { 
+      } 
+      else if (currentId && !currentId.startsWith('session_')) { 
         setChats(prev => {
-          // 🚀 เช็คว่ากล่องแชทนี้มีอยู่แล้วหรือยัง?
           const exists = prev.some(c => c.id === currentId);
 
           if (!exists) {
@@ -244,7 +254,8 @@ export function useChat() {
               createdAt: Date.now(),
               updatedAt: Date.now()
             }, ...prev];
-          } else {
+          } 
+          else {
             // ✅ ถ้ามีอยู่แล้ว: ก็แค่เอาข้อความไปต่อท้ายตามปกติ
             const updated = prev.map(chat => 
               chat.id === currentId 
@@ -254,10 +265,9 @@ export function useChat() {
             return sortChats(updated); 
           }
         });
-        
-        // บังคับโฟกัสห้องแชทให้ถูกต้อง
         setActiveChatId(currentId);
-      } else {
+      } 
+      else {
         isNewSession = true; 
         const tempId = `session_${Date.now()}`; 
         setChats(prev => [{ 
@@ -334,16 +344,16 @@ export function useChat() {
                       
                       if (incomingUserId) {
                         for (let i = safeMsgs.length - 1; i >= 0; i--) {
-                          if (safeMsgs[i].role === "user" && (!safeMsgs[i].id || safeMsgs[i].id?.startsWith("temp_edit_"))) {
-                            safeMsgs[i] = { ...safeMsgs[i], id: incomingUserId }; // 👈 ยัด ID ฝั่ง User
+                          if (safeMsgs[i].role === "user" && (!safeMsgs[i].id || String(safeMsgs[i].id).startsWith("temp_"))) {
+                            safeMsgs[i] = { ...safeMsgs[i], id: incomingUserId };
                             break;
                           }
                         }
                       }
                       if (incomingAssistantId) {
                         for (let i = safeMsgs.length - 1; i >= 0; i--) {
-                          if (safeMsgs[i].role === "assistant" && !safeMsgs[i].id) {
-                            safeMsgs[i] = { ...safeMsgs[i], id: incomingAssistantId }; // 👈 ยัด ID ฝั่ง AI
+                          if (safeMsgs[i].role === "assistant" && (!safeMsgs[i].id || String(safeMsgs[i].id).startsWith("temp_"))) {
+                            safeMsgs[i] = { ...safeMsgs[i], id: incomingAssistantId };
                             break;
                           }
                         }
@@ -367,6 +377,7 @@ export function useChat() {
                 const displayContent = accumulatedContent.split("<thinking>").pop()?.trim() || accumulatedContent;
 
                 if (ephemeral) {
+                  // ... (ของเดิม)
                   setEphemeralMessages(prev => {
                     const newMsgs = [...prev];
                     const lastIdx = newMsgs.length - 1;
@@ -376,16 +387,26 @@ export function useChat() {
                     return newMsgs;
                   });
                 } else {
-                  setChats(prev => prev.map(chat => 
-                    chat.id === currentId 
-                      ? {
-                          ...chat,
-                          messages: chat.messages.map((msg, idx) => 
-                            idx === chat.messages.length - 1 ? { ...msg, content: displayContent } : msg
-                          )
-                        }
-                      : chat
-                  ));
+                  setChats(prev => prev.map(chat => {
+                    if (chat.id === currentId) {
+                      const safeMsgs = [...chat.messages];
+                      const lastIdx = safeMsgs.length - 1;
+
+                      if (lastIdx >= 0 && safeMsgs[lastIdx].role === "assistant") {
+                        // ถ้าบรรทัดสุดท้ายเป็น AI อยู่แล้ว ก็แค่อัปเดตข้อความ
+                        safeMsgs[lastIdx] = { ...safeMsgs[lastIdx], content: displayContent };
+                      } else {
+                        // 🚀 ถ้าไม่มี AI ให้สร้างใหม่ พร้อมใส่ ID ชั่วคราว และเวลาเกิด!
+                        safeMsgs.push({ 
+                          id: `temp_assistant_${Date.now()}`, // บัตรประชาชนชั่วคราว
+                          role: "assistant", 
+                          content: displayContent,
+                        });
+                      }
+                      return { ...chat, messages: safeMsgs };
+                    }
+                    return chat;
+                  }));
                 }
               } catch (e) {
                 console.error("JSON Parse Error", e);
