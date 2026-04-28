@@ -40,11 +40,15 @@ export const chatService = {
     return apiClient.delete<any>(`${CHAT_CONFIG.endpoints.conversation}/${id}`);
   },
 
-editMessage: (messageId: string, newContent: string, is_generate: boolean = false) => {
-    return apiClient.put(`${CHAT_CONFIG.endpoints.message}/${messageId}`, { 
-      newContent, 
-      is_generate 
-    });
-  },
+  editMessage: (messageId: string, newContent: string, is_generate: boolean = false) => {
+      return apiClient.put(`${CHAT_CONFIG.endpoints.message}/${messageId}`, { 
+        newContent, 
+        is_generate 
+      });
+    },
+
+  getModels: () => {
+      return apiClient.get<any>(`${CHAT_CONFIG.endpoints.models}`);
+    },
 
 };

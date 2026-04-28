@@ -12,6 +12,7 @@ interface Props {
   onModelChange: (model: string) => void;
   isSidebarOpen: boolean;
   onToggle: () => void;
+  models?: { id: string; name: string; size?: string }[]; 
 }
 
 const getInitials = (name?: string) => {
@@ -21,7 +22,7 @@ const getInitials = (name?: string) => {
   return (parts[0][0] + parts[1][0]).toUpperCase();
 };
 
-export const Header = ({ selectedModel, onModelChange, isSidebarOpen, onToggle }: Props) => {
+export const Header = ({ selectedModel, onModelChange, isSidebarOpen, onToggle, models = [] }: Props) => {
   const { user, logout } = useAuth();
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -35,30 +36,35 @@ export const Header = ({ selectedModel, onModelChange, isSidebarOpen, onToggle }
     return () => document.removeEventListener("click", handleClick);
   }, []);
 
+  const displayModelName = models.find(m => m.id === selectedModel)?.name || selectedModel || "Loading...";
+
   return (
     <header className="h-16 flex items-center justify-between px-6 bg-[#050505]/80 backdrop-blur-md z-10">
       <div className="flex items-center gap-4">
         <div className="relative flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/10 rounded-lg hover:bg-white/10 transition-all text-slate-200 min-w-[160px]">
           <Database size={14} className="text-blue-500" />
-          <span className="text-xs font-bold font-ibm flex-1 truncate">{selectedModel}</span>
+          
+          <span className="text-xs font-bold font-ibm flex-1 truncate">
+            {models.length === 0 ? "Loading models..." : displayModelName}
+          </span>
+          
           <ChevronDown size={14} className="text-slate-500" />
+          
           <select
             value={selectedModel}
             onChange={(e) => onModelChange(e.target.value)}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+            disabled={models.length === 0}
+            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10 disabled:cursor-not-allowed"
           >
-            <option value="qwen2.5" className="bg-[#111] text-white">
-              Qwen 2.5 (7B)
-            </option>
-            <option value="llama3" className="bg-[#111] text-white">
-              Llama 3 (8B)
-            </option>
-            <option value="gemma4" className="bg-[#111] text-white">
-              gemma4 (8B)
-            </option>
-            <option value="qwen3-vl" className="bg-[#111] text-white">
-              Qwen 3 VL (8B)
-            </option>
+            {models.length === 0 ? (
+              <option value="" disabled className="bg-[#111] text-slate-400">Loading...</option>
+            ) : (
+              models.map((model) => (
+                <option key={model.id} value={model.id} className="bg-[#111] text-white">
+                  {model.name} {model.size ? `(${model.size})` : ""}
+                </option>
+              ))
+            )}
           </select>
         </div>
       </div>

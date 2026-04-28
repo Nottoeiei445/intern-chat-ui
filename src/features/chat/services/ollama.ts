@@ -9,7 +9,7 @@ const ollama = createOllama({
 
 export const chatWithOllama = async (model: string, messages: Message[]) => {
   const result = await streamText({
-    model: ollama(model || 'qwen2.5'),
+    model: ollama(model || 'qwen2.5:7b'),
     messages: messages.map(m => ({ role: m.role, content: m.content })) as any,
     tools: {
       openMap: tool({

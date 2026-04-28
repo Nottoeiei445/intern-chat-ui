@@ -7,29 +7,20 @@ import { ChatInput } from "./components/ChatInput";
 
 // Hooks & Context
 import { useChat } from "./hooks/useChat";
+import { useModels } from "./hooks/useModels";
 import { useAuth } from "../auth/context/AuthContext";
 import { AUTH_CONFIG } from "../auth/config/auth.config";
 import { storage } from "../../lib/storage";
 import { authService } from "../auth/services/auth.service";
 import { isGuestTimeUp } from "@/features/auth/utils/guest-timer.util";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react"; // 🚀 ลบ useEffect ออก เพราะเราไม่ได้ fetch ในนี้แล้ว
 import { useRouter } from "next/navigation";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
 
 export const ChatFeature = () => {
   const { user } = useAuth();
   const router = useRouter();
   
+  // 🚀 2. Hook จัดการเรื่องแชท (สะอาดสะอ้าน)
   const { 
     chats, 
     activeChatId, 
@@ -49,8 +40,14 @@ export const ChatFeature = () => {
     setIsGuestExpired,
   } = useChat();
 
+  // 🚀 3. Hook จัดการเรื่อง Model โดยเฉพาะ
+  const { 
+    models, 
+    selectedModel, 
+    setSelectedModel 
+  } = useModels();
+
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState("llama3");
 
   // คำนวณข้อความที่จะแสดงผล
   const messagesToShow = useMemo(() => {
@@ -71,41 +68,40 @@ export const ChatFeature = () => {
     setActiveChatId(id);
   };
 
-const handleSendMessage = async (val: string, images: string[] = []) => {
-  if (isGuestTimeUp()) {
-    const hasStartTime = localStorage.getItem(AUTH_CONFIG.session.guestStartTimeStorageKey);
-    
-    if (hasStartTime) {
-      console.warn("[Gatekeeper] Session expired. Blocking outgoing message.");
-      setIsGuestExpired(true); 
-      storage.removeCookie(AUTH_CONFIG.session.accessTokenStorageKey); // ลบ Token ทิ้ง
+  const handleSendMessage = async (val: string, images: string[] = []) => {
+    if (isGuestTimeUp()) {
+      const hasStartTime = localStorage.getItem(AUTH_CONFIG.session.guestStartTimeStorageKey);
       
-      return; 
-    }
-  }
-
-  // 🚨 [ด่านที่ 2] ถ้า State โดนล็อคอยู่แล้ว (จาก Callback) ก็ส่งไม่ได้
-  if (isGuestExpired) return;
-
-  try {
-    const currentToken = storage.getCookie(AUTH_CONFIG.session.accessTokenStorageKey);
-    let guestIdToPass = undefined;
-
-    if (!currentToken) {
-      // 🚀 พิมพ์ครั้งแรกสุดของ Guest -> ขอพรเทพเจ้า Token
-      await authService.initializeGuest(); 
-      const startTime = Date.now().toString();
-      localStorage.setItem(AUTH_CONFIG.session.guestStartTimeStorageKey, startTime);
-      guestIdToPass = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
+      if (hasStartTime) {
+        console.warn("[Gatekeeper] Session expired. Blocking outgoing message.");
+        setIsGuestExpired(true); 
+        storage.removeCookie(AUTH_CONFIG.session.accessTokenStorageKey);
+        
+        return; 
+      }
     }
 
-    // ส่งข้อความไปหา AI
-    sendMessage(val, selectedModel, images, { explicitChatId: guestIdToPass ?? undefined } as any);
+    if (isGuestExpired) return;
 
-  } catch (error) {
-    console.error("Failed to initialize guest session:", error);
-  }
-};
+    try {
+      const currentToken = storage.getCookie(AUTH_CONFIG.session.accessTokenStorageKey);
+      let guestIdToPass = undefined;
+
+      if (!currentToken) {
+        await authService.initializeGuest(); 
+        const startTime = Date.now().toString();
+        localStorage.setItem(AUTH_CONFIG.session.guestStartTimeStorageKey, startTime);
+        guestIdToPass = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
+      }
+
+      // 🚀 4. นำ selectedModel ที่ได้จาก useModels มาส่งให้ sendMessage
+      sendMessage(val, selectedModel, images, { explicitChatId: guestIdToPass ?? undefined } as any);
+
+    } catch (error) {
+      console.error("Failed to initialize guest session:", error);
+    }
+  };
+
   return (
     <div className="flex h-screen bg-[#050505] text-slate-200 overflow-hidden font-ibm">
       
@@ -126,6 +122,7 @@ const handleSendMessage = async (val: string, images: string[] = []) => {
           onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
           selectedModel={selectedModel} 
           onModelChange={setSelectedModel} 
+          models={models}
         />
         
         <div className="flex-1 flex flex-col overflow-hidden min-h-0"> 
