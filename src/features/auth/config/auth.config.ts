@@ -22,7 +22,7 @@ export const AUTH_CONFIG = {
     accessTokenExpiryMinutes: 10,
     refreshTokenExpiryMinutes: 10080, // 7 days
     refreshThresholdMinutes: 1,
-    guestExpiryMinutes: 60, // 1 hour for guest sessions
+    guestExpiryMinutes: 2, // 1 hour for guest sessions
   },
 
   endpoints: {
@@ -36,14 +36,14 @@ export const AUTH_CONFIG = {
 
   session: {
     tokenCheckIntervalMs: 60000, // 1 minute
-    refreshTokenCookieName: "refreshToken",
+    refreshTokenCookieName: "refreshToken", 
     accessTokenStorageKey: "access_token",
     tokenExpiryStorageKey: "expires_at",
     userStorageKey: "user",
     guestIdStorageKey: "guest_id",
     guestStartTimeStorageKey: "guest_start_time",
-    guestWarningMinutesBeforeExpiry: 3,
-    guestCheckIntervalMs: 60000, // Check every minute for guest expiry
+    guestWarningMinutesBeforeExpiry: 1,
+    guestCheckIntervalMs: 60000, // 1 minute
   },
 
   redirect: {

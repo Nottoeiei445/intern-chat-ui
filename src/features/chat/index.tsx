@@ -1,5 +1,17 @@
 "use client";
+// Components
+import { Sidebar } from "./components/Sidebar";
+import { Header } from "./components/Header";
+import { MessageList } from "./components/MessageList";
+import { ChatInput } from "./components/ChatInput";
 
+// Hooks & Context
+import { useChat } from "./hooks/useChat";
+import { useAuth } from "../auth/context/AuthContext";
+import { AUTH_CONFIG } from "../auth/config/auth.config";
+import { storage } from "../../lib/storage";
+import { authService } from "../auth/services/auth.service";
+import { isGuestTimeUp } from "@/features/auth/utils/guest-timer.util";
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -14,21 +26,10 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 
-// Components
-import { Sidebar } from "./components/Sidebar";
-import { Header } from "./components/Header";
-import { MessageList } from "./components/MessageList";
-import { ChatInput } from "./components/ChatInput";
-
-// Hooks & Context
-import { useChat } from "./hooks/useChat";
-import { useAuth } from "../auth/context/AuthContext";
-
 export const ChatFeature = () => {
   const { user } = useAuth();
   const router = useRouter();
   
-  // ดึงตัวแปรที่จำเป็นสำหรับการทำ Pagination มาจาก useChat
   const { 
     chats, 
     activeChatId, 
@@ -40,18 +41,16 @@ export const ChatFeature = () => {
     renameChat,
     editAndResend,
     ephemeralMessages,
-    fetchNextPage,     // ฟังก์ชันสำหรับโหลดข้อความหน้าถัดไป (เก่าขึ้น)
-    hasMore,          // สถานะเช็คว่ายังมีข้อความเก่าให้โหลดอีกหรือไม่
-    isFetchingHistory,   // สถานะขณะกำลังดึงข้อมูลประวัติเก่า
-    showExpiryWarning,
-    setShowExpiryWarning,
+    fetchNextPage,    
+    hasMore,          
+    isFetchingHistory,   
     isGuestExpired,
-    setIsGuestExpired
+    setChats,
+    setIsGuestExpired,
   } = useChat();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState("llama3");
-
 
   // คำนวณข้อความที่จะแสดงผล
   const messagesToShow = useMemo(() => {
@@ -72,37 +71,44 @@ export const ChatFeature = () => {
     setActiveChatId(id);
   };
 
-  const handleSendMessage = (val: string, images: string[] = []) => {
-    sendMessage(val, selectedModel, images);
-  };
+const handleSendMessage = async (val: string, images: string[] = []) => {
+  if (isGuestTimeUp()) {
+    const hasStartTime = localStorage.getItem(AUTH_CONFIG.session.guestStartTimeStorageKey);
+    
+    if (hasStartTime) {
+      console.warn("[Gatekeeper] Session expired. Blocking outgoing message.");
+      setIsGuestExpired(true); 
+      storage.removeCookie(AUTH_CONFIG.session.accessTokenStorageKey); // ลบ Token ทิ้ง
+      
+      return; 
+    }
+  }
 
+  // 🚨 [ด่านที่ 2] ถ้า State โดนล็อคอยู่แล้ว (จาก Callback) ก็ส่งไม่ได้
+  if (isGuestExpired) return;
+
+  try {
+    const currentToken = storage.getCookie(AUTH_CONFIG.session.accessTokenStorageKey);
+    let guestIdToPass = undefined;
+
+    if (!currentToken) {
+      // 🚀 พิมพ์ครั้งแรกสุดของ Guest -> ขอพรเทพเจ้า Token
+      await authService.initializeGuest(); 
+      const startTime = Date.now().toString();
+      localStorage.setItem(AUTH_CONFIG.session.guestStartTimeStorageKey, startTime);
+      guestIdToPass = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
+    }
+
+    // ส่งข้อความไปหา AI
+    sendMessage(val, selectedModel, images, { explicitChatId: guestIdToPass ?? undefined } as any);
+
+  } catch (error) {
+    console.error("Failed to initialize guest session:", error);
+  }
+};
   return (
     <div className="flex h-screen bg-[#050505] text-slate-200 overflow-hidden font-ibm">
-      <AlertDialog open={showExpiryWarning} onOpenChange={setShowExpiryWarning}>
-        <AlertDialogContent className="bg-[#111] text-slate-200 border-slate-800">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-yellow-500 text-xl flex items-center gap-2">
-              ⚠️ Session Expiring Soon
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-slate-400">
-              Your guest chat history will be cleared in 5 minutes for security reasons. 
-              To save this conversation, please log in to your account.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel className="bg-transparent border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white">
-              Continue as Guest
-            </AlertDialogCancel>
-            <AlertDialogAction 
-              onClick={() => router.push('/login')} 
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              Log In Now
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
+      
       <Sidebar 
         isOpen={isSidebarOpen} 
         onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -136,6 +142,7 @@ export const ChatFeature = () => {
         <ChatInput 
           onSendMessage={handleSendMessage} 
           isLoading={isLoading} 
+          isGuestExpired={isGuestExpired}
         />
       </div>
     </div>

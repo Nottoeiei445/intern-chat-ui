@@ -65,7 +65,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const initializeSession = async () => {
       try {
         if (AUTH_CONFIG.features.enableSessionPersistence && typeof window !== "undefined") {
-          //ดึง Token และวันหมดอายุจาก Cookie แทน LocalStorage
+          // ดึง Token และวันหมดอายุจาก Cookie แทน LocalStorage
           const storedToken = storage.getCookie(AUTH_CONFIG.session.accessTokenStorageKey);
           const storedExpires = storage.getCookie(AUTH_CONFIG.session.tokenExpiryStorageKey);
           const expiresAt = storedExpires ? parseInt(storedExpires, 10) : null;
@@ -87,13 +87,34 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         }
 
+        // 🚀 THE FIX: ดักจับคนแปลกหน้า (Clean Slate)
+        // ถ้าไม่มีข้อมูล User ในเครื่อง และไม่ใช่ Guest ที่มีเวลาค้างอยู่
+        const storedUser = storage.getLocal(AUTH_CONFIG.session.userStorageKey);
+        const isGuest = localStorage.getItem(AUTH_CONFIG.session.guestStartTimeStorageKey) || 
+                        storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
+        
+        // ถ้าเป็นคนใหม่เอี่ยมอ่องเลย ให้ "ดีดตัวออก (return)" ทันที ห้ามไปยิง API Refresh เด็ดขาด!
+        if (!storedUser && !isGuest) {
+          console.log("[AuthContext] Clean slate detected. Skipping refresh API.");
+          setIsInitialized(true);
+          return;
+        }
+
+        // ถ้าผ่านด่านข้างบนมาได้ แปลว่าเคยมี Session อยู่แล้วค่อยยิงไป Refresh
         const response = await authService.refreshAccessToken();
         if (response?.data) {
           setAccessToken(response.data.accessToken);
           setUser(response.data.user ?? null);
         }
       } catch (err) {
-        clearAuthState();
+        const isGuest = localStorage.getItem(AUTH_CONFIG.session.guestStartTimeStorageKey) || 
+                        storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
+        
+        if (isGuest) {
+          console.log("[AuthContext] Guest initial refresh failed, keeping existing state to let UI timeout trigger.");
+        } else {
+          clearAuthState(); 
+        }
       } finally {
         setIsInitialized(true);
       }
@@ -121,6 +142,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         } catch (err) {
           authService.logEvent("Proactive refresh failed.");
+          
+          // 🚀 1. ตรวจสอบว่านี่คือ Guest หรือไม่
+          // (เช็กจากคีย์ที่พี่ตั้งไว้ใน config ว่ามีอยู่ใน localStorage ไหม)
+          const isGuest = localStorage.getItem(AUTH_CONFIG.session.guestStartTimeStorageKey) || 
+                          localStorage.getItem(AUTH_CONFIG.session.guestIdStorageKey);
+          
+          if (isGuest) {
+            // 🚀 2. ถ้าเป็น Guest -> "หยุดอยู่แค่นี้!" 
+            // ปล่อยผ่านไปเงียบๆ ให้ useChat.ts ของหน้าแชทโชว์ Pop-up เอาเอง
+            console.log("Guest token expired, letting UI handle it...");
+            return; 
+          }
+
+          // 3. ถ้าไม่ใช่ Guest (เป็น User ปกติที่ Refresh Token หมดอายุจริงๆ) -> ค่อยเตะออก!
           logout(); 
         }
       }

@@ -6,9 +6,10 @@ import { Send, Paperclip, Image as ImageIcon, MapPin, X } from "lucide-react"
 interface Props {
   onSendMessage: (content: string, images: string[]) => void;
   isLoading: boolean;
+  isGuestExpired?: boolean;
 }
 
-export const ChatInput = ({ onSendMessage, isLoading }: Props) => {
+export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: Props) => {
   const [input, setInput] = useState("")
   const [images, setImages] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -65,7 +66,7 @@ export const ChatInput = ({ onSendMessage, isLoading }: Props) => {
   };
 
   const handleSend = () => {
-    if ((!input.trim() && images.length === 0) || isLoading) return
+    if ((!input.trim() && images.length === 0) || isLoading || isGuestExpired) return // 🚀 ดักเพิ่มตรงนี้
     onSendMessage(input, images) 
     
     setInput("")
@@ -82,8 +83,10 @@ export const ChatInput = ({ onSendMessage, isLoading }: Props) => {
   return (
     <div className="p-6 bg-gradient-to-t from-[#050505] to-transparent bg-[#050505]">
       <div className="max-w-4xl mx-auto">
-        <div className="relative bg-[#111] border border-white/10 rounded-2xl p-2 shadow-2xl focus-within:border-blue-500/50 transition-all text-slate-200 overflow-hidden">
-          
+        <div className={`relative bg-[#111] border rounded-2xl p-2 shadow-2xl transition-all text-slate-200 overflow-hidden ${
+          isGuestExpired ? "border-slate-800/50 opacity-60" : "border-white/10 focus-within:border-blue-500/50"
+        }`}>
+
           {/* UI ส่วน Preview รูปภาพที่ปรับปรุงใหม่ */}
           {images.length > 0 && (
             <div className="flex flex-wrap gap-3 p-3 mb-2 border-b border-white/5 bg-white/[0.02]">
@@ -109,7 +112,7 @@ export const ChatInput = ({ onSendMessage, isLoading }: Props) => {
                     <X size={12} strokeWidth={3} />
                   </button>
 
-                  {/* Overlay จางๆ ตอน Hover เพื่อให้รู้ว่ากดลบได้ */}
+
                   <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 rounded-xl pointer-events-none transition-opacity" />
                 </div>
               ))}
@@ -118,8 +121,11 @@ export const ChatInput = ({ onSendMessage, isLoading }: Props) => {
 
           <textarea
             rows={1}
-            placeholder="Ask about GIS layers, population density, or maps..."
-            className="w-full bg-transparent p-3 pr-14 text-sm focus:outline-none resize-none placeholder:text-slate-700"
+            disabled={isGuestExpired} // 🚀 2. ปิดการพิมพ์
+            placeholder={isGuestExpired ? "⏳ Session expired. Please refresh or log in..." : "Ask about GIS layers, population density, or maps..."}
+            className={`w-full bg-transparent p-3 pr-14 text-sm focus:outline-none resize-none placeholder:text-slate-700 ${
+              isGuestExpired ? "cursor-not-allowed" : ""
+            }`}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -135,22 +141,29 @@ export const ChatInput = ({ onSendMessage, isLoading }: Props) => {
                 multiple 
                 accept="image/*" 
                 onChange={handleFileChange}
+                disabled={isGuestExpired}  
               />
               <button 
                 type="button"
-                onClick={() => fileInputRef.current?.click()} 
-                className="p-2 text-slate-600 hover:text-blue-400 transition-colors"
+                onClick={() => !isGuestExpired && fileInputRef.current?.click()} 
+                disabled={isGuestExpired}
+                className={`p-2 transition-colors ${isGuestExpired ? "text-slate-800 cursor-not-allowed" : "text-slate-600 hover:text-blue-400"}`}
               >
                 <Paperclip size={18} />
               </button>
               <button 
                 type="button"
-                onClick={() => fileInputRef.current?.click()} 
-                className="p-2 text-slate-600 hover:text-blue-400 transition-colors"
+                onClick={() => !isGuestExpired && fileInputRef.current?.click()} 
+                disabled={isGuestExpired}
+                className={`p-2 transition-colors ${isGuestExpired ? "text-slate-800 cursor-not-allowed" : "text-slate-600 hover:text-blue-400"}`}
               >
                 <ImageIcon size={18} />
               </button>
-              <button type="button" className="p-2 text-slate-600 hover:text-blue-400 transition-colors">
+              <button 
+                type="button" 
+                disabled={isGuestExpired}
+                className={`p-2 transition-colors ${isGuestExpired ? "text-slate-800 cursor-not-allowed" : "text-slate-600 hover:text-blue-400"}`}
+              >
                 <MapPin size={18} />
               </button>
             </div>
@@ -158,8 +171,8 @@ export const ChatInput = ({ onSendMessage, isLoading }: Props) => {
             <button 
               type="button"
               onClick={handleSend}
-              disabled={isLoading || (!input.trim() && images.length === 0)}
-              className="bg-blue-600 hover:bg-blue-500 text-white p-2 rounded-xl transition-all disabled:opacity-20"
+              disabled={isLoading || isGuestExpired || (!input.trim() && images.length === 0)}
+              className="bg-blue-600 hover:bg-blue-500 text-white p-2 rounded-xl transition-all disabled:opacity-20 disabled:cursor-not-allowed"
             >
               <Send size={18} />
             </button>

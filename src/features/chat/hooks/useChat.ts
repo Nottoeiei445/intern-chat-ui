@@ -9,6 +9,10 @@ import { AUTH_CONFIG } from "@/features/auth/config/auth.config";
 import { storage } from "@/lib/storage";
 import { useRouter } from "next/navigation";
 import { chatWithOllama } from "../services/ollama";
+import { 
+  checkAndCleanupExpiredGuest, 
+  startGuestExpiryTimer 
+} from "../../auth/utils/guest-timer.util";
 
 export function useChat() {
   const { user } = useAuth(); 
@@ -22,7 +26,6 @@ export function useChat() {
   const [paginationConfig, setPaginationConfig] = useState<Record<string, { page: number, hasMore: boolean }>>({});
 
   const [isSessionReady, setIsSessionReady] = useState(false);
-  const [showExpiryWarning, setShowExpiryWarning] = useState(false);
   const [isGuestExpired, setIsGuestExpired] = useState(false);
   const router = useRouter();
 
@@ -33,15 +36,6 @@ export function useChat() {
   // 0. Initialize Session
   useEffect(() => {
     const initSession = async () => {
-      const hasToken = storage.getCookie(AUTH_CONFIG.session.accessTokenStorageKey);
-      if(!hasToken) {
-        console.log("[INIT] No access token found, attempting guest login...");
-        try {
-          await authService.initializeGuest();
-        } catch (error) {
-          console.error("Guest initialization failed:", error);
-        }
-      }
       setIsSessionReady(true);
     };
     initSession();
@@ -51,6 +45,14 @@ export function useChat() {
   useEffect(() => {
     const fetchAllHistories = async () => {
       if (!isSessionReady) return;
+
+      // 🚀 THE FIX: ดักจับ 401 Unauthorized 
+      // เช็คก่อนว่ามี Token ไหม ถ้าไม่มี (เช่น Guest หน้าใหม่) ให้หยุดทำงานไปเลย
+      const token = storage.getCookie(AUTH_CONFIG.session.accessTokenStorageKey);
+      if (!token) {
+        console.log("[useChat] No token found, skipping history fetch.");
+        return; 
+      }
 
       console.group("[INIT] Fetching Chat Histories"); 
       
@@ -200,7 +202,7 @@ export function useChat() {
     input: string, 
     model: string, 
     images: string[] = [], 
-    options?: { ephemeral?: boolean; isRegenerate?: boolean }
+    options?: { ephemeral?: boolean; isRegenerate?: boolean; explicitChatId?: string } // 🚀 เพิ่มตัวนี้
   ) => { 
     if (!input.trim() && images.length === 0) return; 
     
@@ -208,7 +210,9 @@ export function useChat() {
     const isRegenerate = options?.isRegenerate ?? false;
 
     if(!input.trim() && images.length === 0 && !isRegenerate) return;
-    let initialId = activeChatId;
+    
+    // 🚀 ใช้ explicitChatId ถ้ามีส่งมา (แก้ปัญหา State อัปเดตไม่ทัน)
+    let initialId = options?.explicitChatId || activeChatId;
     if (!initialId && !user) {
       initialId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey) as string || null;
     }
@@ -227,13 +231,32 @@ export function useChat() {
         setEphemeralMessages(prev => [...prev, userMsg]); 
       } else if (currentId && !currentId.startsWith('session_')) { 
         setChats(prev => {
-          const updated = prev.map(chat => 
-            chat.id === currentId 
-              ? { ...chat, messages: [...chat.messages, userMsg], updatedAt: Date.now() } 
-              : chat
-          );
-          return sortChats(updated); 
+          // 🚀 เช็คว่ากล่องแชทนี้มีอยู่แล้วหรือยัง?
+          const exists = prev.some(c => c.id === currentId);
+
+          if (!exists) {
+            // ✅ ถ้ายังไม่มี (เพิ่งได้ Guest ID มาใหม่): ให้สร้างกล่องแชท "พร้อมยัดข้อความ User" ลงไปเลย!
+            return [{
+              id: currentId as string,
+              title: input.slice(0, 30) || "Guest Session",
+              messages: [userMsg], 
+              model: model,
+              createdAt: Date.now(),
+              updatedAt: Date.now()
+            }, ...prev];
+          } else {
+            // ✅ ถ้ามีอยู่แล้ว: ก็แค่เอาข้อความไปต่อท้ายตามปกติ
+            const updated = prev.map(chat => 
+              chat.id === currentId 
+                ? { ...chat, messages: [...chat.messages, userMsg], updatedAt: Date.now() } 
+                : chat
+            );
+            return sortChats(updated); 
+          }
         });
+        
+        // บังคับโฟกัสห้องแชทให้ถูกต้อง
+        setActiveChatId(currentId);
       } else {
         isNewSession = true; 
         const tempId = `session_${Date.now()}`; 
@@ -249,6 +272,8 @@ export function useChat() {
         currentId = tempId; 
       }
     }
+
+    setIsLoading(true);
 
     setIsLoading(true); 
 
@@ -393,7 +418,6 @@ export function useChat() {
 };
 
 
-
   // 4. Delete Chat
   const deleteChat = async (id: string) => {
     console.log(`[PROCESS] Requesting server to delete conversation: ${id}`);
@@ -472,59 +496,32 @@ export function useChat() {
   }, [chats]);
 
   useEffect(() => {
-    if (user) {
-      // ถ้าเป็น User ให้เคลียร์เวลา Guest และสถานะทั้งหมดทิ้งไปเลย
-      localStorage.removeItem(AUTH_CONFIG.session.guestStartTimeStorageKey);
-      setShowExpiryWarning(false);
+    if (user || !isSessionReady) return;
+
+    const wasSwept = checkAndCleanupExpiredGuest();
+    if (wasSwept) {
+      setChats([]);
+      setActiveChatId(null);
       setIsGuestExpired(false);
-      return;
     }
+  }, [user, isSessionReady]); 
 
-    const checkExpiry = () => {
-      let startTime = localStorage.getItem(AUTH_CONFIG.session.guestStartTimeStorageKey);
-      
-      // ถ้าเพิ่งมาครั้งแรก หรือเพิ่งโดนรีเซ็ตไป ให้เริ่มจับเวลาใหม่
-      if (!startTime) {
-        startTime = Date.now().toString();
-        localStorage.setItem(AUTH_CONFIG.session.guestStartTimeStorageKey, startTime);
-        setIsGuestExpired(false); // เริ่มเซสชันใหม่ สถานะต้องไม่หมดอายุ
-      }
+  useEffect(() => {
+    if (user || !isSessionReady || isGuestExpired) return;
 
-      const elapsed = Date.now() - parseInt(startTime);
-      
-      // ดึงเวลาจาก Config (แปลงนาทีเป็นมิลลิวินาที)
-      const timeLimitMs = AUTH_CONFIG.token.guestExpiryMinutes * 60 * 1000;
-      const warningTimeMs = AUTH_CONFIG.session.guestWarningMinutesBeforeExpiry * 60 * 1000;
-      const remaining = timeLimitMs - elapsed;
+    const stopTimer = startGuestExpiryTimer(() => {
+      setIsGuestExpired(true); 
+      storage.removeCookie(AUTH_CONFIG.session.accessTokenStorageKey);
+    });
 
-      if (remaining <= 0) {
-        setShowExpiryWarning(false); // ปิดหน้าต่างเตือน (เพราะหมดเวลาแล้ว)
-        setIsGuestExpired(true);     // เปิดสถานะหมดอายุ ให้ UI เอาไปโชว์
-        localStorage.removeItem(AUTH_CONFIG.session.guestStartTimeStorageKey);
-        
-        // ล้างหน้าจอแชทเก่าออก
-        setChats([]);
-        setActiveChatId(null); 
-        setPaginationConfig({});
-        
-      } else if (remaining <= warningTimeMs) {
-        setShowExpiryWarning(true);
-      }
-    };
-
-    // เช็คทันทีตอนโหลดครั้งแรก
-    checkExpiry();
-    
-    // ตั้งเวลาเช็ควนลูปตาม Config
-    const interval = setInterval(checkExpiry, AUTH_CONFIG.session.guestCheckIntervalMs); 
-    
-    return () => clearInterval(interval);
-  }, [user]);
+    return () => stopTimer();
+  }, [user, isSessionReady, isGuestExpired]);
 
   const currentHasMore = activeChatId ? (paginationConfig[activeChatId]?.hasMore ?? false) : false;
 
   return { 
     chats, 
+    setChats,
     activeChatId, 
     setActiveChatId, 
     isLoading, 
@@ -540,8 +537,6 @@ export function useChat() {
     isSessionReady, 
     guestId: migrationInfo.guestId,
     canMigrate: migrationInfo.canMigrate,
-    showExpiryWarning,
-    setShowExpiryWarning,
     isGuestExpired,
     setIsGuestExpired
     };
