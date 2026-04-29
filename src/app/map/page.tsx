@@ -27,7 +27,6 @@ export default function MapPage() {
             : "w-0 -translate-x-full opacity-0 pointer-events-none"}
         `}
       >
-        {/* 🛠️ ส่วนบนสุด: แค่ปุ่มปิด Sidebar เล็กๆ ไม่ต้องมี Header มาบังหัวแชทแล้ว */}
         <div className="absolute top-4 right-4 z-30">
           <button 
             onClick={() => setIsChatOpen(false)}

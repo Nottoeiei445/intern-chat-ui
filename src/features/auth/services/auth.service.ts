@@ -93,7 +93,8 @@ api.interceptors.response.use(
     
     // ดักไว้ว่าถ้าเส้นที่พังคือเส้น Auth เอง (เช่นกำลัง Login หรือ กำลัง Refresh) ห้ามดัก! ปล่อยให้มันพังไป
     const isAuthRoute =
-      (originalRequest.url?.includes('/auth/sessions') && originalRequest.method === 'post') || 
+      (originalRequest.url?.includes('/auth/sessions') && 
+       ['post', 'put'].includes(originalRequest.method?.toLowerCase() || '')) || 
       originalRequest.url?.includes('/auth/guests');
 
     // ถ้าเจอ 401, ยังไม่เคย Retry และไม่ใช่เส้น Auth

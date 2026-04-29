@@ -9,10 +9,16 @@ import { AUTH_CONFIG } from "@/features/auth/config/auth.config";
 import { storage } from "@/lib/storage";
 import { useRouter } from "next/navigation";
 import { chatWithOllama } from "../services/ollama";
+import { DynamicLayerPayload } from '@/features/map/types';
+
+// 🚀 ZUSTAND FIX: 1. Import ตัว Store เข้ามา (เดี๋ยวเราไปสร้างไฟล์นี้กันต่อ)
+import { useMapStore } from '@/store/useMapStore';
+
 import { 
   checkAndCleanupExpiredGuest, 
   startGuestExpiryTimer 
 } from "../../auth/utils/guest-timer.util";
+import { da } from "zod/locales";
 
 export function useChat() {
   const { user } = useAuth(); 
@@ -28,6 +34,11 @@ export function useChat() {
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [isGuestExpired, setIsGuestExpired] = useState(false);
   const router = useRouter();
+  
+  // 🚀 ZUSTAND FIX: 2. เปลี่ยนจาก useState มาดึงจาก Store แทน
+  // ลบบรรทัดนี้ทิ้ง -> const [dynamicLayers, setDynamicLayers] = useState<DynamicLayerPayload[]>([]);
+  const dynamicLayers = useMapStore(state => state.dynamicLayers);
+  const setDynamicLayers = useMapStore(state => state.setDynamicLayers);
 
   const sortChats = useCallback((list: ChatThread[]) => { 
     return [...list].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)); 
@@ -46,8 +57,6 @@ export function useChat() {
     const fetchAllHistories = async () => {
       if (!isSessionReady) return;
 
-      // 🚀 THE FIX: ดักจับ 401 Unauthorized 
-      // เช็คก่อนว่ามี Token ไหม ถ้าไม่มี (เช่น Guest หน้าใหม่) ให้หยุดทำงานไปเลย
       const token = storage.getCookie(AUTH_CONFIG.session.accessTokenStorageKey);
       if (!token) {
         console.log("[useChat] No token found, skipping history fetch.");
@@ -212,7 +221,7 @@ export function useChat() {
     input: string, 
     model: string, 
     images: string[] = [], 
-    options?: { ephemeral?: boolean; isRegenerate?: boolean; explicitChatId?: string } // 🚀 เพิ่มตัวนี้
+    options?: { ephemeral?: boolean; isRegenerate?: boolean; explicitChatId?: string }
   ) => { 
     if (!input.trim() && images.length === 0) return; 
     
@@ -221,7 +230,6 @@ export function useChat() {
 
     if(!input.trim() && images.length === 0 && !isRegenerate) return;
     
-    // 🚀 ใช้ explicitChatId ถ้ามีส่งมา (แก้ปัญหา State อัปเดตไม่ทัน)
     let initialId = options?.explicitChatId || activeChatId;
     if (!initialId && !user) {
       initialId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey) as string || null;
@@ -245,7 +253,6 @@ export function useChat() {
           const exists = prev.some(c => c.id === currentId);
 
           if (!exists) {
-            // ✅ ถ้ายังไม่มี (เพิ่งได้ Guest ID มาใหม่): ให้สร้างกล่องแชท "พร้อมยัดข้อความ User" ลงไปเลย!
             return [{
               id: currentId as string,
               title: input.slice(0, 30) || "Guest Session",
@@ -256,7 +263,6 @@ export function useChat() {
             }, ...prev];
           } 
           else {
-            // ✅ ถ้ามีอยู่แล้ว: ก็แค่เอาข้อความไปต่อท้ายตามปกติ
             const updated = prev.map(chat => 
               chat.id === currentId 
                 ? { ...chat, messages: [...chat.messages, userMsg], updatedAt: Date.now() } 
@@ -284,8 +290,6 @@ export function useChat() {
     }
 
     setIsLoading(true);
-
-    setIsLoading(true); 
 
     try {
       const payload = { 
@@ -334,6 +338,25 @@ export function useChat() {
                 if (!jsonStr || jsonStr === '[DONE]') continue;
 
                 const data = JSON.parse(jsonStr);
+
+                if (data.event === 'layer_catalog' && data.layer) {
+                  const backendData = data.layer;
+
+                  const newLayer: DynamicLayerPayload = {
+                    id: backendData.layerName || `ai-layer-${Date.now()}`,
+                    type: backendData.type,
+                    baseUrl: backendData.url,
+                    layerId: backendData.layerName,
+                    title: backendData.title,
+                    apiProvider: backendData.url.includes('vallaris') ? 'vallaris' : 'gistda',
+                  };
+
+                  // 🚀 ZUSTAND FIX: 3. โยนของเข้ากระดานดำ (Store) ได้เลย ไม่ต้องเซ็ต State แชท
+                  setDynamicLayers([newLayer]);
+                  console.log("🗺️ Map data sent to Zustand Store:", newLayer);
+                  continue;
+                }
+
                 const incomingUserId = data.usermessage_id || data.userMessageId;
                 const incomingAssistantId = data.assistantmessage_Id || data.assistantMessageId;
 
@@ -377,7 +400,6 @@ export function useChat() {
                 const displayContent = accumulatedContent.split("<thinking>").pop()?.trim() || accumulatedContent;
 
                 if (ephemeral) {
-                  // ... (ของเดิม)
                   setEphemeralMessages(prev => {
                     const newMsgs = [...prev];
                     const lastIdx = newMsgs.length - 1;
@@ -393,12 +415,10 @@ export function useChat() {
                       const lastIdx = safeMsgs.length - 1;
 
                       if (lastIdx >= 0 && safeMsgs[lastIdx].role === "assistant") {
-                        // ถ้าบรรทัดสุดท้ายเป็น AI อยู่แล้ว ก็แค่อัปเดตข้อความ
                         safeMsgs[lastIdx] = { ...safeMsgs[lastIdx], content: displayContent };
                       } else {
-                        // 🚀 ถ้าไม่มี AI ให้สร้างใหม่ พร้อมใส่ ID ชั่วคราว และเวลาเกิด!
                         safeMsgs.push({ 
-                          id: `temp_assistant_${Date.now()}`, // บัตรประชาชนชั่วคราว
+                          id: `temp_assistant_${Date.now()}`,
                           role: "assistant", 
                           content: displayContent,
                         });
@@ -417,17 +437,14 @@ export function useChat() {
       }
 
       if (!ephemeral && isNewSession && realIdToSwapLater) {
-        const finalRealId = realIdToSwapLater; // การันตีค่า
+        const finalRealId = realIdToSwapLater; 
         
-        // ดัก useEffect ไม่ให้ดึง API ทับหน้าจอ
         setPaginationConfig(prev => ({ ...prev, [finalRealId]: { page: 1, hasMore: false } }));
         
-        // สลับ ID ในรายการแชท
         setChats(prev => prev.map(chat => 
           chat.id === currentId ? { ...chat, id: finalRealId } : chat
         ));
         
-        // สลับโฟกัสหน้าจอ
         setActiveChatId(finalRealId);
       }
 
@@ -436,8 +453,7 @@ export function useChat() {
     } finally {
       setIsLoading(false);
     }
-};
-
+  };
 
   // 4. Delete Chat
   const deleteChat = async (id: string) => {
@@ -463,48 +479,47 @@ export function useChat() {
   };
 
   // 5. Rename Chat
-    const renameChat = async (id: string, newTitle: string) => { // เปลี่ยนชื่อแชท
-      const originalChats = [...chats]; // เก็บสำรองของเดิมไว้ก่อนเผื่อแก้ไขกลับ
-      setChats(prev => prev.map(chat => chat.id === id ? { ...chat, title: newTitle } : chat));   // อัปเดตชื่อใน UI ทันทีแบบ Optimistic UI
-      
-      try { 
-        await chatService.renameConversation(id, newTitle); // ส่งคำขอเปลี่ยนชื่อไปยังเซิร์ฟเวอร์
-      } catch (error) {
-        console.error("[FAILURE] Failed to rename chat:", error);
-        setChats(originalChats); 
-      }
-    };
+  const renameChat = async (id: string, newTitle: string) => { 
+    const originalChats = [...chats]; 
+    setChats(prev => prev.map(chat => chat.id === id ? { ...chat, title: newTitle } : chat));   
+    
+    try { 
+      await chatService.renameConversation(id, newTitle); 
+    } catch (error) {
+      console.error("[FAILURE] Failed to rename chat:", error);
+      setChats(originalChats); 
+    }
+  };
  
-    const editAndResend = async (messageId: string, newContent: string, model: string) => {
-      if (!activeChatId) return;
-      setIsLoading(true);
-      try {
-        // 1. ส่ง ID เก่าไปบอกเพื่อนหลังบ้านว่าขอแก้ตัวนี้นะ
-        await chatService.editMessage(messageId, newContent, true);
+  const editAndResend = async (messageId: string, newContent: string, model: string) => {
+    if (!activeChatId) return;
+    setIsLoading(true);
+    try {
+      await chatService.editMessage(messageId, newContent, true);
 
-        setChats(prev => prev.map(chat => {
-          if (chat.id === activeChatId) {
-            const msgIndex = chat.messages.findIndex(m => m.id === messageId);
-            if (msgIndex == -1) return chat;
-            
-            const updatedMessages = chat.messages.slice(0, msgIndex + 1).map(m=> 
-              m.id === messageId ? { ...m, content: newContent, id: "temp_edit_" + Date.now() } : m
-            );
-            
-            return { ...chat, messages: updatedMessages };
-          }
-          return chat;
-        }));
-        
-        // 2. เรียก sendMessage ให้มันไปดึง ID ใหม่จาก Stream มายัดให้เอง!
-        await sendMessage(newContent, model, [], { isRegenerate: true });
-        
-      } catch (error) {
-        console.error("Failed to edit message:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+      setChats(prev => prev.map(chat => {
+        if (chat.id === activeChatId) {
+          const msgIndex = chat.messages.findIndex(m => m.id === messageId);
+          if (msgIndex == -1) return chat;
+          
+          const updatedMessages = chat.messages.slice(0, msgIndex + 1).map(m=> 
+            m.id === messageId ? { ...m, content: newContent, id: "temp_edit_" + Date.now() } : m
+          );
+          
+          return { ...chat, messages: updatedMessages };
+        }
+        return chat;
+      }));
+      
+      await sendMessage(newContent, model, [], { isRegenerate: true });
+      
+    } catch (error) {
+      console.error("Failed to edit message:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const migrationInfo = useMemo(() => {
     const gId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
     const guestChat = chats.find(c => String(c.id) === String(gId));
@@ -545,6 +560,8 @@ export function useChat() {
     setChats,
     activeChatId, 
     setActiveChatId, 
+    dynamicLayers,     // 🚀 ZUSTAND FIX: 4. เรายัง Return ออกไปให้เหมือนเดิม เผื่อไฟล์เก่าๆ โบร๋มีเรียกใช้ จะได้ไม่ Error แดง
+    setDynamicLayers,  // 🚀 ZUSTAND FIX: 5. Return อันนี้ด้วย
     isLoading, 
     sendMessage, 
     createNewChat, 
@@ -560,5 +577,5 @@ export function useChat() {
     canMigrate: migrationInfo.canMigrate,
     isGuestExpired,
     setIsGuestExpired
-    };
+  };
 }

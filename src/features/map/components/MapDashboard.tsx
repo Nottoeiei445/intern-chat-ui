@@ -2,20 +2,26 @@
 
 import React, { useState, useEffect } from 'react';
 import { MapLibre } from './MapLibre';
-import { HazardType, TimeRange, MapMode } from '../types';
+import { HazardType, TimeRange, MapMode } from '../types'; 
 
-// 🚀 เพิ่ม Props: hideControls เพื่อคุมความคลีน
+// 🚀 ZUSTAND FIX: 1. นำเข้า Store ที่เราสร้างไว้
+import { useMapStore } from '@/store/useMapStore';
+
+// 🚀 ZUSTAND FIX: 2. เอา dynamicLayers ออกจาก Props เพราะเราจะดึงจาก Store โดยตรง
 interface MapDashboardProps {
   hideControls?: boolean;
 }
 
-export const MapDashboard = ({ hideControls = false }: MapDashboardProps) => {
+export const MapDashboard = ({ hideControls = false }: MapDashboardProps) => { 
   const [activeHazard, setActiveHazard] = useState<HazardType | null>(null);
   const [timeRange, setTimeRange] = useState<TimeRange>(7);
   const [mapMode, setMapMode] = useState<MapMode>('wms');
   const [activeBoundary, setActiveBoundary] = useState<'province' | 'district' | null>(null);
 
-  // 🤖 AI Control Center: ดักฟังคำสั่งจากแชท
+  // 🚀 ZUSTAND FIX: 3. ดึงข้อมูลเลเยอร์จาก "กระดานดำ (Store)" มาใช้งาน
+  const dynamicLayers = useMapStore((state) => state.dynamicLayers);
+
+  // 🤖 AI Control Center: ดักฟังคำสั่งจากแชท (ของเดิมโบร๋ ปล่อยไว้ปกติ)
   useEffect(() => {
     const handleMapCommand = (e: any) => {
       const { method, args } = e.detail;
@@ -23,7 +29,6 @@ export const MapDashboard = ({ hideControls = false }: MapDashboardProps) => {
 
       if (method === 'controlMap') {
         if (args.action === 'TOGGLE_LAYER') {
-          // สั่งเปิด/ปิด Hazard (เช่น wildfire, flood)
           const target = args.target === 'wildfire' ? 'viirs' : args.target;
           setActiveHazard(prev => prev === target ? null : target as HazardType);
         }
@@ -93,6 +98,8 @@ export const MapDashboard = ({ hideControls = false }: MapDashboardProps) => {
           timeRange={timeRange} 
           mapMode={mapMode}
           activeBoundary={activeBoundary} 
+          // 🚀 โยนข้อมูล AI ต่อให้ MapLibre รับจบ!!
+          dynamicLayers={dynamicLayers} 
         />
         
       </div>

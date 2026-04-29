@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useRef, useState } from 'react';
+import  { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Button } from '@/components/ui/button'; 
@@ -9,6 +9,8 @@ import { useHazardLayer } from '../hooks/useHazardLayer';
 import { useProvinceLayer } from '../hooks/useProvinceLayer'; 
 import { HazardType, TimeRange, MapMode } from '../types';
 import { useDistrictLayer } from '../hooks/useDistrictLayer';
+import { useDynamicLayers } from '../hooks/useDynamicLayers';
+import { DynamicLayerPayload } from '../types';
 
 // 🚀 Interface ถูกต้องแล้ว
 interface MapLibreProps {
@@ -16,10 +18,10 @@ interface MapLibreProps {
   timeRange: TimeRange;
   mapMode: MapMode;
   activeBoundary: 'province' | 'district' | null;
+  dynamicLayers?: DynamicLayerPayload[];
 }
 
-// 🚀 แก้ตรงนี้ครับ: เติม activeBoundary เข้าไปในวงเล็บ
-export const MapLibre = ({ activeHazard, timeRange, mapMode, activeBoundary }: MapLibreProps) => {
+export const MapLibre = ({ activeHazard, timeRange, mapMode, activeBoundary, dynamicLayers = [] }: MapLibreProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<maplibregl.Map | null>(null);
   const [selectedData, setSelectedData] = useState<any>(null);
@@ -73,6 +75,7 @@ export const MapLibre = ({ activeHazard, timeRange, mapMode, activeBoundary }: M
   useProvinceLayer(map, activeBoundary === 'province', selectedData, setSelectedData);
   useDistrictLayer(map, activeBoundary === 'district', selectedData, setSelectedData);
   useHazardLayer(map, activeHazard, timeRange, mapMode);
+  useDynamicLayers(map, dynamicLayers);
 
   return (
     <div className="relative w-full h-full min-h-[600px] rounded-lg overflow-hidden font-sans bg-gray-100">
