@@ -16,6 +16,8 @@ let currentAccessToken: string | null = null;
 const clearAuthSession = () => {
   storage.removeCookie(AUTH_CONFIG.session.tokenExpiryStorageKey);
   storage.removeCookie(AUTH_CONFIG.session.accessTokenStorageKey);
+  // 🚀 เพิ่มการล้าง Refresh Token ด้วย จะได้สะอาดหมดจดตอน Logout
+  storage.removeCookie(AUTH_CONFIG.session.refreshTokenCookieName); 
   storage.removeLocal(AUTH_CONFIG.session.userStorageKey);
   storage.removeCookie(AUTH_CONFIG.session.guestIdStorageKey);
   currentAccessToken = null;
@@ -38,6 +40,12 @@ const saveAuthSession = (data: any) => {
   if (data.accessToken) {
     storage.setCookie(AUTH_CONFIG.session.accessTokenStorageKey, data.accessToken, expiresAt);
     currentAccessToken = data.accessToken;
+  }
+
+  const incomingRefreshToken = data.refreshToken || data.refresh_token; 
+  if (incomingRefreshToken) {
+    const refreshExpiresAt = Date.now() + (AUTH_CONFIG.token.refreshTokenExpiryMinutes * 60 * 1000);
+    storage.setCookie(AUTH_CONFIG.session.refreshTokenCookieName, incomingRefreshToken, refreshExpiresAt);
   }
   
   if (gId) {
@@ -83,27 +91,55 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
     
-    // ⚠️ แก้ตรงนี้: เช็คให้ครอบคลุมชื่อ endpoint ใหม่
+    // ดักไว้ว่าถ้าเส้นที่พังคือเส้น Auth เอง (เช่นกำลัง Login หรือ กำลัง Refresh) ห้ามดัก! ปล่อยให้มันพังไป
     const isAuthRoute =
-      originalRequest.url?.includes('/auth/sessions') || // ครอบคลุมทั้ง Login และ Refresh
+      (originalRequest.url?.includes('/auth/sessions') && originalRequest.method === 'post') || 
       originalRequest.url?.includes('/auth/guests');
 
+    // ถ้าเจอ 401, ยังไม่เคย Retry และไม่ใช่เส้น Auth
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthRoute) {
-      // ... (ลอจิก Refresh เดิม)
-      
+      originalRequest._retry = true; // ทำเครื่องหมายไว้ว่า "กำลังจะลองใหม่นะ ห้ามวนลูป"
+
+      // 🚀 ระบบจัดการคิว (Concurrent Refresh)
+      if (isRefreshing) {
+        // ถ้ามีคนกำลังไปขอตั๋วอยู่แล้ว ให้คนนี้ "เข้าคิวรอ"
+        return new Promise(function(resolve) {
+          addRefreshSubscriber((token: string) => {
+            // พอได้ตั๋วมาปุ๊บ ค่อยเอามาแปะ Header แล้วยิง Request เดิมต่อ
+            originalRequest.headers.Authorization = `Bearer ${token}`;
+            resolve(api(originalRequest));
+          });
+        });
+      }
+
+      // ถ้ายังไม่มีใครไปขอตั๋ว ให้ฉันเป็นคนไปขอ!
+      isRefreshing = true;
+
       try {
-        // ยิงไปที่ endpoint ใหม่ (มักจะเป็น /auth/sessions ด้วย Method POST หรือ PUT)
-        const response = await axios.post(
-          `${AUTH_CONFIG.api.baseURL}/auth/sessions`, 
-          {},
-          { withCredentials: true }
-        );
-        // ...
+        // 🚀 เรียกใช้งานมือปืนที่เราอุตส่าห์เขียนไว้! (มันจะไปหยิบ refreshToken จาก Cookie ให้เอง)
+        const responseData = await authService.refreshAccessToken();
+        
+        // ถ้าได้ Access Token อันใหม่มา...
+        if (responseData?.data?.accessToken) {
+          const newToken = responseData.data.accessToken;
+          // 1. อัปเดตตัวแปรกลาง
+          currentAccessToken = newToken;
+          // 2. เรียกคนที่รออยู่ในคิวให้ทำงานต่อ
+          onRefreshed(newToken);
+          // 3. เอา Token ใหม่แปะให้ Request ของตัวเอง แล้วยิงซ้ำ
+          originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          
+          isRefreshing = false; // ปลดล็อคคิว
+          return api(originalRequest); // ยิง Request เดิมอีกรอบด้วยพลังใหม่!
+        }
       } catch (refreshError) {
-        clearAuthSession();
+        // ถ้า Refresh พัง (เช่น หมดอายุ 7 วันไปแล้ว)
+        isRefreshing = false;
+        clearAuthSession(); // ล้างบางได้เลย (เพราะหมดหนทางรอดแล้วจริงๆ)
         return Promise.reject(refreshError);
       }
     }
+
     return Promise.reject(error);
   }
 );
@@ -134,7 +170,7 @@ const createApiError = (error: any, fallbackMessage = "An unexpected error occur
 export const authService = {
   initializeGuest: async (): Promise<any> => {
     try {
-      // Path ใน config จะกลายเป็น /auth/guests
+
       const { data } = await api.post(AUTH_CONFIG.endpoints.guestMode); 
       if (data?.data) {
         saveAuthSession(data.data);
@@ -197,11 +233,9 @@ export const authService = {
 
   getCurrentUser: async (): Promise<AuthResponse> => {
     try {
-      // เปลี่ยนจาก .post เป็น .get และ Path ใน config คือ /auth/sessions
       const { data } = await api.get(AUTH_CONFIG.endpoints.getCurrentUser); 
       if (data?.data) {
         saveAuthSession(data.data);
-        // ... (ลอจิกเดิม)
       }
       return data;
     } catch (error: any) {
@@ -212,20 +246,28 @@ export const authService = {
 
   refreshAccessToken: async (): Promise<AuthResponse> => {
     try {
-      const { data } = await api.post(AUTH_CONFIG.endpoints.refresh);
+      const isGuest = !!storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
+      if (isGuest) {
+        return Promise.reject("Guest session does not use refresh tokens.");
+      }
+
+      const { data } = await api.put(AUTH_CONFIG.endpoints.refresh);
+
       if (data?.data) {
         saveAuthSession(data.data);
       }
       return data;
     } catch (error: any) {
-      clearAuthSession();
+      const isGuest = !!storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
+      if (!isGuest) {
+        clearAuthSession(); 
+      }
       throw createApiError(error, "Failed to refresh token.");
     }
   },
 
   logout: async (): Promise<void> => {
     try {
-      // เปลี่ยนจาก .post เป็น .delete และ Path ใน config คือ /auth/sessions
       await api.delete(AUTH_CONFIG.endpoints.logout); 
     } catch (error) {
       authService.logEvent("ℹ️ [Auth] Backend logout failed.");

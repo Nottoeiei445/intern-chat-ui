@@ -19,15 +19,15 @@ export const AUTH_CONFIG = {
   },
 
   token: {
-    accessTokenExpiryMinutes: 10,
+    accessTokenExpiryMinutes: 10, 
     refreshTokenExpiryMinutes: 10080, // 7 days
     refreshThresholdMinutes: 1,
-    guestExpiryMinutes: 2, // 1 hour for guest sessions
+    guestExpiryMinutes: 60, // 1 hour for guest sessions
   },
 
   endpoints: {
     login: "/auth/sessions",         // POST: สร้าง Session (Login)
-    refresh: "/auth/sessions", // POST: รีเฟรช Token
+    refresh: "/auth/sessions", // PUT: รีเฟรช Token
     getCurrentUser: "/auth/sessions", // GET: ดึงข้อมูล Session ปัจจุบัน (Me)
     logout: "/auth/sessions",        // DELETE: ทำลาย Session (ถ้าเพื่อนทำไว้นะ)
     register: "/auth/register",      // POST: ลงทะเบียน (เหมือนเดิม)
@@ -42,8 +42,6 @@ export const AUTH_CONFIG = {
     userStorageKey: "user",
     guestIdStorageKey: "guest_id",
     guestStartTimeStorageKey: "guest_start_time",
-    guestWarningMinutesBeforeExpiry: 1,
-    guestCheckIntervalMs: 60000, // 1 minute
   },
 
   redirect: {
