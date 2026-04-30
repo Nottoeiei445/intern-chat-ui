@@ -66,7 +66,7 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
   };
 
   const handleSend = () => {
-    if ((!input.trim() && images.length === 0) || isLoading || isGuestExpired) return // 🚀 ดักเพิ่มตรงนี้
+    if ((!input.trim() && images.length === 0) || isLoading || isGuestExpired) return  
     onSendMessage(input, images) 
     
     setInput("")
@@ -121,9 +121,9 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
 
           <textarea
             rows={1}
-            disabled={isGuestExpired} // 🚀 2. ปิดการพิมพ์
+            disabled={isGuestExpired} 
             placeholder={isGuestExpired ? "⏳ Session expired. Please refresh or log in..." : "Ask about GIS layers, population density, or maps..."}
-            className={`w-full bg-transparent p-3 pr-14 text-sm focus:outline-none resize-none placeholder:text-slate-700 ${
+            className={`w-full bg-transparent p-3 pr-14 text-sm focus:outline-none resize-none placeholder:text-slate-400 text-slate-200${
               isGuestExpired ? "cursor-not-allowed" : ""
             }`}
             value={input}

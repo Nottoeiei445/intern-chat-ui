@@ -7,7 +7,7 @@ import { PROVINCE_GEOJSON_URL } from '../config/map.config';
 
 export const useProvinceLayer = (
   map: maplibregl.Map | null,
-  isActive: boolean, // 🚀 เพิ่มสถานะเปิด/ปิด
+  isActive: boolean, 
   selectedProvince: any,
   onProvinceClick: (properties: any) => void
 ) => {
@@ -17,7 +17,6 @@ export const useProvinceLayer = (
   }, [onProvinceClick]);
 
   useEffect(() => {
-    // 🚀 ถ้าไม่ได้เปืดใช้งาน ให้หยุดและเคลียร์แผนที่
     if (!map || !isActive) return;
 
     const layerIdFill = 'province-layer-fill';
@@ -68,15 +67,13 @@ export const useProvinceLayer = (
     if (map.isStyleLoaded()) loadProvinceLayer();
     else map.once('load', loadProvinceLayer);
 
-    // 🚀 Cleanup: ลบออกเมื่อ User กดปิดปุ่ม
     return () => {
       if (map.getLayer(layerIdFill)) map.removeLayer(layerIdFill);
       if (map.getLayer(layerIdHighlight)) map.removeLayer(layerIdHighlight);
       if (map.getLayer(layerIdLine)) map.removeLayer(layerIdLine);
       if (map.getSource(sourceId)) map.removeSource(sourceId);
     };
-  }, [map, isActive]); // 🚀 อิงค่าตาม isActive
-
+  }, [map, isActive]);
   useEffect(() => {
     if (!map || !isActive || !map.getLayer('province-layer-highlight')) return;
 

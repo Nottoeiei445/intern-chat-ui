@@ -1,6 +1,7 @@
 // src/features/chat/services/chat.service.ts
 import apiClient from '@/lib/api-client';
 import { CHAT_CONFIG } from '../config/chat.config';
+import { ENV } from '@/lib/env';
 
 export const chatService = {
   // 1. ดึงประวัติแชททั้งหมด
@@ -25,7 +26,12 @@ export const chatService = {
     images?: string[];
     conversationId?: string | null 
   }) => {
-    return apiClient.stream(`${CHAT_CONFIG.endpoints.chat}`, payload);
+
+    return apiClient.stream(`${CHAT_CONFIG.endpoints.chat}`, payload, {
+      headers: {
+        'X-API-Key': ENV.COMPANY_API_KEY || '',
+      }
+    });
   },
 
   renameConversation: (id: string, newTitle: string, userId?: string) => {

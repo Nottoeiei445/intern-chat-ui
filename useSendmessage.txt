@@ -2,7 +2,7 @@ const sendMessage = async (
     input: string, 
     model: string, 
     images: string[] = [], 
-    options?: { ephemeral?: boolean; isRegenerate?: boolean; explicitChatId?: string } // 🚀 เพิ่มตัวนี้
+    options?: { ephemeral?: boolean; isRegenerate?: boolean; explicitChatId?: string } 
   ) => { 
     if (!input.trim() && images.length === 0) return; 
     
@@ -11,7 +11,6 @@ const sendMessage = async (
 
     if(!input.trim() && images.length === 0 && !isRegenerate) return;
     
-    // 🚀 ใช้ explicitChatId ถ้ามีส่งมา (แก้ปัญหา State อัปเดตไม่ทัน)
     let initialId = options?.explicitChatId || activeChatId;
     if (!initialId && !user) {
       initialId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey) as string || null;
@@ -186,7 +185,6 @@ const sendMessage = async (
                         // ถ้าบรรทัดสุดท้ายเป็น AI อยู่แล้ว ก็แค่อัปเดตข้อความ
                         safeMsgs[lastIdx] = { ...safeMsgs[lastIdx], content: displayContent };
                       } else {
-                        // 🚀 ถ้าไม่มี AI ให้สร้างใหม่ พร้อมใส่ ID ชั่วคราว และเวลาเกิด!
                         safeMsgs.push({ 
                           id: `temp_assistant_${Date.now()}`, // บัตรประชาชนชั่วคราว
                           role: "assistant", 

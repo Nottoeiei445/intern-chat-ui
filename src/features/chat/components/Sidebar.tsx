@@ -6,7 +6,6 @@ import { ChatThread } from "../types";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../auth/context/AuthContext";
 
-// 🚀 นำเข้า Shadcn UI Components
 import {
   Tooltip,
   TooltipContent,
@@ -45,8 +44,6 @@ export const Sidebar = ({
 }: SidebarProps) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [tempTitle, setTempTitle] = useState("");
-  
-  // 🚀 State สำหรับควบคุม Modal ของ Guest
   const [showGuestModal, setShowGuestModal] = useState(false);
   
   const router = useRouter();
@@ -76,7 +73,7 @@ export const Sidebar = ({
   const handleNewClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isGuest) {
-      setShowGuestModal(true); // 🚀 เด้ง Modal โชว์ของ
+      setShowGuestModal(true); 
       return;
     }
     onNew();
@@ -179,7 +176,6 @@ export const Sidebar = ({
                 ) : (
                   <>
                   <div className="flex items-center gap-1 shrink-0">
-                    {/* 🚀 Tooltip สำหรับปุ่ม Edit */}
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <span className={isGuest ? "cursor-not-allowed inline-block" : ""}>
@@ -205,7 +201,6 @@ export const Sidebar = ({
                       )}
                     </Tooltip>
 
-                    {/* 🚀 Tooltip สำหรับปุ่ม Delete */}
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <span className={isGuest ? "cursor-not-allowed inline-block" : ""}>
@@ -245,7 +240,6 @@ export const Sidebar = ({
           </div>
         </div>
 
-        {/* 🚀 Modal Upsell สำหรับ Guest */}
         <Dialog open={showGuestModal} onOpenChange={setShowGuestModal}>
           <DialogContent className="sm:max-w-md bg-[#111] border-slate-800 text-slate-200 shadow-2xl">
             <DialogHeader>

@@ -19,7 +19,6 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
     });
     activeLayerIds.current = [];
 
-    // 🚀 2. วนลูปวาดของใหม่ที่ไหลมาจากแชท
     dynamicLayers.forEach(layerConfig => {
       try {
         const sourceId = `ai-source-${layerConfig.id}`;

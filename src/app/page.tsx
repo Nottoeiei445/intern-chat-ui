@@ -38,13 +38,11 @@ export default function MapPage() {
           </button>
         </div>
 
-        {/* 🚀 ตัวแชทหลัก: ปล่อยให้มันแสดง Model Selector และ UI ของมันเอง 100% */}
         <div className="flex-1 w-full h-full">
           <ChatFeature />
         </div>
       </div>
 
-      {/* 🔘 3. ปุ่ม Toggle เปิดแชท (โผล่มาเมื่อปิดแชท) */}
       {!isChatOpen && (
         <button
           onClick={() => setIsChatOpen(true)}

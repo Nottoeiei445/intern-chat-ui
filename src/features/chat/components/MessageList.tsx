@@ -1,7 +1,6 @@
 "use client"
 
 import { useRef, useEffect, useLayoutEffect } from "react"
-// 🚀 1. Import ไอคอนที่ขาดหายไปให้ครบ
 import { MapPin, Sparkles, User, Layers } from "lucide-react" 
 import { Message } from "../types"
 import { MessageItem } from "./MessageItem"
@@ -13,7 +12,6 @@ interface Props {
   hasMore?: boolean;
   isFetchingHistory?: boolean;
   onEditMessage?: (id: string, newContent: string) => void;
-  // 🚀 2. เพิ่ม Prop นี้เพื่อรับค่าจากปุ่มตัวอย่างส่งกลับไปไฟล์แม่
   onSelectTemplate?: (text: string) => void; 
 }
 
@@ -24,7 +22,7 @@ export const MessageList = ({
   hasMore, 
   isFetchingHistory, 
   onEditMessage,
-  onSelectTemplate // 🚀 รับมาใช้งาน
+  onSelectTemplate 
 }: Props) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -108,7 +106,6 @@ export const MessageList = ({
         </div>
       )}
 
-      {/* 🚀 3. หน้า Empty State สุดล้ำสไตล์ GIS Analysis AI */}
       {messages.length === 0 && !isFetchingHistory && (
         <div className="h-full flex flex-col items-center justify-center p-4 min-h-[60vh]">
           {/* Hero Element */}
@@ -139,7 +136,7 @@ export const MessageList = ({
             ].map((item, i) => (
               <button 
                 key={i}
-                onClick={() => onSelectTemplate?.(item.title)} // 🚀 ส่งค่ากลับ
+                onClick={() => onSelectTemplate?.(item.title)}  
                 className="group flex flex-col items-start p-5 bg-white/[0.02] border border-white/5 rounded-2xl hover:bg-white/[0.05] hover:border-blue-500/50 transition-all text-left"
               >
                 <div className="p-2 bg-blue-500/10 rounded-lg text-blue-400 mb-3 group-hover:scale-110 transition-transform">

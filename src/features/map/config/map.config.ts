@@ -14,8 +14,15 @@ export const MAP_KEYS = {
 };
 
 export const mapUrlBuilder = {
-  tms: (baseUrl: string, apiKey = MAP_KEYS.gistda) => 
-    `${baseUrl}/{z}/{x}/{y}?api_key=${apiKey}`,
+  tms: (baseUrl: string, apiKey = MAP_KEYS.gistda) => {
+    const hasTiles = baseUrl.includes('{z}');
+    
+    const cleanBaseUrl = hasTiles 
+      ? baseUrl 
+      : (baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`) + '{z}/{x}/{y}';
+      
+    return `${cleanBaseUrl}?api_key=${apiKey}`;
+  },
   
   wms: (baseUrl: string, layerId: string, apiKey = MAP_KEYS.gistda) => 
     `${baseUrl}?api_key=${apiKey}&SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&FORMAT=image/png&TRANSPARENT=true&LAYERS=${layerId}&STYLES=&SRS=EPSG:3857&WIDTH=256&HEIGHT=256&BBOX={bbox-epsg-3857}`,

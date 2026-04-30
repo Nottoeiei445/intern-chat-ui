@@ -13,14 +13,13 @@ import { AUTH_CONFIG } from "../auth/config/auth.config";
 import { storage } from "../../lib/storage";
 import { authService } from "../auth/services/auth.service";
 import { isGuestTimeUp } from "@/features/auth/utils/guest-timer.util";
-import { useState, useMemo } from "react"; // 🚀 ลบ useEffect ออก เพราะเราไม่ได้ fetch ในนี้แล้ว
+import { useState, useMemo } from "react";  
 import { useRouter } from "next/navigation";
 
 export const ChatFeature = () => {
   const { user } = useAuth();
   const router = useRouter();
   
-  // 🚀 2. Hook จัดการเรื่องแชท (สะอาดสะอ้าน)
   const { 
     chats, 
     activeChatId, 
@@ -40,7 +39,6 @@ export const ChatFeature = () => {
     setIsGuestExpired,
   } = useChat();
 
-  // 🚀 3. Hook จัดการเรื่อง Model โดยเฉพาะ
   const { 
     models, 
     selectedModel, 
@@ -94,7 +92,6 @@ export const ChatFeature = () => {
         guestIdToPass = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
       }
 
-      // 🚀 4. นำ selectedModel ที่ได้จาก useModels มาส่งให้ sendMessage
       sendMessage(val, selectedModel, images, { explicitChatId: guestIdToPass ?? undefined } as any);
 
     } catch (error) {

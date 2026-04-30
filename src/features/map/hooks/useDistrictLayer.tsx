@@ -7,7 +7,7 @@ import { DISTRICT_GEOJSON_URL } from '../config/map.config';
 
 export const useDistrictLayer = (
   map: maplibregl.Map | null,
-  isActive: boolean, // 🚀 เพิ่มสถานะเปิด/ปิด
+  isActive: boolean, 
   selectedDistrict: any,
   onDistrictClick: (properties: any) => void
 ) => {
@@ -17,7 +17,6 @@ export const useDistrictLayer = (
   }, [onDistrictClick]);
 
   useEffect(() => {
-    // 🚀 ด่านสกัด
     if (!map || !isActive) return;
 
     const layerIdFill = 'district-layer-fill';
@@ -68,14 +67,13 @@ export const useDistrictLayer = (
     if (map.isStyleLoaded()) loadDistrictLayer();
     else map.once('load', loadDistrictLayer);
 
-    // 🚀 Cleanup ล้างแผนที่เมื่อปิดปุ่ม
     return () => {
       if (map.getLayer(layerIdFill)) map.removeLayer(layerIdFill);
       if (map.getLayer(layerIdHighlight)) map.removeLayer(layerIdHighlight);
       if (map.getLayer(layerIdLine)) map.removeLayer(layerIdLine);
       if (map.getSource(sourceId)) map.removeSource(sourceId);
     };
-  }, [map, isActive]); // 🚀 อิงค่าตาม isActive
+  }, [map, isActive]);  
 
   useEffect(() => {
     if (!map || !isActive || !map.getLayer('district-layer-highlight')) return;

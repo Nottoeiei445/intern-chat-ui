@@ -111,7 +111,6 @@ const sendMessage = async (
                   
                   continue; 
                 }
-                // 🚀🚀 จบดักจับ 🚀🚀
 
                 const incomingUserId = data.usermessage_id || data.userMessageId;
                 const incomingAssistantId = data.assistantmessage_Id || data.assistantMessageId;

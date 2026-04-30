@@ -44,7 +44,6 @@ export const Header = ({ selectedModel, onModelChange, isSidebarOpen, onToggle, 
         </div>
       </div>
 
-      {/* 🟢 ฝั่งขวา: Ollama Status */}
       <div className="flex items-center gap-4">
         <div className="flex items-center gap-2 text-xs text-slate-500 font-ibm">
           <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />

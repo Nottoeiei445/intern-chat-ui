@@ -11,7 +11,6 @@ import { useRouter } from "next/navigation";
 import { chatWithOllama } from "../services/ollama";
 import { DynamicLayerPayload } from '@/features/map/types';
 
-// 🚀 ZUSTAND FIX: 1. Import ตัว Store เข้ามา (เดี๋ยวเราไปสร้างไฟล์นี้กันต่อ)
 import { useMapStore } from '@/store/useMapStore';
 
 import { 
@@ -35,8 +34,6 @@ export function useChat() {
   const [isGuestExpired, setIsGuestExpired] = useState(false);
   const router = useRouter();
   
-  // 🚀 ZUSTAND FIX: 2. เปลี่ยนจาก useState มาดึงจาก Store แทน
-  // ลบบรรทัดนี้ทิ้ง -> const [dynamicLayers, setDynamicLayers] = useState<DynamicLayerPayload[]>([]);
   const dynamicLayers = useMapStore(state => state.dynamicLayers);
   const setDynamicLayers = useMapStore(state => state.setDynamicLayers);
 
@@ -351,7 +348,6 @@ export function useChat() {
                     apiProvider: backendData.url.includes('vallaris') ? 'vallaris' : 'gistda',
                   };
 
-                  // 🚀 ZUSTAND FIX: 3. โยนของเข้ากระดานดำ (Store) ได้เลย ไม่ต้องเซ็ต State แชท
                   setDynamicLayers([newLayer]);
                   console.log("🗺️ Map data sent to Zustand Store:", newLayer);
                   continue;
@@ -560,8 +556,8 @@ export function useChat() {
     setChats,
     activeChatId, 
     setActiveChatId, 
-    dynamicLayers,     // 🚀 ZUSTAND FIX: 4. เรายัง Return ออกไปให้เหมือนเดิม เผื่อไฟล์เก่าๆ โบร๋มีเรียกใช้ จะได้ไม่ Error แดง
-    setDynamicLayers,  // 🚀 ZUSTAND FIX: 5. Return อันนี้ด้วย
+    dynamicLayers,    
+    setDynamicLayers, 
     isLoading, 
     sendMessage, 
     createNewChat, 

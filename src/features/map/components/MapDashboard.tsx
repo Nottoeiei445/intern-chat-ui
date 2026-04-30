@@ -4,10 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { MapLibre } from './MapLibre';
 import { HazardType, TimeRange, MapMode } from '../types'; 
 
-// 🚀 ZUSTAND FIX: 1. นำเข้า Store ที่เราสร้างไว้
 import { useMapStore } from '@/store/useMapStore';
 
-// 🚀 ZUSTAND FIX: 2. เอา dynamicLayers ออกจาก Props เพราะเราจะดึงจาก Store โดยตรง
 interface MapDashboardProps {
   hideControls?: boolean;
 }
@@ -18,10 +16,8 @@ export const MapDashboard = ({ hideControls = false }: MapDashboardProps) => {
   const [mapMode, setMapMode] = useState<MapMode>('wms');
   const [activeBoundary, setActiveBoundary] = useState<'province' | 'district' | null>(null);
 
-  // 🚀 ZUSTAND FIX: 3. ดึงข้อมูลเลเยอร์จาก "กระดานดำ (Store)" มาใช้งาน
   const dynamicLayers = useMapStore((state) => state.dynamicLayers);
 
-  // 🤖 AI Control Center: ดักฟังคำสั่งจากแชท (ของเดิมโบร๋ ปล่อยไว้ปกติ)
   useEffect(() => {
     const handleMapCommand = (e: any) => {
       const { method, args } = e.detail;
@@ -98,7 +94,6 @@ export const MapDashboard = ({ hideControls = false }: MapDashboardProps) => {
           timeRange={timeRange} 
           mapMode={mapMode}
           activeBoundary={activeBoundary} 
-          // 🚀 โยนข้อมูล AI ต่อให้ MapLibre รับจบ!!
           dynamicLayers={dynamicLayers} 
         />
         

@@ -8,19 +8,18 @@ import { HazardType, TimeRange, MapMode } from '../types';
 
 export const useHazardLayer = (
   map: maplibregl.Map | null,
-  type: HazardType | null, // 🚀 1. อนุญาตให้ค่าเป็น null ได้ (เพื่อบอกว่ายังไม่ได้เลือก)
-  days: TimeRange,
+  type: HazardType | null, 
+  timeRange: TimeRange,
   mapMode: MapMode = 'wms'
 ) => {
   useEffect(() => {
-    // 🚀 2. ด่านสกัด: ถ้า map ยังไม่มา หรือ User ยังไม่เลือก type ให้หยุดทำงานและไม่โหลดข้อมูลใดๆ!
     if (!map || !type) return;
 
     const layerId = `hazard-layer`;
     const sourceId = `hazard-source`;
 
     const updateLayer = () => {
-      const tilesUrl = mapService.getTileUrls(mapMode, type, days);
+      const tilesUrl = mapService.getTileUrls(mapMode, type, timeRange);
       if (tilesUrl.length === 0) {
         console.warn(`[MAP_LOG] No URLs found for ${type} in ${mapMode} mode.`);
         return;
@@ -48,7 +47,7 @@ export const useHazardLayer = (
 
       // 2. Setup Layer based on Mode
       if (mapMode === 'vector') {
-        const sourceLayer = mapService.getSourceLayer(type, days);
+        const sourceLayer = mapService.getSourceLayer(type, timeRange);
         const color = mapService.getLayerStyle(type);
 
         // Standardizing VIIRS as points (circle) and others as areas (fill)
@@ -95,9 +94,8 @@ export const useHazardLayer = (
     else map.once('load', updateLayer);
 
     return () => {
-      // 🚀 Cleanup ตรงนี้จะทำงานตอนเปลี่ยนหน้า หรือตอนที่ User กดปิด Hazard (type เป็น null)
       if (map.getLayer(layerId)) map.removeLayer(layerId);
       if (map.getSource(sourceId)) map.removeSource(sourceId);
     };
-  }, [map, type, days, mapMode]);
+  }, [map, type, timeRange, mapMode]);
 };

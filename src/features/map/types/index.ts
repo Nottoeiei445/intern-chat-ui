@@ -6,7 +6,7 @@ export type HazardType = 'viirs' | 'flood' | 'drought';
 export type MapMode = 'wms' | 'tms' | 'vector' | 'geojson';
 
 // ==========================================
-// 🚀 1. พิมพ์เขียวสำหรับรับข้อมูลดิบจาก Backend (เพื่อนส่งมา)
+//1. พิมพ์เขียวสำหรับรับข้อมูลดิบจาก Backend (เพื่อนส่งมา)
 // อ้างอิงจาก JSON: {"hazard":"viirs","days":30,"type":"wms","url":"...","layerName":"..."}
 // ==========================================
 export interface StreamLayerData {
@@ -22,7 +22,7 @@ export interface StreamLayerData {
 }
 
 // ==========================================
-// 🚀 2. พิมพ์เขียวสำหรับข้อมูลที่พร้อมใช้งานใน MapLibre ของเรา
+//2. พิมพ์เขียวสำหรับข้อมูลที่พร้อมใช้งานใน MapLibre ของเรา
 // (ตัวนี้คือสิ่งที่เราจะโยนเข้า useDynamicLayers ในสเต็ปหลังๆ)
 // ==========================================
 export interface DynamicLayerPayload {

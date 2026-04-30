@@ -12,7 +12,6 @@ import { useDistrictLayer } from '../hooks/useDistrictLayer';
 import { useDynamicLayers } from '../hooks/useDynamicLayers';
 import { DynamicLayerPayload } from '../types';
 
-// 🚀 Interface ถูกต้องแล้ว
 interface MapLibreProps {
   activeHazard: HazardType | null;
   timeRange: TimeRange;
@@ -59,7 +58,7 @@ export const MapLibre = ({ activeHazard, timeRange, mapMode, activeBoundary, dyn
     // สร้างแผนที่
     const mapInstance = new maplibregl.Map({
       container: mapContainer.current, 
-      style: 'https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json',
+      style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
       center: [100.5200, 13.7500],
       zoom: 6,
     });
@@ -71,7 +70,6 @@ export const MapLibre = ({ activeHazard, timeRange, mapMode, activeBoundary, dyn
     };
   }, []);
 
-  // 🚀 เรียกใช้ 2 เลเยอร์พร้อมกัน
   useProvinceLayer(map, activeBoundary === 'province', selectedData, setSelectedData);
   useDistrictLayer(map, activeBoundary === 'district', selectedData, setSelectedData);
   useHazardLayer(map, activeHazard, timeRange, mapMode);

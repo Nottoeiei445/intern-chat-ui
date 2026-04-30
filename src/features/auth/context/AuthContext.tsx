@@ -55,7 +55,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     storage.removeCookie(AUTH_CONFIG.session.tokenExpiryStorageKey);
     storage.removeLocal(AUTH_CONFIG.session.userStorageKey);
     
-    authService.logEvent("🧹 Cleaned up all auth states and intervals.");
+    authService.logEvent("Cleaned up all auth states and intervals.");
   }, []);
 
   // ==========================================
@@ -87,7 +87,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           }
         }
 
-        // 🚀 THE FIX: ดักจับคนแปลกหน้า (Clean Slate)
         // ถ้าไม่มีข้อมูล User ในเครื่อง และไม่ใช่ Guest ที่มีเวลาค้างอยู่
         const storedUser = storage.getLocal(AUTH_CONFIG.session.userStorageKey);
         const isGuest = localStorage.getItem(AUTH_CONFIG.session.guestStartTimeStorageKey) || 
@@ -143,13 +142,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         } catch (err) {
           authService.logEvent("Proactive refresh failed.");
           
-          // 🚀 1. ตรวจสอบว่านี่คือ Guest หรือไม่
           // (เช็กจากคีย์ที่พี่ตั้งไว้ใน config ว่ามีอยู่ใน localStorage ไหม)
           const isGuest = localStorage.getItem(AUTH_CONFIG.session.guestStartTimeStorageKey) || 
                           localStorage.getItem(AUTH_CONFIG.session.guestIdStorageKey);
           
           if (isGuest) {
-            // 🚀 2. ถ้าเป็น Guest -> "หยุดอยู่แค่นี้!" 
             // ปล่อยผ่านไปเงียบๆ ให้ useChat.ts ของหน้าแชทโชว์ Pop-up เอาเอง
             console.log("Guest token expired, letting UI handle it...");
             return; 

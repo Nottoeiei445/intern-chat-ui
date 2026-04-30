@@ -105,8 +105,11 @@ export const apiClient = {
   delete: <T>(path: string, body?: any) => 
     request<T>('DELETE', path, { body }),
 
-  stream: (path: string, body?: any) => 
-    requestRaw('POST', path, { body }),
+  stream: (path: string, body?: any, options?: { headers?: Record<string, string>; params?: Record<string, any> }) => 
+    requestRaw('POST', path, { 
+      body, 
+      ...options
+    }),
 };
 
 export default apiClient;

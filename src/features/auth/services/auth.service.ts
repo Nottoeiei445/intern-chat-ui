@@ -16,7 +16,6 @@ let currentAccessToken: string | null = null;
 const clearAuthSession = () => {
   storage.removeCookie(AUTH_CONFIG.session.tokenExpiryStorageKey);
   storage.removeCookie(AUTH_CONFIG.session.accessTokenStorageKey);
-  // 🚀 เพิ่มการล้าง Refresh Token ด้วย จะได้สะอาดหมดจดตอน Logout
   storage.removeCookie(AUTH_CONFIG.session.refreshTokenCookieName); 
   storage.removeLocal(AUTH_CONFIG.session.userStorageKey);
   storage.removeCookie(AUTH_CONFIG.session.guestIdStorageKey);
@@ -101,7 +100,6 @@ api.interceptors.response.use(
     if (error.response?.status === 401 && !originalRequest._retry && !isAuthRoute) {
       originalRequest._retry = true; // ทำเครื่องหมายไว้ว่า "กำลังจะลองใหม่นะ ห้ามวนลูป"
 
-      // 🚀 ระบบจัดการคิว (Concurrent Refresh)
       if (isRefreshing) {
         // ถ้ามีคนกำลังไปขอตั๋วอยู่แล้ว ให้คนนี้ "เข้าคิวรอ"
         return new Promise(function(resolve) {
@@ -117,7 +115,6 @@ api.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        // 🚀 เรียกใช้งานมือปืนที่เราอุตส่าห์เขียนไว้! (มันจะไปหยิบ refreshToken จาก Cookie ให้เอง)
         const responseData = await authService.refreshAccessToken();
         
         // ถ้าได้ Access Token อันใหม่มา...

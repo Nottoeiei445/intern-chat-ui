@@ -5,9 +5,8 @@ import { Sparkles, User, Bot, Copy, Pencil, Lock } from "lucide-react"
 import { Message } from "../types"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { useAuth } from "../../auth/context/AuthContext" // 🚀 เช็ค Path ตรงนี้ด้วยนะครับว่าตรงกับโปรเจกต์พี่ไหม
-
-// 🚀 นำเข้า Shadcn UI Tooltip
+import { useAuth } from "../../auth/context/AuthContext" 
+ 
 import {
   Tooltip,
   TooltipContent,
@@ -34,8 +33,7 @@ export const MessageItem = ({
 }: MessageItemProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
-  
-  // 🚀 เรียกใช้ Context เพื่อเช็คสถานะ
+ 
   const { user } = useAuth();
   const isGuest = !user; 
 
@@ -73,7 +71,6 @@ export const MessageItem = ({
           </Button>
           
           {isLatestUser && msg.id && (
-            // 🚀 หุ้ม Tooltip เฉพาะปุ่ม Edit
             <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -158,7 +155,7 @@ export const MessageItem = ({
                 </div>
               ) : (
                 msg.content && (
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap text-slate-200">
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap text-slate-200 break-words">
                     {msg.content}
                   </p>
                 )
