@@ -1,37 +1,25 @@
 ﻿// src/features/map/config/map.config.ts
-
 import { HazardType, TimeRange } from '../types';
-import { ENV } from '@/lib/env';
-
-const API_KEY = ENV.COMPANY_API_KEY;
-const vectorAPI = ENV.MAP_API_KEY;
-const vallarisAPI = ENV.MAP_VALLARIS_API_KEY;
-
-export const MAP_KEYS = {
-  gistda: API_KEY,
-  vector: vectorAPI,
-  vallaris: vallarisAPI,
-};
 
 export const mapUrlBuilder = {
-  tms: (baseUrl: string, apiKey = MAP_KEYS.gistda) => {
+  tms: (baseUrl: string) => {
     const hasTiles = baseUrl.includes('{z}');
-    
-    const cleanBaseUrl = hasTiles 
+    return hasTiles 
       ? baseUrl 
       : (baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`) + '{z}/{x}/{y}';
-      
-    return `${cleanBaseUrl}?api_key=${apiKey}`;
   },
   
-  wms: (baseUrl: string, layerId: string, apiKey = MAP_KEYS.gistda) => 
-    `${baseUrl}?api_key=${apiKey}&SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&FORMAT=image/png&TRANSPARENT=true&LAYERS=${layerId}&STYLES=&SRS=EPSG:3857&WIDTH=256&HEIGHT=256&BBOX={bbox-epsg-3857}`,
-  
-  vector: (baseUrl: string, apiKey = MAP_KEYS.vector) => 
-    `${baseUrl}?api_key=${apiKey}`,
+  wms: (baseUrl: string, layerId: string) => 
+    `${baseUrl}?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&FORMAT=image/png&TRANSPARENT=true&LAYERS=${layerId}&STYLES=&SRS=EPSG:3857&WIDTH=256&HEIGHT=256&BBOX={bbox-epsg-3857}`,  
+ 
+  vector: (baseUrl: string) => {
+    const hasTiles = baseUrl.includes('{z}');
+    return hasTiles 
+      ? baseUrl 
+      : (baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`) + '{z}/{x}/{y}';
+  },
 
-  geojson: (baseUrl: string, apiKey = MAP_KEYS.vallaris) => 
-    `${baseUrl}?api_key=${apiKey}`
+  geojson: (baseUrl: string) => baseUrl
 };
 
 const getTmsUrl = (baseUrl: string, _layerId: string) => mapUrlBuilder.tms(baseUrl);
@@ -101,5 +89,5 @@ export const HAZARD_VECTOR_URLS: Record<HazardType, Record<TimeRange, string[]>>
   },
 };
 
-export const PROVINCE_GEOJSON_URL = `https://app.vallarismaps.com/core/api/features/1.1/collections/69e99410cacd2e5010722e28/items?api_key=${vallarisAPI}`;
-export const DISTRICT_GEOJSON_URL = `https://app.vallarismaps.com/core/api/features/1.1/collections/69e9a9c0da828e8ffc6d535e/items?api_key=${vallarisAPI}`;
+export const PROVINCE_GEOJSON_URL = `https://app.vallarismaps.com/core/api/features/1.1/collections/69e99410cacd2e5010722e28/items`;
+export const DISTRICT_GEOJSON_URL = `https://app.vallarismaps.com/core/api/features/1.1/collections/69e9a9c0da828e8ffc6d535e/items`;

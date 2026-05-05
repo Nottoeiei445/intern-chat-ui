@@ -5,6 +5,7 @@ import { MapDashboard } from '../features/map';
 import { ChatFeature } from "../features/chat"
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { AuthWidget } from "@/features/auth/components/AuthWidget";
+import { ApiKeyModal } from "@/features/auth/components/ApiKeyModal";
 
 export default function MapPage() {
   const [isChatOpen, setIsChatOpen] = useState(true);
@@ -12,12 +13,12 @@ export default function MapPage() {
   return (
     <main className="relative h-screen w-full overflow-hidden bg-black">
       
-      {/* 🗺️ 1. แผนที่ (ฉากหลัง) */}
+      {/* 1. แผนที่ (ฉากหลัง) */}
       <div className="absolute inset-0 z-0">
         <MapDashboard hideControls={true} />
       </div>
 
-      {/* 💬 2. แถบแชท (Sidebar ฝั่งซ้าย) */}
+      {/* 2. แถบแชท (Sidebar ฝั่งซ้าย) */}
       <div
         className={`
           absolute top-0 left-0 h-full z-20 transition-all duration-300 ease-in-out
@@ -59,10 +60,11 @@ export default function MapPage() {
 
       <AuthWidget />
 
-      {/* 📱 ปรับแต่งสำหรับ Mobile */}
+      <ApiKeyModal />
+
+      {/* ปรับแต่งสำหรับ Mobile */}
       <style jsx global>{`
         @media (max-width: 768px) {
-          /* ปรับระยะห่างข้างล่างให้พิมพ์ถนัด */
           .chat-input-container {
             padding-bottom: calc(15px + env(safe-area-inset-bottom)) !important;
           }

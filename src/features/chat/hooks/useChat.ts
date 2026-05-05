@@ -4,24 +4,27 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { ChatThread, Message } from "../types";
 import { useAuth } from "../../auth/context/AuthContext";
 import { chatService } from "../services/chat.service"; 
-import { authService } from "@/features/auth/services/auth.service";
 import { AUTH_CONFIG } from "@/features/auth/config/auth.config";
 import { storage } from "@/lib/storage";
 import { useRouter } from "next/navigation";
 import { chatWithOllama } from "../services/ollama";
 import { DynamicLayerPayload } from '@/features/map/types';
-
 import { useMapStore } from '@/store/useMapStore';
 
 import { 
   checkAndCleanupExpiredGuest, 
   startGuestExpiryTimer 
 } from "../../auth/utils/guest-timer.util";
-import { da } from "zod/locales";
 
 export function useChat() {
   const { user } = useAuth(); 
-
+  const { 
+    apiKeys, 
+    openKeyModal, 
+    pendingChat, 
+    setPendingChat, 
+    clearPendingChat 
+  } = useMapStore();
   const [chats, setChats] = useState<ChatThread[]>([]); 
   const [activeChatId, setActiveChatId] = useState<string | null>(null); 
   const [isLoading, setIsLoading] = useState(false); 
@@ -36,10 +39,29 @@ export function useChat() {
   
   const dynamicLayers = useMapStore(state => state.dynamicLayers);
   const setDynamicLayers = useMapStore(state => state.setDynamicLayers);
+  
 
   const sortChats = useCallback((list: ChatThread[]) => { 
     return [...list].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)); 
   }, []);
+
+
+  useEffect(() => {
+    if (apiKeys.gistda && pendingChat) {
+      console.log("🔑 API Key detected! Retrying pending request silently...");
+      
+      // เรียก sendMessage เดิม แต่เปิดโหมด isSilentRetry
+      sendMessage(
+        pendingChat.input,
+        pendingChat.model,
+        pendingChat.images,
+        { ...pendingChat.options, isSilentRetry: true }
+      );
+
+      // ยิงเสร็จเคลียร์โพสต์อิททิ้ง
+      clearPendingChat();
+    }
+  }, [apiKeys.gistda, pendingChat]);
 
   // 0. Initialize Session
   useEffect(() => {
@@ -218,12 +240,13 @@ export function useChat() {
     input: string, 
     model: string, 
     images: string[] = [], 
-    options?: { ephemeral?: boolean; isRegenerate?: boolean; explicitChatId?: string }
+    options?: { ephemeral?: boolean; isRegenerate?: boolean; explicitChatId?: string; isSilentRetry?: boolean;}
   ) => { 
     if (!input.trim() && images.length === 0) return; 
     
     const ephemeral = options?.ephemeral ?? false;
     const isRegenerate = options?.isRegenerate ?? false;
+    const isSilentRetry = options?.isSilentRetry ?? false; // 🚀 รับค่าโหมดเงียบ
 
     if(!input.trim() && images.length === 0 && !isRegenerate) return;
     
@@ -235,7 +258,8 @@ export function useChat() {
     let currentId = initialId;
     let isNewSession = false; 
 
-    if (!isRegenerate) {
+    // 🚀 ปรับเงื่อนไข: ถ้าเป็น Silent Retry ห้าม Render ข้อความ User ซ้ำบนจอ
+    if (!isRegenerate && !isSilentRetry) {
       const userMsg: Message = { 
         role: "user", 
         content: input,
@@ -248,7 +272,6 @@ export function useChat() {
       else if (currentId && !currentId.startsWith('session_')) { 
         setChats(prev => {
           const exists = prev.some(c => c.id === currentId);
-
           if (!exists) {
             return [{
               id: currentId as string,
@@ -294,14 +317,13 @@ export function useChat() {
         model: model, 
         ephemeral: ephemeral,
         is_generate: isRegenerate,
+        is_silent_retry: isSilentRetry, // 🚀 ส่งค่า Snake Case ให้หลังบ้าน
         ...(images.length > 0 && { images }), 
         ...((isNewSession || ephemeral) ? {} : { conversationId: currentId })
       };
       
-      const response = await chatService.sendMessageStream(payload);
-      
+      const response = await chatService.sendMessageStream(payload, apiKeys.gistda);
       let realIdToSwapLater = response.headers.get('X-Conversation-Id') || response.headers.get('conversation_id');
-      
       const assistantMsg: Message = { role: "assistant", content: "" };
 
       if (!ephemeral) {
@@ -336,23 +358,47 @@ export function useChat() {
 
                 const data = JSON.parse(jsonStr);
 
-                if (data.event === 'layer_catalog' && data.layer) {
-                  const backendData = data.layer;
+                // 🚀ดัก Error ขอคีย์: จดคำสั่งลง Store และสั่งเด้ง Modal
+                if (data.code === 'missing_x_api_key' || data.needsApiKey) {
+                  setPendingChat({ input, model, images, options }); // แอบจำไว้ในใจ
+                  openKeyModal(); // เด้งหน้าต่างทวงคีย์
 
+                  // ลบบับเบิ้ล Assistant ว่างๆ ออกเพื่อให้จอไม่ค้างข้อความเปล่า
+                  setChats(prev => prev.map(chat => {
+                    if (chat.id === currentId) {
+                      return { 
+                        ...chat, 
+                        messages: chat.messages.filter(m => m.role !== "assistant" || m.content !== "") 
+                      };
+                    }
+                    return chat;
+                  }));
+                  
+                  // ตัดจบการอ่าน Stream นี้ทันที
+                  reader.cancel(); 
+                  return; 
+                }
+
+                if (data.event === 'layer_catalog' && data.layer) {
+                  // ... (โค้ด map เดิม)
+                  const backendData = data.layer;
                   const newLayer: DynamicLayerPayload = {
-                    id: backendData.layerName || `ai-layer-${Date.now()}`,
+                    id: backendData.basename || backendData.layerName || `ai-layer-${Date.now()}`,
                     type: backendData.type,
                     baseUrl: backendData.url,
-                    layerId: backendData.layerName,
+                    layerId: backendData.basename || backendData.layerName,
                     title: backendData.title,
                     apiProvider: backendData.url.includes('vallaris') ? 'vallaris' : 'gistda',
-                  };
 
+                    bounds: backendData.bounds,
+                    minzoom: backendData.minzoom,
+                    maxzoom: backendData.maxzoom
+                  };
                   setDynamicLayers([newLayer]);
-                  console.log("🗺️ Map data sent to Zustand Store:", newLayer);
                   continue;
                 }
 
+                // ... (ลอจิกจัดการข้อความและสลับ ID เหมือนเดิม)
                 const incomingUserId = data.usermessage_id || data.userMessageId;
                 const incomingAssistantId = data.assistantmessage_Id || data.assistantMessageId;
 
@@ -360,7 +406,6 @@ export function useChat() {
                   setChats(prev => prev.map(chat => {
                     if(chat.id === currentId) {
                       const safeMsgs = [...chat.messages];
-                      
                       if (incomingUserId) {
                         for (let i = safeMsgs.length - 1; i >= 0; i--) {
                           if (safeMsgs[i].role === "user" && (!safeMsgs[i].id || String(safeMsgs[i].id).startsWith("temp_"))) {
@@ -392,7 +437,6 @@ export function useChat() {
 
                 const textChunk = data.text || data.content || "";
                 accumulatedContent += textChunk;
-
                 const displayContent = accumulatedContent.split("<thinking>").pop()?.trim() || accumulatedContent;
 
                 if (ephemeral) {
@@ -409,7 +453,6 @@ export function useChat() {
                     if (chat.id === currentId) {
                       const safeMsgs = [...chat.messages];
                       const lastIdx = safeMsgs.length - 1;
-
                       if (lastIdx >= 0 && safeMsgs[lastIdx].role === "assistant") {
                         safeMsgs[lastIdx] = { ...safeMsgs[lastIdx], content: displayContent };
                       } else {
@@ -434,13 +477,10 @@ export function useChat() {
 
       if (!ephemeral && isNewSession && realIdToSwapLater) {
         const finalRealId = realIdToSwapLater; 
-        
         setPaginationConfig(prev => ({ ...prev, [finalRealId]: { page: 1, hasMore: false } }));
-        
         setChats(prev => prev.map(chat => 
           chat.id === currentId ? { ...chat, id: finalRealId } : chat
         ));
-        
         setActiveChatId(finalRealId);
       }
 

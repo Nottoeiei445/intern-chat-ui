@@ -33,4 +33,7 @@ export interface DynamicLayerPayload {
   title?: string;          // ชื่อเลเยอร์เอาไว้ทำ UI
   apiProvider?: 'gistda' | 'vallaris'; // เพื่อบอกว่าใช้ API Key ตัวไหน
   style?: any;             // เผื่อหลังบ้านส่งสี/สไตล์ของ Vector มาให้ด้วย
+  bounds?: [number, number, number, number]; // บังคับว่าเป็น Array ตัวเลข 4 ตัว
+  minzoom?: number;
+  maxzoom?: number;
 }

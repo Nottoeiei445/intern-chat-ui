@@ -2,6 +2,7 @@
 
 import { useState, useRef, ChangeEvent } from "react"
 import { Send, Paperclip, Image as ImageIcon, MapPin, X } from "lucide-react"
+import { ApiKeyPopover } from "@/features/auth/components/ApiKeyPopover"
 
 interface Props {
   onSendMessage: (content: string, images: string[]) => void;
@@ -43,11 +44,9 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
     const newImages: string[] = [];
 
     for (let i = 0; i < items.length; i++) {
-      // เช็คว่าสิ่งที่ Paste มาเป็นไฟล์ และเป็นรูปภาพหรือไม่
       if (items[i].type.indexOf("image") !== -1) {
         const file = items[i].getAsFile();
         if (file) {
-          // เช็คโควตา 5 รูปเหมือนเดิมครับเฮีย
           if (images.length + newImages.length >= 5) break;
 
           const b64 = await fileToBase64(file);
@@ -82,12 +81,14 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
 
   return (
     <div className="p-6 bg-gradient-to-t from-[#050505] to-transparent bg-[#050505]">
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto relative">
+
+        <ApiKeyPopover />
+
         <div className={`relative bg-[#111] border rounded-2xl p-2 shadow-2xl transition-all text-slate-200 overflow-hidden ${
           isGuestExpired ? "border-slate-800/50 opacity-60" : "border-white/10 focus-within:border-blue-500/50"
         }`}>
 
-          {/* UI ส่วน Preview รูปภาพที่ปรับปรุงใหม่ */}
           {images.length > 0 && (
             <div className="flex flex-wrap gap-3 p-3 mb-2 border-b border-white/5 bg-white/[0.02]">
               {images.map((src, idx) => (
@@ -98,7 +99,6 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
                     alt="preview" 
                   />
                   
-                  {/* ปุ่มกากบาทลบรูป - ปรับให้เด่นและกดง่ายขึ้น */}
                   <button 
                     type="button"
                     onClick={(e) => {
@@ -112,7 +112,6 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
                     <X size={12} strokeWidth={3} />
                   </button>
 
-
                   <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 rounded-xl pointer-events-none transition-opacity" />
                 </div>
               ))}
@@ -120,10 +119,10 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
           )}
 
           <textarea
-            rows={1}
+            rows={2}
             disabled={isGuestExpired} 
             placeholder={isGuestExpired ? "⏳ Session expired. Please refresh or log in..." : "Ask about GIS layers, population density, or maps..."}
-            className={`w-full bg-transparent p-3 pr-14 text-sm focus:outline-none resize-none placeholder:text-slate-400 text-slate-200${
+            className={`w-full bg-transparent p-3 pr-14 text-sm focus:outline-none resize-none placeholder:text-slate-400 text-slate-200 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] ${
               isGuestExpired ? "cursor-not-allowed" : ""
             }`}
             value={input}

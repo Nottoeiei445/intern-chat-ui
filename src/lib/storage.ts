@@ -3,7 +3,7 @@ import Cookies from "js-cookie";
 
 export const storage = {
   // ==========================================
-  // 🍪 จัดการ Cookie (สำหรับ Token)
+  //จัดการ Cookie (สำหรับ Token)
   // ==========================================
   getCookie: (key: string): string | null => {
     return Cookies.get(key) || null;

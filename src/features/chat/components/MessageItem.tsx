@@ -126,7 +126,7 @@ export const MessageItem = ({
             <div className="flex-1 space-y-4 min-w-0">
               
               {isEditing ? (
-                <div className="flex flex-col gap-3 min-w-[250px] sm:min-w-[400px]">
+                <div className="flex flex-col gap-3 w-full min-w-0">
                   <Textarea
                     value={editValue}
                     onChange={(e) => setEditValue(e.target.value)}

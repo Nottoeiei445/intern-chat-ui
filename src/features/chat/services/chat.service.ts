@@ -1,7 +1,6 @@
 // src/features/chat/services/chat.service.ts
 import apiClient from '@/lib/api-client';
 import { CHAT_CONFIG } from '../config/chat.config';
-import { ENV } from '@/lib/env';
 
 export const chatService = {
   // 1. ดึงประวัติแชททั้งหมด
@@ -16,8 +15,7 @@ export const chatService = {
       
     return apiClient.get<any>(url);
   },
-
-  //3. ส่งข้อความแบบ Stream (SSE)
+  // 3. ส่งข้อความใหม่ (แบบไม่ไหล)
   sendMessageStream: (payload: { 
     message: string; 
     userId?: string; 
@@ -25,17 +23,17 @@ export const chatService = {
     ephemeral?: boolean; 
     images?: string[];
     conversationId?: string | null 
-  }) => {
+  }, apiKey?: string) => { // <--- รับ apiKey มาจาก Component
 
     return apiClient.stream(`${CHAT_CONFIG.endpoints.chat}`, payload, {
       headers: {
-        'X-API-Key': ENV.COMPANY_API_KEY || '',
+        'X-API-Key': apiKey || '',
       }
     });
   },
 
   renameConversation: (id: string, newTitle: string, userId?: string) => {
-    const payload: any = { title: newTitle }; // เริ่มต้น payload ด้วยข้อมูลที่จำเป็น
+    const payload: any = { title: newTitle };
     if (userId) payload.userId = userId; 
 
     return apiClient.put<any>(`${CHAT_CONFIG.endpoints.conversation}/${id}`, payload);
