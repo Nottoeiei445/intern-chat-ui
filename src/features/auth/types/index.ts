@@ -34,3 +34,19 @@ export interface TokenInfo {
   expiresAt: number; // Timestamp when token expires (milliseconds)
   refreshedAt: number; // Timestamp when token was refreshed (milliseconds)
 }
+
+export interface ApiKey {
+  id: string;
+  name: string;           // เช่น "chaiwatAPI"
+  key: string;            // คีย์จริง (มักจะ masked มาจากหลังบ้าน เช่น "g1stda-********")
+  status: 'active' | 'revoked';
+  restriction: string;    // เช่น "None" หรือ "Restricted"
+  createdAt: string;      // ISO Date string
+  lastUsedAt?: string;
+  applications?: string[]; // ไอคอนแอปต่างๆ ที่แสดงในรูป
+}
+
+// สำหรับตอนสร้างคีย์ใหม่
+export interface CreateApiKeyDTO {
+  name: string;
+}

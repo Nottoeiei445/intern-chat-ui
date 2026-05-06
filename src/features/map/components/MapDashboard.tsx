@@ -78,7 +78,7 @@ export const MapDashboard = ({ hideControls = false }: MapDashboardProps) => {
                 <button 
                   key={type}
                   onClick={() => setActiveHazard(activeHazard === type ? null : type)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                  className={`px-3 py-1.5 text-xs rounded-lg transition-all ${
                     activeHazard === type ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                   }`}
                 >

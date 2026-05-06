@@ -49,7 +49,7 @@ export default function MapPage() {
         >
           <div className="flex items-center gap-2">
             <PanelLeftOpen className="w-6 h-6" />
-            <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-500 text-sm font-semibold whitespace-nowrap">
+            <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-500 text-sm font-bold whitespace-nowrap">
               Open Analysis
             </span>
           </div>

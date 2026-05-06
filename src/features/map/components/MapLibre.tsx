@@ -82,17 +82,17 @@ export const MapLibre = ({ activeHazard, timeRange, mapMode, activeBoundary, dyn
         <div className="absolute top-4 right-4 z-20 bg-white shadow-xl rounded-lg w-80 max-h-[90%] flex flex-col border border-gray-200 text-sm overflow-hidden animate-in fade-in slide-in-from-right-4">
           
           <div className="flex justify-between items-center px-4 py-3 border-b border-gray-100 bg-white">
-            <h3 className="font-semibold text-gray-800 text-base">Identify results</h3>
+            <h3 className="text-gray-800 text-base">Identify results</h3>
             <button onClick={() => setSelectedData(null)} className="text-gray-400 hover:text-gray-700 bg-gray-50 hover:bg-gray-100 rounded-md p-1 transition">
               <X className="w-4 h-4" />
             </button>
           </div>
           
           <div className="flex gap-2 px-4 py-2 border-b border-gray-100 text-xs bg-white">
-            <span className="bg-gray-200 text-gray-700 px-3 py-1.5 rounded-full font-medium">Properties</span>
+            <span className="bg-gray-200 text-gray-700 px-3 py-1.5 rounded-full">Properties</span>
           </div>
 
-          <div className="flex px-4 py-2 bg-gray-50/80 text-xs font-semibold text-gray-500 border-b border-gray-100">
+          <div className="flex px-4 py-2 bg-gray-50/80 text-xs text-gray-500 border-b border-gray-100">
             <div className="w-1/3">field</div>
             <div className="w-2/3 pl-2">value</div>
           </div>
@@ -100,7 +100,7 @@ export const MapLibre = ({ activeHazard, timeRange, mapMode, activeBoundary, dyn
           <div className="flex-1 overflow-y-auto p-4 space-y-3 text-xs bg-white scrollbar-thin scrollbar-thumb-gray-200">
             {Object.entries(selectedData).map(([key, val]) => (
               <div key={key} className="flex gap-2 border-b border-gray-50 pb-2 hover:bg-gray-50 transition">
-                <div className="w-1/3 text-gray-500 font-medium truncate" title={key}>{key}</div>
+                <div className="w-1/3 text-gray-500 truncate" title={key}>{key}</div>
                 <div className="w-2/3 pl-2 text-gray-800 break-words">
                   {val !== null && val !== undefined ? String(val) : '-'}
                 </div>

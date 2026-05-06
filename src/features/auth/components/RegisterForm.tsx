@@ -73,10 +73,8 @@ export const RegisterForm = () => {
     setIsSubmitting(true);
     try {
       await register({ username, email, password, confirmPassword });
-      // Auto-login behavior confirmed — redirect to main app
       router.push(AUTH_CONFIG.redirect.afterLoginUrl);
     } catch (err: any) {
-
       const status = err?.status ?? err?.response?.status;
       const data = err?.data ?? err?.response?.data;
       const backendMessage = err?.message ?? data?.message ?? null;
@@ -86,10 +84,8 @@ export const RegisterForm = () => {
         setBackendError(msg);
         toast.error(msg);
       } else if (status === 400) {
-        // Validation errors
         const fieldErrors = data?.errors || null;
         if (fieldErrors && typeof fieldErrors === "object") {
-          // map field errors into local state where possible
           const mapped: Record<string, string> = {};
           Object.keys(fieldErrors).forEach((k) => {
             mapped[k] = String((fieldErrors as any)[k]);
@@ -117,7 +113,7 @@ export const RegisterForm = () => {
       className="w-full max-w-sm p-8 bg-[#0a0a0a] border border-white/5 rounded-2xl flex flex-col gap-5 shadow-2xl shadow-black/50"
     >
       <div className="flex flex-col gap-1 mb-2">
-        <h2 className="text-xl font-semibold text-slate-200">Create Account</h2>
+        <h2 className="text-xl font-bold text-slate-200">Create Account</h2>
         <p className="text-xs text-slate-500">Register a new account to access the node.</p>
       </div>
 
@@ -128,7 +124,7 @@ export const RegisterForm = () => {
       )}
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs text-slate-400 font-medium ml-1">Username</label>
+        <label className="text-xs text-slate-400 ml-1">Username</label>
         <input
           type="text"
           value={username}
@@ -144,7 +140,7 @@ export const RegisterForm = () => {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs text-slate-400 font-medium ml-1">Email Address</label>
+        <label className="text-xs text-slate-400 ml-1">Email Address</label>
         <input
           type="email"
           value={email}
@@ -160,7 +156,7 @@ export const RegisterForm = () => {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs text-slate-400 font-medium ml-1">Password</label>
+        <label className="text-xs text-slate-400 ml-1">Password</label>
         <div className="relative w-full">
           <input
             type={showPassword ? "text" : "password"}
@@ -197,7 +193,7 @@ export const RegisterForm = () => {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs text-slate-400 font-medium ml-1">Confirm Password</label>
+        <label className="text-xs text-slate-400 ml-1">Confirm Password</label>
         <div className="relative w-full">
           <input
             type={showConfirmPassword ? "text" : "password"}
@@ -236,7 +232,8 @@ export const RegisterForm = () => {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="mt-4 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/30 disabled:text-slate-400 text-white text-sm font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+        // 🚀 เปลี่ยนเป็น font-bold
+        className="mt-4 bg-blue-600 hover:bg-blue-500 disabled:bg-blue-600/30 disabled:text-slate-400 text-white text-sm font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
       >
         {isSubmitting ? (
           <>

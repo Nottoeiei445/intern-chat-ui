@@ -5,8 +5,6 @@ import { MapDashboard } from '../features/map';
 import { ChatFeature } from "../features/chat"
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { AuthWidget } from "@/features/auth/components/AuthWidget";
-import { ApiKeyModal } from "@/features/auth/components/ApiKeyModal";
-
 export default function MapPage() {
   const [isChatOpen, setIsChatOpen] = useState(true);
 
@@ -51,7 +49,7 @@ export default function MapPage() {
         >
           <div className="flex items-center gap-2">
             <PanelLeftOpen className="w-6 h-6" />
-            <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-500 text-sm font-semibold whitespace-nowrap">
+            <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-500 text-sm font-bold whitespace-nowrap">
               Open Analysis
             </span>
           </div>
@@ -59,9 +57,6 @@ export default function MapPage() {
       )}
 
       <AuthWidget />
-
-      <ApiKeyModal />
-
       {/* ปรับแต่งสำหรับ Mobile */}
       <style jsx global>{`
         @media (max-width: 768px) {

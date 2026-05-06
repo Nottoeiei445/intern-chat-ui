@@ -32,6 +32,9 @@ export const AUTH_CONFIG = {
     logout: "/auth/sessions",        // DELETE: ทำลาย Session (ถ้าเพื่อนทำไว้นะ)
     register: "/auth/register",      // POST: ลงทะเบียน (เหมือนเดิม)
     guestMode: "/auth/guests",       // POST: สร้าง Guest session
+    apiKeys: "/api/v1/keys",        // GET/POST/DELETE: จัดการ API Keys
+    apiKeyDetail: (id: string) => `/api/v1/keys/${id}`, // GET/DELETE: รายละเอียด API Key เฉพาะตัว
+    verifyKey: "/auth/api-keys/verify", // POST: ตรวจสอบ API Key (สำหรับการใช้งาน API)
   },
 
   session: {

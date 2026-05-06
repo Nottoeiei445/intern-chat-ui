@@ -23,8 +23,6 @@ export const LoginForm = () => {
     }
 
     // 🔥 ท่าไม้ตาย 1: หน่วงเวลาล้าง Password นิดนึง (100ms)
-    // เพราะเบราว์เซอร์จะ Auto-fill หลังจาก React Render เสร็จเสี้ยววินาที
-    // การใช้ Timeout จะทำให้เรา "กวาดขยะ" หลังจากที่มันแอบมาหยอดเสร็จครับ
     const timer = setTimeout(() => {
       setPassword("");
     }, 100); 
@@ -70,7 +68,7 @@ export const LoginForm = () => {
           <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
         </div>
         <div className="text-center">
-          <h2 className="text-slate-200 font-medium mb-1">Welcome back, {user.username}</h2>
+          <h2 className="text-slate-200 font-bold mb-1">Welcome back, {user.username}</h2>
           <p className="text-slate-500 text-xs">Redirecting...</p>
         </div>
       </div>
@@ -83,7 +81,8 @@ export const LoginForm = () => {
       className="w-full max-w-sm p-8 bg-[#0a0a0a] border border-white/5 rounded-2xl flex flex-col gap-5 shadow-2xl"
     >
       <div className="flex flex-col gap-1 mb-2">
-        <h2 className="text-xl font-semibold text-slate-200">Sign In</h2>
+        {/* 🚀 เปลี่ยนจาก font-bold เป็น font-bold */}
+        <h2 className="text-xl font-bold text-slate-200">Sign In</h2>
         <p className="text-xs text-slate-500">Access your engineering node.</p>
       </div>
       
@@ -94,7 +93,7 @@ export const LoginForm = () => {
       )}
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs text-slate-400 font-medium ml-1">Email Address</label>
+        <label className="text-xs text-slate-400 ml-1">Email Address</label>
         <input 
           type="email" 
           value={email}
@@ -107,13 +106,11 @@ export const LoginForm = () => {
       </div>
 
       <div className="flex flex-col gap-1.5">
-        <label className="text-xs text-slate-400 font-medium ml-1">Password</label>
+        <label className="text-xs text-slate-400 ml-1">Password</label>
         <input 
           type="password" 
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          // 🔥 ท่าไม้ตาย 2: เปลี่ยนเป็น "new-password"
-          // เบราว์เซอร์ส่วนใหญ่จะไม่ออโต้ฟิลรหัสเก่าใส่ช่องที่มีกำกับว่าเป็นรหัสใหม่ครับ
           autoComplete="new-password" 
           placeholder="••••••••"
           className="bg-[#111111] border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-blue-500 focus:outline-none transition-all"
@@ -124,7 +121,8 @@ export const LoginForm = () => {
       <button 
         type="submit" 
         disabled={isLoading}
-        className="mt-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-medium py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+        // 🚀 เปลี่ยนเป็น font-bold เพื่อให้ปุ่มดูหนักแน่นน่ากด
+        className="mt-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
       >
         {isLoading ? "Authenticating..." : "Sign In"}
       </button>

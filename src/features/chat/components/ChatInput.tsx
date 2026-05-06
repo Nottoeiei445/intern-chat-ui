@@ -3,6 +3,7 @@
 import { useState, useRef, ChangeEvent } from "react"
 import { Send, Paperclip, Image as ImageIcon, MapPin, X } from "lucide-react"
 import { ApiKeyPopover } from "@/features/auth/components/ApiKeyPopover"
+import { useMapStore } from "@/store/useMapStore";
 
 interface Props {
   onSendMessage: (content: string, images: string[]) => void;
@@ -14,6 +15,12 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
   const [input, setInput] = useState("")
   const [images, setImages] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // 🚀 1. ดึงสถานะว่า Popover เปิดอยู่หรือเปล่า
+  const { isKeyModalOpen } = useMapStore();
+
+  // 🚀 2. สร้างตัวแปรรวมสถานะ Disable (หมดอายุ หรือ ติดหน้ากรอกคีย์ = ล็อก!)
+  const isInputDisabled = isGuestExpired || isKeyModalOpen;
 
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
@@ -65,7 +72,7 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
   };
 
   const handleSend = () => {
-    if ((!input.trim() && images.length === 0) || isLoading || isGuestExpired) return  
+    if ((!input.trim() && images.length === 0) || isLoading || isInputDisabled) return  
     onSendMessage(input, images) 
     
     setInput("")
@@ -85,8 +92,9 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
 
         <ApiKeyPopover />
 
+        {/* 🚀 3. ถ้าโดนล็อกอยู่ ให้กล่องสีทึบลงนิดนึงเพื่อบอกใบ้ User */}
         <div className={`relative bg-[#111] border rounded-2xl p-2 shadow-2xl transition-all text-slate-200 overflow-hidden ${
-          isGuestExpired ? "border-slate-800/50 opacity-60" : "border-white/10 focus-within:border-blue-500/50"
+          isInputDisabled ? "border-slate-800/50 opacity-50" : "border-white/10 focus-within:border-blue-500/50"
         }`}>
 
           {images.length > 0 && (
@@ -105,8 +113,9 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
                       e.preventDefault();
                       removeImage(idx);
                     }}
+                    disabled={isInputDisabled} // 🚀 ล็อกปุ่มลบรูป
                     className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 
-                               shadow-xl z-20 transition-all scale-100 group-hover:scale-110 active:scale-90"
+                               shadow-xl z-20 transition-all scale-100 group-hover:scale-110 active:scale-90 disabled:opacity-50"
                     title="Remove image"
                   >
                     <X size={12} strokeWidth={3} />
@@ -119,11 +128,15 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
           )}
 
           <textarea
-            rows={2}
-            disabled={isGuestExpired} 
-            placeholder={isGuestExpired ? "⏳ Session expired. Please refresh or log in..." : "Ask about GIS layers, population density, or maps..."}
-            className={`w-full bg-transparent p-3 pr-14 text-sm focus:outline-none resize-none placeholder:text-slate-400 text-slate-200 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] ${
-              isGuestExpired ? "cursor-not-allowed" : ""
+            rows={1}
+            disabled={isInputDisabled} 
+            placeholder={
+              isKeyModalOpen ? "Please provide API Key above..." :
+              isGuestExpired ? "Session expired. Please refresh..." : 
+              "Ask about GIS, maps, or layers..." 
+            }
+            className={`w-full bg-transparent p-3 pr-14 text-sm leading-relaxed focus:outline-none resize-none placeholder:text-slate-400 text-slate-200 ${
+              isInputDisabled ? "cursor-not-allowed" : ""
             }`}
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -140,28 +153,28 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
                 multiple 
                 accept="image/*" 
                 onChange={handleFileChange}
-                disabled={isGuestExpired}  
+                disabled={isInputDisabled}  // 🚀 ล็อก Input File
               />
               <button 
                 type="button"
-                onClick={() => !isGuestExpired && fileInputRef.current?.click()} 
-                disabled={isGuestExpired}
-                className={`p-2 transition-colors ${isGuestExpired ? "text-slate-800 cursor-not-allowed" : "text-slate-600 hover:text-blue-400"}`}
+                onClick={() => !isInputDisabled && fileInputRef.current?.click()} 
+                disabled={isInputDisabled} // 🚀 ล็อกปุ่ม
+                className={`p-2 transition-colors ${isInputDisabled ? "text-slate-800 cursor-not-allowed" : "text-slate-600 hover:text-blue-400"}`}
               >
                 <Paperclip size={18} />
               </button>
               <button 
                 type="button"
-                onClick={() => !isGuestExpired && fileInputRef.current?.click()} 
-                disabled={isGuestExpired}
-                className={`p-2 transition-colors ${isGuestExpired ? "text-slate-800 cursor-not-allowed" : "text-slate-600 hover:text-blue-400"}`}
+                onClick={() => !isInputDisabled && fileInputRef.current?.click()} 
+                disabled={isInputDisabled} // 🚀 ล็อกปุ่ม
+                className={`p-2 transition-colors ${isInputDisabled ? "text-slate-800 cursor-not-allowed" : "text-slate-600 hover:text-blue-400"}`}
               >
                 <ImageIcon size={18} />
               </button>
               <button 
                 type="button" 
-                disabled={isGuestExpired}
-                className={`p-2 transition-colors ${isGuestExpired ? "text-slate-800 cursor-not-allowed" : "text-slate-600 hover:text-blue-400"}`}
+                disabled={isInputDisabled} // 🚀 ล็อกปุ่ม
+                className={`p-2 transition-colors ${isInputDisabled ? "text-slate-800 cursor-not-allowed" : "text-slate-600 hover:text-blue-400"}`}
               >
                 <MapPin size={18} />
               </button>
@@ -170,7 +183,7 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
             <button 
               type="button"
               onClick={handleSend}
-              disabled={isLoading || isGuestExpired || (!input.trim() && images.length === 0)}
+              disabled={isLoading || isInputDisabled || (!input.trim() && images.length === 0)} // 🚀 ล็อกปุ่มส่ง
               className="bg-blue-600 hover:bg-blue-500 text-white p-2 rounded-xl transition-all disabled:opacity-20 disabled:cursor-not-allowed"
             >
               <Send size={18} />
