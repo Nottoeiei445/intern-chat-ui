@@ -1,9 +1,17 @@
+export interface ClarificationChoice {
+  label: string;
+  value: string;
+  // อนาคตถ้าอยากแนบประเภท Layer หรือ Provider ก็สามารถเพิ่มได้ เช่น:
+  // type?: "layer" | "provider";
+}
+
 export interface Message {
   id?: string;
   role: "user" | "assistant";
   content: string;
   thinking?: string;
   images?: string[]; 
+  choices?: ClarificationChoice[];
 }
 
 export interface ChatThread {

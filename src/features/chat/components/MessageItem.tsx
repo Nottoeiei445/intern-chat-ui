@@ -21,6 +21,7 @@ interface MessageItemProps {
   isFetchingHistory: boolean;
   scrollToBottom: () => void;
   onEditMessage?: (id: string, newContent: string) => void;
+  onSendChoice?: (choiceValue: string) => void;
 }
 
 export const MessageItem = ({ 
@@ -29,7 +30,8 @@ export const MessageItem = ({
   isLoading, 
   isFetchingHistory, 
   scrollToBottom, 
-  onEditMessage 
+  onEditMessage,
+  onSendChoice
 }: MessageItemProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
@@ -175,6 +177,28 @@ export const MessageItem = ({
                   ))}
                 </div>
               )}
+
+
+              {msg.role === "assistant" && msg.choices && msg.choices.length > 0 && !isEditing && (
+                <div className="mt-4 pt-4 border-t border-white/10 flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <span className="text-[10px] text-blue-400 font-bold uppercase tracking-widest flex items-center gap-1">
+                    <Sparkles size={12} />
+                    Select an option:
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {msg.choices.map((choice, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => onSendChoice?.(choice.value)}
+                        className="px-3 py-2 bg-blue-500/5 border border-blue-500/20 text-blue-400 text-sm hover:bg-blue-600 hover:text-white hover:border-blue-600 rounded-lg transition-all active:scale-95 text-left"
+                      >
+                        {choice.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
             </div>
           </div>
         </div>

@@ -358,7 +358,7 @@ export function useChat() {
 
                 const data = JSON.parse(jsonStr);
 
-                // 🚀ดัก Error ขอคีย์: จดคำสั่งลง Store และสั่งเด้ง Modal
+                //ดัก Error ขอคีย์: จดคำสั่งลง Store และสั่งเด้ง Modal
                 if (data.code === 'missing_x_api_key' || data.needsApiKey) {
                   setPendingChat({ input, model, images, options }); // แอบจำไว้ในใจ
                   openKeyModal(); // เด้งหน้าต่างทวงคีย์
@@ -396,6 +396,39 @@ export function useChat() {
                   };
                   setDynamicLayers([newLayer]);
                   continue;
+                }
+
+                if (data.event === 'clarification' || data.event === 'need_information') {
+                  if (ephemeral) {
+                    // กรณีเป็น Ephemeral Message 
+                    setEphemeralMessages(prev => {
+                      const newMsgs = [...prev];
+                      const lastIdx = newMsgs.length - 1;
+                      if (lastIdx >= 0 && newMsgs[lastIdx].role === "assistant") {
+                        newMsgs[lastIdx] = { ...newMsgs[lastIdx], choices: data.choices };
+                      }
+                      return newMsgs;
+                    });
+                  } else {
+                    // กรณีแชทปกติ
+                    setChats(prev => prev.map(chat => {
+                      if (chat.id === currentId) {
+                        const safeMsgs = [...chat.messages];
+                        const lastIdx = safeMsgs.length - 1;
+                        
+                        // ถ้าเจอข้อความ Assistant ล่าสุด ให้ยัด choices เข้าไป
+                        if (lastIdx >= 0 && safeMsgs[lastIdx].role === "assistant") {
+                          safeMsgs[lastIdx] = { 
+                            ...safeMsgs[lastIdx], 
+                            choices: data.choices // <--- จุดที่เอา Choices ไปเก็บ
+                          };
+                        }
+                        return { ...chat, messages: safeMsgs };
+                      }
+                      return chat;
+                    }));
+                  }
+                  continue; //ข้ามไปอ่านบรรทัดต่อไป ไม่ต้องพ่น Choices ออกมาเป็น Text
                 }
 
                 // ... (ลอจิกจัดการข้อความและสลับ ID เหมือนเดิม)

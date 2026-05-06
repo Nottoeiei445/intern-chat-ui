@@ -13,6 +13,7 @@ interface Props {
   isFetchingHistory?: boolean;
   onEditMessage?: (id: string, newContent: string) => void;
   onSelectTemplate?: (text: string) => void; 
+  onSendChoice?: (choiceValue: string) => void;
 }
 
 export const MessageList = ({ 
@@ -22,7 +23,8 @@ export const MessageList = ({
   hasMore, 
   isFetchingHistory, 
   onEditMessage,
-  onSelectTemplate 
+  onSelectTemplate,
+  onSendChoice
 }: Props) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -159,6 +161,7 @@ export const MessageList = ({
           isFetchingHistory={isFetchingHistory ?? false}
           scrollToBottom={scrollToBottom}
           onEditMessage={onEditMessage}
+          onSendChoice={onSendChoice}
         />
       ))}
       
