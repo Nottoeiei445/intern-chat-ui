@@ -66,6 +66,15 @@ export const ChatFeature = () => {
     setActiveChatId(id);
   };
 
+  const handleSendChoice = (choiceValue: string) => {
+    const lastUserMsg = [...messagesToShow].reverse().find(m => m.role === "user");
+    const originalPrompt = lastUserMsg?.content || "";
+
+    const newPrompt = `${originalPrompt} ${choiceValue}`.trim();
+
+    sendMessage(newPrompt, selectedModel, [], { isSilentRetry: true } as any);
+  };
+
   const handleSendMessage = async (val: string, images: string[] = []) => {
     if (isGuestTimeUp()) {
       const hasStartTime = localStorage.getItem(AUTH_CONFIG.session.guestStartTimeStorageKey);
@@ -131,6 +140,7 @@ export const ChatFeature = () => {
             isFetchingHistory={isFetchingHistory}
             onEditMessage={(id, newContent) => editAndResend(id, newContent, selectedModel)}
             onSelectTemplate={(text) => handleSendMessage(text)} 
+            onSendChoice={handleSendChoice}
           />
         </div>
 
