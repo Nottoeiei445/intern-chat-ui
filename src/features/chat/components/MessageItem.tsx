@@ -62,11 +62,10 @@ export const MessageItem = ({
       
       {msg.role === "user" && !isEditing && (
         <div className="opacity-0 group-hover:opacity-100 flex items-center pr-2 pt-5 gap-1 transition-opacity">
-          {/* ✅ ปุ่ม Copy ปล่อยให้กดได้ทุกคน */}
           <Button 
             variant="ghost" 
             size="icon" 
-            className="h-8 w-8 text-slate-500 hover:text-white hover:bg-white/10" 
+            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-accent" 
             onClick={() => navigator.clipboard.writeText(msg.content)}
           >
             <Copy size={14} />
@@ -76,7 +75,6 @@ export const MessageItem = ({
             <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  {/* ทริค span เพื่อให้ Tooltip ทำงานตอน disabled */}
                   <span className={isGuest ? "cursor-not-allowed inline-block" : ""}>
                     <Button 
                       variant="ghost" 
@@ -84,8 +82,8 @@ export const MessageItem = ({
                       disabled={isGuest}
                       className={`h-8 w-8 transition-colors ${
                         isGuest 
-                          ? "text-slate-400 opacity-100"
-                          : "text-slate-500 hover:text-blue-400 hover:bg-white/10"
+                          ? "text-muted-foreground/50 opacity-100"
+                          : "text-muted-foreground hover:text-primary hover:bg-accent"
                       }`} 
                       onClick={handleEditClick}
                     >
@@ -93,11 +91,10 @@ export const MessageItem = ({
                     </Button>
                   </span>
                 </TooltipTrigger>
-                {/* เนื้อหา Tooltip ที่จะเด้งตอนเป็น Guest */}
                 {isGuest && (
-                  <TooltipContent side="top" className="bg-[#2b2c2e] text-slate-200 border-white/10 font-ibm text-xs">
+                  <TooltipContent side="top" className="bg-popover text-popover-foreground border-border font-ibm text-xs">
                     <div className="flex items-center gap-2">
-                      <Lock size={12} className="text-blue-400" />
+                      <Lock size={12} className="text-primary" />
                       <p>Sign in to edit message</p>
                     </div>
                   </TooltipContent>
@@ -110,8 +107,8 @@ export const MessageItem = ({
 
       <div className="max-w-[85%] space-y-3">
         {msg.thinking && (
-          <div className="bg-white/[0.03] border border-white/5 rounded-2xl p-4 text-xs text-slate-500 font-mono">
-            <div className="flex items-center gap-2 mb-2 text-blue-500/50 uppercase tracking-tighter font-bold">
+          <div className="bg-muted/50 border border-border rounded-2xl p-4 text-xs text-muted-foreground font-mono">
+            <div className="flex items-center gap-2 mb-2 text-primary/70 uppercase tracking-tighter font-bold">
               <Sparkles size={12} /> Chain of Thought
             </div>
             {msg.thinking}
@@ -119,10 +116,10 @@ export const MessageItem = ({
         )}
         
         <div className={`flex flex-col gap-4 p-5 rounded-3xl ${
-          msg.role === "user" ? "bg-blue-600 text-white rounded-tr-none shadow-xl" : "bg-[#111] border border-white/5 rounded-tl-none"
+          msg.role === "user" ? "bg-primary text-primary-foreground rounded-tr-none shadow-xl" : "bg-muted border border-border text-foreground rounded-tl-none"
         }`}>
           <div className="flex gap-4">
-            <div className="opacity-40 text-slate-200 mt-1">
+            <div className="opacity-60 mt-1">
               {msg.role === "user" ? <User size={20}/> : <Bot size={20}/>}
             </div>
             <div className="flex-1 space-y-4 min-w-0">
@@ -132,7 +129,7 @@ export const MessageItem = ({
                   <Textarea
                     value={editValue}
                     onChange={(e) => setEditValue(e.target.value)}
-                    className="w-full bg-black/20 border-white/20 text-white resize-none focus-visible:ring-blue-500"
+                    className="w-full bg-background border-border text-foreground resize-none focus-visible:ring-primary"
                     rows={3}
                     autoFocus
                   />
@@ -140,7 +137,7 @@ export const MessageItem = ({
                     <Button 
                       variant="ghost" 
                       size="sm" 
-                      className="text-xs hover:bg-white/10" 
+                      className="text-xs hover:bg-accent hover:text-foreground" 
                       onClick={handleCancel}
                     >
                       Cancel
@@ -149,7 +146,7 @@ export const MessageItem = ({
                       size="sm"
                       disabled={editValue === msg.content || !editValue.trim() || isLoading}
                       onClick={handleSubmit}
-                      className="text-xs bg-white text-blue-600 hover:bg-slate-200"
+                      className="text-xs bg-primary text-primary-foreground hover:bg-primary/90"
                     >
                       Submit
                     </Button>
@@ -157,7 +154,7 @@ export const MessageItem = ({
                 </div>
               ) : (
                 msg.content && (
-                  <p className="text-sm leading-relaxed whitespace-pre-wrap text-slate-200 break-words">
+                  <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
                     {msg.content}
                   </p>
                 )
@@ -166,7 +163,7 @@ export const MessageItem = ({
               {msg.images && msg.images.length > 0 && !isEditing && (
                 <div className="flex flex-wrap gap-2 mt-2">
                   {msg.images.map((imgSrc, imgIdx) => (
-                    <div key={imgIdx} className="relative max-w-[200px] max-h-[200px] overflow-hidden rounded-xl border border-white/10 shadow-lg">
+                    <div key={imgIdx} className="relative max-w-[200px] max-h-[200px] overflow-hidden rounded-xl border border-border shadow-lg">
                       <img 
                         src={imgSrc} 
                         alt={`attachment-${imgIdx}`}
@@ -180,19 +177,36 @@ export const MessageItem = ({
 
 
               {msg.role === "assistant" && msg.choices && msg.choices.length > 0 && !isEditing && (
-                <div className="mt-4 pt-4 border-t border-white/10 flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
-                  <span className="text-[10px] text-blue-400 font-bold uppercase tracking-widest flex items-center gap-1">
-                    <Sparkles size={12} />
-                    Select an option:
+                <div className="mt-5 pt-4 border-t border-border flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-500">
+                  
+                  <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-widest flex items-center gap-1.5 mb-1">
+                    <Sparkles size={13} className="text-primary" />
+                    Please select an option
                   </span>
-                  <div className="flex flex-wrap gap-2">
+                  
+                  <div className="flex flex-col gap-2 w-full">
                     {msg.choices.map((choice, idx) => (
                       <button
                         key={idx}
                         onClick={() => onSendChoice?.(choice.value)}
-                        className="px-3 py-2 bg-blue-500/5 border border-blue-500/20 text-blue-400 text-sm hover:bg-blue-600 hover:text-white hover:border-blue-600 rounded-lg transition-all active:scale-95 text-left"
+                        className="group relative flex items-center justify-between w-full px-4 py-3 bg-background border border-border rounded-xl hover:bg-accent hover:border-primary/50 transition-all duration-300 active:scale-[0.98] text-left overflow-hidden shadow-sm hover:shadow-md"
                       >
-                        {choice.label}
+                        {/* Text Content */}
+                        <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors z-10">
+                          {choice.label}
+                        </span>
+                        
+                        {/* Arrow Icon */}
+                        <div className="opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 z-10 text-primary">
+                          <svg 
+                            className="w-4 h-4" 
+                            fill="none" 
+                            viewBox="0 0 24 24" 
+                            stroke="currentColor"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </div>
                       </button>
                     ))}
                   </div>
@@ -209,7 +223,7 @@ export const MessageItem = ({
           <Button 
             variant="ghost" 
             size="icon" 
-            className="h-8 w-8 text-slate-500 hover:text-white hover:bg-white/10" 
+            className="h-8 w-8 text-muted-foreground hover:text-foreground hover:bg-accent" 
             onClick={() => navigator.clipboard.writeText(msg.content)}
           >
             <Copy size={14} />

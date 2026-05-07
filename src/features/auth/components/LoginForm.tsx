@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/Toast";
 import { useAuth } from "../context/AuthContext";
 import { useRouter } from "next/navigation";
+import { ModeToggle } from "@/components/mode-toggle"; // 🚀 1. Import ModeToggle
 
 export const LoginForm = () => {
   const { login, isLoading, error, user } = useAuth();
@@ -12,17 +13,12 @@ export const LoginForm = () => {
   const router = useRouter();
   const toast = useToast();
 
-  // ==========================================
-  // 1. 🧹 ลอจิกจัดการตัวแปร (จำ Email แต่ฆ่า Password)
-  // ==========================================
   useEffect(() => {
-    // ดึง Email มาใส่ตามปกติ
     const savedEmail = localStorage.getItem("remembered_email");
     if (savedEmail) {
       setEmail(savedEmail);
     }
 
-    // 🔥 ท่าไม้ตาย 1: หน่วงเวลาล้าง Password นิดนึง (100ms)
     const timer = setTimeout(() => {
       setPassword("");
     }, 100); 
@@ -46,7 +42,7 @@ export const LoginForm = () => {
       localStorage.setItem("remembered_email", email);
       router.push("/");
     } catch (err) {
-      setPassword(""); // ล้างรหัสถ้าล็อกอินพลาด
+      setPassword(""); 
       const status = (err as any)?.status ?? (err as any)?.response?.status;
       const data = (err as any)?.data ?? (err as any)?.response?.data;
       const backendMessage = (err as any)?.message ?? data?.message ?? null;
@@ -63,76 +59,87 @@ export const LoginForm = () => {
 
   if (user) {
     return (
-      <div className="w-full max-w-sm p-6 bg-[#0a0a0a] border border-white/5 rounded-2xl flex flex-col items-center justify-center gap-4">
-        <div className="w-12 h-12 rounded-full bg-blue-500/10 flex items-center justify-center">
-          <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+      <>
+        {/* 🚀 2. แปะปุ่มสลับธีมมุมขวาบน */}
+        <div className="absolute top-4 right-4">
+          <ModeToggle />
         </div>
-        <div className="text-center">
-          <h2 className="text-slate-200 font-bold mb-1">Welcome back, {user.username}</h2>
-          <p className="text-slate-500 text-xs">Redirecting...</p>
+        {/* 🚀 3. เปลี่ยนสีกล่องให้เข้ากับ Theme (bg-card) */}
+        <div className="w-full max-w-sm p-6 bg-card border border-border rounded-2xl flex flex-col items-center justify-center gap-4 shadow-xl">
+          <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
+            <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+          </div>
+          <div className="text-center">
+            <h2 className="text-foreground font-bold mb-1">Welcome back, {user.username}</h2>
+            <p className="text-muted-foreground text-xs">Redirecting...</p>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
   return (
-    <form 
-      onSubmit={handleSubmit} 
-      className="w-full max-w-sm p-8 bg-[#0a0a0a] border border-white/5 rounded-2xl flex flex-col gap-5 shadow-2xl"
-    >
-      <div className="flex flex-col gap-1 mb-2">
-        {/* 🚀 เปลี่ยนจาก font-bold เป็น font-bold */}
-        <h2 className="text-xl font-bold text-slate-200">Sign In</h2>
-        <p className="text-xs text-slate-500">Access your engineering node.</p>
+    <>
+      <div className="absolute top-4 right-4">
+        <ModeToggle />
       </div>
-      
-      {error && (
-        <div className="p-3 bg-red-500/10 border border-red-500/20 text-red-400 text-xs rounded-lg">
-          {error}
-        </div>
-      )}
-
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs text-slate-400 ml-1">Email Address</label>
-        <input 
-          type="email" 
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          autoComplete="username" 
-          placeholder="name@example.com"
-          className="bg-[#111111] border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-blue-500 focus:outline-none transition-all"
-          required
-        />
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs text-slate-400 ml-1">Password</label>
-        <input 
-          type="password" 
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          autoComplete="new-password" 
-          placeholder="••••••••"
-          className="bg-[#111111] border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-blue-500 focus:outline-none transition-all"
-          required
-        />
-      </div>
-
-      <button 
-        type="submit" 
-        disabled={isLoading}
-        // 🚀 เปลี่ยนเป็น font-bold เพื่อให้ปุ่มดูหนักแน่นน่ากด
-        className="mt-4 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white text-sm font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+      <form 
+        onSubmit={handleSubmit} 
+        className="w-full max-w-sm p-8 bg-card border border-border rounded-2xl flex flex-col gap-5 shadow-2xl"
       >
-        {isLoading ? "Authenticating..." : "Sign In"}
-      </button>
+        <div className="flex flex-col gap-1 mb-2">
+          <h2 className="text-xl font-bold text-foreground">Sign In</h2>
+          <p className="text-xs text-muted-foreground">Access your engineering node.</p>
+        </div>
+        
+        {error && (
+          <div className="p-3 bg-destructive/10 border border-destructive/20 text-destructive text-xs rounded-lg">
+            {error}
+          </div>
+        )}
 
-      <div className="text-xs text-slate-500 text-center">
-        Don't have an account?{" "}
-        <button type="button" onClick={() => router.push("/register")} className="text-blue-400 hover:underline">
-          Create account
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs text-muted-foreground ml-1">Email Address</label>
+          <input 
+            type="email" 
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="username" 
+            placeholder="name@example.com"
+            // 🚀 5. เปลี่ยนสี Input เป็น bg-background
+            className="bg-background border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary/50 focus:outline-none transition-all"
+            required
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs text-muted-foreground ml-1">Password</label>
+          <input 
+            type="password" 
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="new-password" 
+            placeholder="••••••••"
+            className="bg-background border border-border rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:ring-1 focus:ring-primary/50 focus:outline-none transition-all"
+            required
+          />
+        </div>
+
+        <button 
+          type="submit" 
+          disabled={isLoading}
+          className="mt-4 bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground text-sm font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2 shadow-md"
+        >
+          {isLoading ? "Authenticating..." : "Sign In"}
         </button>
-      </div>
-    </form>
+
+        <div className="text-xs text-muted-foreground text-center">
+          Don't have an account?{" "}
+          <button type="button" onClick={() => router.push("/register")} className="text-primary hover:underline font-medium">
+            Create account
+          </button>
+        </div>
+      </form>
+    </>
   );
 };

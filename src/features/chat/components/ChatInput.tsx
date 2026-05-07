@@ -16,10 +16,8 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
   const [images, setImages] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   
-  // 🚀 1. ดึงสถานะว่า Popover เปิดอยู่หรือเปล่า
   const { isKeyModalOpen } = useMapStore();
 
-  // 🚀 2. สร้างตัวแปรรวมสถานะ Disable (หมดอายุ หรือ ติดหน้ากรอกคีย์ = ล็อก!)
   const isInputDisabled = isGuestExpired || isKeyModalOpen;
 
   const fileToBase64 = (file: File): Promise<string> => {
@@ -87,23 +85,22 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
   }
 
   return (
-    <div className="p-6 bg-gradient-to-t from-[#050505] to-transparent bg-[#050505]">
+    <div className="p-6 bg-gradient-to-t from-background to-transparent bg-background">
       <div className="max-w-4xl mx-auto relative">
 
         <ApiKeyPopover />
 
-        {/* 🚀 3. ถ้าโดนล็อกอยู่ ให้กล่องสีทึบลงนิดนึงเพื่อบอกใบ้ User */}
-        <div className={`relative bg-[#111] border rounded-2xl p-2 shadow-2xl transition-all text-slate-200 overflow-hidden ${
-          isInputDisabled ? "border-slate-800/50 opacity-50" : "border-white/10 focus-within:border-blue-500/50"
+        <div className={`relative bg-card border rounded-2xl p-2 shadow-2xl transition-all text-foreground overflow-hidden ${
+          isInputDisabled ? "border-border/50 opacity-50" : "border-border focus-within:border-primary/50"
         }`}>
 
           {images.length > 0 && (
-            <div className="flex flex-wrap gap-3 p-3 mb-2 border-b border-white/5 bg-white/[0.02]">
+            <div className="flex flex-wrap gap-3 p-3 mb-2 border-b border-border bg-muted/30">
               {images.map((src, idx) => (
                 <div key={idx} className="relative group w-16 h-16">
                   <img 
                     src={src} 
-                    className="w-full h-full object-cover rounded-xl border border-white/10 shadow-md transition-all group-hover:brightness-75" 
+                    className="w-full h-full object-cover rounded-xl border border-border shadow-md transition-all group-hover:brightness-75" 
                     alt="preview" 
                   />
                   
@@ -113,8 +110,8 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
                       e.preventDefault();
                       removeImage(idx);
                     }}
-                    disabled={isInputDisabled} // 🚀 ล็อกปุ่มลบรูป
-                    className="absolute -top-2 -right-2 bg-red-500 hover:bg-red-600 text-white rounded-full p-1 
+                    disabled={isInputDisabled} 
+                    className="absolute -top-2 -right-2 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-full p-1 
                                shadow-xl z-20 transition-all scale-100 group-hover:scale-110 active:scale-90 disabled:opacity-50"
                     title="Remove image"
                   >
@@ -135,7 +132,7 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
               isGuestExpired ? "Session expired. Please refresh..." : 
               "Ask about GIS, maps, or layers..." 
             }
-            className={`w-full bg-transparent p-3 pr-14 text-sm leading-relaxed focus:outline-none resize-none placeholder:text-slate-400 text-slate-200 ${
+            className={`w-full bg-transparent p-3 pr-14 text-sm leading-relaxed focus:outline-none resize-none placeholder:text-muted-foreground text-foreground ${
               isInputDisabled ? "cursor-not-allowed" : ""
             }`}
             value={input}
@@ -153,28 +150,28 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
                 multiple 
                 accept="image/*" 
                 onChange={handleFileChange}
-                disabled={isInputDisabled}  // 🚀 ล็อก Input File
+                disabled={isInputDisabled}
               />
               <button 
                 type="button"
                 onClick={() => !isInputDisabled && fileInputRef.current?.click()} 
-                disabled={isInputDisabled} // 🚀 ล็อกปุ่ม
-                className={`p-2 transition-colors ${isInputDisabled ? "text-slate-800 cursor-not-allowed" : "text-slate-600 hover:text-blue-400"}`}
+                disabled={isInputDisabled} 
+                className={`p-2 transition-colors ${isInputDisabled ? "text-muted-foreground/50 cursor-not-allowed" : "text-muted-foreground hover:text-primary"}`}
               >
                 <Paperclip size={18} />
               </button>
               <button 
                 type="button"
                 onClick={() => !isInputDisabled && fileInputRef.current?.click()} 
-                disabled={isInputDisabled} // 🚀 ล็อกปุ่ม
-                className={`p-2 transition-colors ${isInputDisabled ? "text-slate-800 cursor-not-allowed" : "text-slate-600 hover:text-blue-400"}`}
+                disabled={isInputDisabled} 
+                className={`p-2 transition-colors ${isInputDisabled ? "text-muted-foreground/50 cursor-not-allowed" : "text-muted-foreground hover:text-primary"}`}
               >
                 <ImageIcon size={18} />
               </button>
               <button 
                 type="button" 
-                disabled={isInputDisabled} // 🚀 ล็อกปุ่ม
-                className={`p-2 transition-colors ${isInputDisabled ? "text-slate-800 cursor-not-allowed" : "text-slate-600 hover:text-blue-400"}`}
+                disabled={isInputDisabled} 
+                className={`p-2 transition-colors ${isInputDisabled ? "text-muted-foreground/50 cursor-not-allowed" : "text-muted-foreground hover:text-primary"}`}
               >
                 <MapPin size={18} />
               </button>
@@ -183,15 +180,15 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
             <button 
               type="button"
               onClick={handleSend}
-              disabled={isLoading || isInputDisabled || (!input.trim() && images.length === 0)} // 🚀 ล็อกปุ่มส่ง
-              className="bg-blue-600 hover:bg-blue-500 text-white p-2 rounded-xl transition-all disabled:opacity-20 disabled:cursor-not-allowed"
+              disabled={isLoading || isInputDisabled || (!input.trim() && images.length === 0)} 
+              className="bg-primary hover:bg-primary/90 text-primary-foreground p-2 rounded-xl transition-all disabled:opacity-20 disabled:cursor-not-allowed"
             >
               <Send size={18} />
             </button>
           </div>
         </div>
         
-        <p className="text-center text-[9px] text-slate-800 mt-3 font-bold uppercase tracking-[0.3em]">
+        <p className="text-center text-[9px] text-muted-foreground/50 mt-3 font-bold uppercase tracking-[0.3em]">
           Ollama v0.20.2 Local Node
         </p>
       </div>

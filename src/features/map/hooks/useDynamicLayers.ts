@@ -4,12 +4,10 @@ import { useEffect, useRef } from 'react';
 import maplibregl from 'maplibre-gl';
 import { DynamicLayerPayload } from '../types';
 import { mapService } from '../services/map.service';
-import { useMapStore } from '@/store/useMapStore'; // 🚀 1. Import Store เข้ามา
+import { useMapStore } from '@/store/useMapStore';
 
 export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: DynamicLayerPayload[]) => {
-  // 🚀 2. ดึง apiKeys ออกมาจาก Store
   const { apiKeys } = useMapStore();
-  
   const activeLayerIds = useRef<string[]>([]);
 
   useEffect(() => {
@@ -44,7 +42,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
           });
 
           activeLayerIds.current.push(layerId);
-          activeLayerIds.current.push(sourceId); // เก็บชื่อไว้ลบตอนหลัง
+          activeLayerIds.current.push(sourceId);
         }
 
         //--- กรณี VECTOR TILE ---
@@ -57,47 +55,73 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
             ...(layerConfig.bounds && { bounds: layerConfig.bounds })
           });
 
+          // เปลี่ยนการ Render เป็น Heatmap ตรงนี้
           map.addLayer({
             id: layerId,
-            type: 'circle', //บังคับว่าเป็น Circle Layer เพราะเรากำลังทำแผนที่ไฟป่า จุดไฟป่ามันต้องเป็นจุดสิ
+            type: 'heatmap',
             source: sourceId,
             'source-layer': layerConfig.layerId || 'default',
             paint: { 
-              'circle-radius': 4,
-              'circle-color': '#ff0000', // สีแดงไฟป่า
-              'circle-stroke-width': 1,
-              'circle-stroke-color': '#ffffff'
+              // กำหนดน้ำหนักของแต่ละจุด (ถ้ามีข้อมูล magnitude ใส่แทน 1 ได้)
+              'heatmap-weight': 1,
+              // ปรับความเข้มข้นตามระดับการซูม (ยิ่งซูมยิ่งเข้ม)
+              'heatmap-intensity': [
+                'interpolate', ['linear'], ['zoom'],
+                0, 1,
+                9, 3
+              ],
+              // ไล่เฉดสีจากใสไปหาแดงเข้ม
+              'heatmap-color': [
+                'interpolate', ['linear'], ['heatmap-density'],
+                0, 'rgba(33,102,172,0)',
+                0.2, 'rgb(255,255,204)',
+                0.4, 'rgb(255,237,160)',
+                0.6, 'rgb(254,178,76)',
+                0.8, 'rgb(252,78,42)',
+                1, 'rgb(189,0,38)'
+              ],
+              // รัศมีของความร้อน ยิ่งซูมใกล้รัศมียิ่งใหญ่
+              'heatmap-radius': [
+                'interpolate', ['linear'], ['zoom'],
+                0, 2,
+                9, 20
+              ],
+              // ความโปร่งแสงรวม
+              'heatmap-opacity': 0.8
             }
           });
 
           activeLayerIds.current.push(layerId);
           activeLayerIds.current.push(sourceId);
 
-          //สั่งกล้องบินไปหาขอบเขตแผนที่อัตโนมัติ!
+          // สั่งกล้องบินไปหาขอบเขตแผนที่อัตโนมัติ
           if (layerConfig.bounds) {
             map.fitBounds(layerConfig.bounds, {
-              padding: 50, // เว้นขอบจอนิดนึงไม่ให้ชิดไป
-              duration: 1500 // แอนิเมชันบิน 1.5 วินาที
+              padding: 50,
+              duration: 1500
             });
           }
         }
 
+        //--- กรณี GEOJSON ---
         else if (layerConfig.type === 'geojson') {
           map.addSource(sourceId, {
             type: 'geojson',
-            data: fullUrl // สำหรับ GeoJSON เอาลิงก์ที่ต่อ api_key แล้วยัดใส่ช่อง data ได้เลย
+            data: fullUrl
           });
 
-          // สั่งวาด 
           map.addLayer({
             id: layerId,
-            type: 'line', // ถ้าเป็นโพลิกอนอำเภอ มักจะวาดเป็นเส้นขอบ (line) หรือเติมสี (fill)
+            type: 'line', 
             source: sourceId,
             paint: { 
-              'line-color': '#0000ff', // สีน้ำเงิน
+              'line-color': '#0000ff',
               'line-width': 2
             }
           });
+          
+          activeLayerIds.current.push(layerId);
+          activeLayerIds.current.push(sourceId);
         }
 
       } catch (error) {
@@ -105,5 +129,5 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
       }
     });
 
-  }, [map, dynamicLayers, apiKeys]); //4. อัปเดตเมื่อ map, เลเยอร์, หรือคีย์เปลี่ยน
+  }, [map, dynamicLayers, apiKeys]); 
 };

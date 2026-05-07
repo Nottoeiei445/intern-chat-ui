@@ -29,10 +29,8 @@ export const ApiKeyPopover = () => {
     // ยึดติดกับด้านล่างแบบลอยๆ เหมือนเดิม
     <div className="absolute bottom-[calc(100%+12px)] left-0 w-full z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
       
-      {/* 🚀 1. ครอบกล่อง relative ไว้ 1 ชั้น เพื่อเป็นฐานให้ปุ่ม X เกาะ */}
       <div className="relative">
         
-        {/* 🚀 2. ปุ่มกากบาท ลอยออกไปอยู่นอกกรอบ มุมขวาบน (-top-3, -right-2) */}
         <button 
           onClick={(e) => {
             e.preventDefault();
@@ -44,16 +42,13 @@ export const ApiKeyPopover = () => {
           <X size={14} strokeWidth={3} />
         </button>
 
-        {/* 🚀 3. กรอบสี่เหลี่ยมดีไซน์สวยๆ (อันเดิมของโบร๋ที่เท่ๆ) */}
         <div className="bg-[#111]/95 backdrop-blur-xl border border-blue-500/30 rounded-2xl shadow-[0_-10px_40px_-15px_rgba(59,130,246,0.3)] p-4 flex flex-col gap-3">
           
-          {/* Header แบบกะทัดรัด */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <div className="p-1.5 bg-blue-500/20 text-blue-400 rounded-lg">
                 <KeyRound size={16} />
               </div>
-              {/* 🚀 เปลี่ยนจาก font-bold เป็น font-bold เพื่อใช้ Custom Font แบบคมๆ */}
               <span className="text-sm font-bold text-slate-200">
                 Authentication Required
               </span>

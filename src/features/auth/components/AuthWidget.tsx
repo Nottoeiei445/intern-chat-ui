@@ -5,7 +5,10 @@ import { useAuth } from "@/features/auth";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { AUTH_CONFIG } from "@/features/auth";
-import { LogIn, LogOut, KeyRound, User as UserIcon } from "lucide-react";
+// 1. นำเข้า Sun, Moon มาจาก lucide-react
+import { LogIn, LogOut, KeyRound, User as UserIcon, Sun, Moon } from "lucide-react";
+// 2. นำเข้า useTheme
+import { useTheme } from "next-themes";
 
 const getInitials = (name?: string) => {
   if (!name) return "?";
@@ -19,6 +22,9 @@ export const AuthWidget = () => {
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  
+  // 3. ดึง theme และฟังก์ชันสลับธีมมาใช้
+  const { theme, setTheme } = useTheme();
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -28,34 +34,31 @@ export const AuthWidget = () => {
     return () => document.removeEventListener("click", handleClick);
   }, []);
 
-  // 🚀 ลอจิกการดักสิทธิ์: ถ้ามี email แสดงว่าเป็น User ที่ลงทะเบียนแล้ว (ไม่ใช่ Guest)
   const canManageKeys = user && user.email;
 
   return (
-    <div className="absolute top-4 right-4 z-30 flex items-center bg-[#050505]/60 backdrop-blur-md border border-white/10 p-1.5 rounded-full shadow-2xl">
+    <div className="absolute top-4 right-4 z-30 flex items-center bg-background/80 backdrop-blur-md border border-border p-1.5 rounded-full shadow-lg">
       {user ? (
         <div className="relative" ref={menuRef}>
           <button
             onClick={() => setMenuOpen((s) => !s)}
-            className="flex items-center gap-3 px-2 py-1 rounded-full hover:bg-white/5 transition-all group"
+            className="flex items-center gap-3 px-2 py-1 rounded-full hover:bg-accent transition-all group"
           >
             <div className="flex flex-col items-end pr-1 hidden sm:flex">
-              {/* 🚀 เปลี่ยนจาก font-bold เป็น font-bold เพื่อความคมชัด */}
-              <span className="text-xs font-bold text-slate-200 group-hover:text-white transition">
+              <span className="text-xs font-bold text-foreground transition">
                 {user.username || user.email?.split('@')[0]}
               </span>
             </div>
-            {/* วงกลมชื่อย่อใช้ font-bold ถูกต้องแล้ว */}
             <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-inner border border-blue-400/30">
               {getInitials(user.username || user.email)}
             </div>
           </button>
 
           {menuOpen && (
-            <div className="absolute right-0 mt-3 w-48 bg-[#0b0b0b] border border-white/10 rounded-xl shadow-2xl p-1.5 overflow-hidden animate-in fade-in slide-in-from-top-2 z-50">
+            <div className="absolute right-0 mt-3 w-48 bg-popover border border-border rounded-xl shadow-xl p-1.5 overflow-hidden animate-in fade-in slide-in-from-top-2 z-50">
               
-              <div className="px-3 py-2 border-b border-white/5 mb-1">
-                 <p className="text-[10px] uppercase tracking-wider text-slate-500 font-bold">Account Settings</p>
+              <div className="px-3 py-2 border-b border-border mb-1">
+                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Account Settings</p>
               </div>
 
               {canManageKeys && (
@@ -64,7 +67,7 @@ export const AuthWidget = () => {
                     setMenuOpen(false);
                     router.push("/setting/keys");
                   }}
-                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-foreground hover:bg-accent rounded-lg transition-colors"
                 >
                   <KeyRound size={14} className="text-blue-400" />
                   Manage API Keys
@@ -72,13 +75,30 @@ export const AuthWidget = () => {
               )}
 
               <button
-                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-300 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-foreground hover:bg-accent rounded-lg transition-colors"
               >
                 <UserIcon size={14} />
                 Profile
               </button>
 
-              <div className="h-[1px] bg-white/5 my-1" />
+              {/* ☀️🌙 ปุ่ม Toggle Theme เพิ่มเข้ามาตรงนี้ครับ */}
+              <button
+                onClick={() => {
+                  setTheme(theme === "dark" ? "light" : "dark");
+                  // ถ้าอยากให้กดแล้วเมนูหดปิดไปเลย เอาคอมเมนต์บรรทัดล่างออกครับ
+                  // setMenuOpen(false); 
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-foreground hover:bg-accent rounded-lg transition-colors"
+              >
+                {theme === "dark" ? (
+                  <Sun size={14} className="text-yellow-400" />
+                ) : (
+                  <Moon size={14} className="text-slate-600" />
+                )}
+                <span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
+              </button>
+
+              <div className="h-[1px] bg-border my-1" />
 
               <button
                 onClick={async () => {
@@ -86,7 +106,7 @@ export const AuthWidget = () => {
                   await logout();
                   router.push(AUTH_CONFIG.redirect.afterLogoutUrl);
                 }}
-                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-400 hover:text-red-300 hover:bg-red-500/10 rounded-lg transition-colors"
+                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-500 hover:bg-destructive/10 hover:text-destructive rounded-lg transition-colors"
               >
                 <LogOut size={14} />
                 Logout
@@ -97,7 +117,7 @@ export const AuthWidget = () => {
       ) : (
         <button 
           onClick={() => router.push(AUTH_CONFIG.redirect.unauthorizedUrl)}
-          className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-5 py-2 rounded-full text-sm transition-all"
+          className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 px-5 py-2 rounded-full text-sm transition-all"
         >
           <LogIn size={16} />
           <span>Login</span>

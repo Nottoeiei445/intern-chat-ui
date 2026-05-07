@@ -42,7 +42,6 @@ export const ApiKeyCard = ({ apiKey, onDelete, onEdit }: Props) => {
           <div className="text-[#00a651]">
             <CheckCircle2 size={18} strokeWidth={2.5} />
           </div>
-          {/* 🚀 เปลี่ยนมาใช้ font-bold แทน เพราะโบร๋มีไฟล์ Bold.ttf หรือถ้าอยากให้บางลงก็ลบ font-bold ออกเพื่อให้เป็น Regular */}
           <span className="text-base font-bold text-white tracking-wide">{apiKey.name}</span>
         </div>
         

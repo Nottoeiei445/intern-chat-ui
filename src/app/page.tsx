@@ -5,22 +5,22 @@ import { MapDashboard } from '../features/map';
 import { ChatFeature } from "../features/chat"
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { AuthWidget } from "@/features/auth/components/AuthWidget";
+
 export default function MapPage() {
   const [isChatOpen, setIsChatOpen] = useState(true);
 
   return (
-    <main className="relative h-screen w-full overflow-hidden bg-black">
+    <main className="relative h-screen w-full overflow-hidden bg-background">
       
-      {/* 1. แผนที่ (ฉากหลัง) */}
       <div className="absolute inset-0 z-0">
-        <MapDashboard hideControls={true} />
+        <MapDashboard />
       </div>
 
-      {/* 2. แถบแชท (Sidebar ฝั่งซ้าย) */}
+      {/* แถบแชท (Sidebar ฝั่งซ้าย) */}
       <div
         className={`
           absolute top-0 left-0 h-full z-20 transition-all duration-300 ease-in-out
-          bg-slate-950/95 backdrop-blur-2xl border-r border-white/10 shadow-2xl flex flex-col
+          bg-background/95 backdrop-blur-2xl border-r border-border shadow-2xl flex flex-col
           /* ขยายกว้างเป็น 500px ตามสั่ง */
           ${isChatOpen 
             ? "w-full md:w-[500px] translate-x-0" 
@@ -30,7 +30,7 @@ export default function MapPage() {
         <div className="absolute top-4 right-4 z-30">
           <button 
             onClick={() => setIsChatOpen(false)}
-            className="p-2 hover:bg-white/10 rounded-lg transition-colors text-white/40 hover:text-white"
+            className="p-2 hover:bg-accent rounded-lg transition-colors text-muted-foreground hover:text-foreground"
             title="Close Sidebar"
           >
             <PanelLeftClose className="w-5 h-5" />
@@ -45,7 +45,7 @@ export default function MapPage() {
       {!isChatOpen && (
         <button
           onClick={() => setIsChatOpen(true)}
-          className="absolute top-5 left-5 z-30 p-3.5 bg-slate-900 text-white rounded-2xl border border-white/20 shadow-2xl hover:bg-slate-800 transition-all active:scale-95 group"
+          className="absolute top-5 left-5 z-30 p-3.5 bg-card text-foreground rounded-2xl border border-border shadow-2xl hover:bg-accent transition-all active:scale-95 group"
         >
           <div className="flex items-center gap-2">
             <PanelLeftOpen className="w-6 h-6" />

@@ -5,6 +5,7 @@ import { Geist } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { AuthProvider } from "@/features/auth";
 import { ToastProvider } from "@/components/ui/Toast";
+import { ThemeProvider } from "@/components/theme-provider";
 
 const geist = Geist({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -32,6 +33,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      suppressHydrationWarning
       className={cn(
         "h-full",
         "antialiased",
@@ -42,10 +44,17 @@ export default function RootLayout({
         geist.variable
       )}
     >
-      <body className="min-h-full flex flex-col font-ibm bg-[#050505] text-slate-200">
-        <ToastProvider>
-          <AuthProvider>{children}</AuthProvider>
-        </ToastProvider>
+      <body className="min-h-full flex flex-col font-ibm"> 
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <ToastProvider>
+            <AuthProvider>{children}</AuthProvider>
+          </ToastProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

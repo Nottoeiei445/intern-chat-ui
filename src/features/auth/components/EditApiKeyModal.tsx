@@ -21,7 +21,6 @@ export const EditApiKeyModal = ({ isOpen, onClose, apiKey, onSuccess }: Props) =
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 🚀 ดึงข้อมูลเดิมมาใส่ในช่องเมื่อเปิด Modal
   useEffect(() => {
     if (apiKey && isOpen) {
       setName(apiKey.name);
@@ -87,7 +86,6 @@ export const EditApiKeyModal = ({ isOpen, onClose, apiKey, onSuccess }: Props) =
               <span className="text-sm">Status</span>
               <Info size={14} className="cursor-help" />
             </div>
-            {/* 🚀 Toggle Switch ตามรูป */}
             <button
               type="button"
               onClick={() => setStatus(status === "active" ? "revoked" : "active")}

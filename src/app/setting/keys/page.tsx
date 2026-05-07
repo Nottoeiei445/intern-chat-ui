@@ -40,7 +40,6 @@ export default function ApiKeysPage() {
             </div>
           </div>
 
-          {/* 🚀 ตัวจัดการ API Key ที่เราทำ Mock ไว้ */}
           <ApiKeyManager />
           
         </div>

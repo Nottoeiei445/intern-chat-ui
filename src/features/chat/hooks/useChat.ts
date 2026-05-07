@@ -45,10 +45,9 @@ export function useChat() {
     return [...list].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)); 
   }, []);
 
-
   useEffect(() => {
     if (apiKeys.gistda && pendingChat) {
-      console.log("🔑 API Key detected! Retrying pending request silently...");
+      console.log("[useChat] API Key detected! Retrying pending request silently...");
       
       // เรียก sendMessage เดิม แต่เปิดโหมด isSilentRetry
       sendMessage(
@@ -58,7 +57,7 @@ export function useChat() {
         { ...pendingChat.options, isSilentRetry: true }
       );
 
-      // ยิงเสร็จเคลียร์โพสต์อิททิ้ง
+      // ยิงเสร็จเคลียร์สถานะทิ้ง
       clearPendingChat();
     }
   }, [apiKeys.gistda, pendingChat]);
@@ -234,19 +233,27 @@ export function useChat() {
 
   const createNewChat = () => setActiveChatId(null); 
 
-
   // 3. Send Message
   const sendMessage = async (
     input: string, 
     model: string, 
     images: string[] = [], 
-    options?: { ephemeral?: boolean; isRegenerate?: boolean; explicitChatId?: string; isSilentRetry?: boolean;}
+    options?: { 
+      ephemeral?: boolean; 
+      isRegenerate?: boolean; 
+      explicitChatId?: string; 
+      isSilentRetry?: boolean;
+      isClarity?: boolean; // ประกาศ Type ตรงนี้
+      editMessageId?: string;    // ประกาศ Type ตรงนี้
+    }
   ) => { 
     if (!input.trim() && images.length === 0) return; 
     
     const ephemeral = options?.ephemeral ?? false;
     const isRegenerate = options?.isRegenerate ?? false;
-    const isSilentRetry = options?.isSilentRetry ?? false; // 🚀 รับค่าโหมดเงียบ
+    const isSilentRetry = options?.isSilentRetry ?? false; 
+    const isClarity = options?.isClarity ?? false;
+    const editMessageId = options?.editMessageId ?? null;
 
     if(!input.trim() && images.length === 0 && !isRegenerate) return;
     
@@ -258,7 +265,7 @@ export function useChat() {
     let currentId = initialId;
     let isNewSession = false; 
 
-    // 🚀 ปรับเงื่อนไข: ถ้าเป็น Silent Retry ห้าม Render ข้อความ User ซ้ำบนจอ
+    // ปรับเงื่อนไข: ถ้าเป็น Silent Retry ห้าม Render ข้อความ User ซ้ำบนจอ
     if (!isRegenerate && !isSilentRetry) {
       const userMsg: Message = { 
         role: "user", 
@@ -310,18 +317,58 @@ export function useChat() {
     }
 
     setIsLoading(true);
-
     try {
       const payload = { 
         message: input, 
         model: model, 
         ephemeral: ephemeral,
         is_generate: isRegenerate,
-        is_silent_retry: isSilentRetry, // 🚀 ส่งค่า Snake Case ให้หลังบ้าน
+        is_silent_retry: isSilentRetry, 
+        is_clarity: isClarity, // ส่ง flag ไปให้หลังบ้าน
+        ...(editMessageId && { edit_message_id: editMessageId }), // ส่ง ID ไปให้หลังบ้านเพื่อตัด History
         ...(images.length > 0 && { images }), 
         ...((isNewSession || ephemeral) ? {} : { conversationId: currentId })
       };
       
+      if (input.trim() === "test_flow") {
+        const mockChoiceMsg: Message = {
+          id: `mock_choice_${Date.now()}`,
+          role: "assistant",
+          content: "เลือกช่วงเวลาที่ต้องการดูข้อมูล:",
+          choices: [
+            { label: "🔥 24 ชั่วโมง", value: "24 ชม." },
+            { label: "📅 7 วัน", value: "7 วัน" }
+          ]
+        };
+        setChats(prev => prev.map(chat => chat.id === currentId ? { ...chat, messages: [...chat.messages, mockChoiceMsg] } : chat));
+        setIsLoading(false);
+        return; 
+      }
+
+      if (payload.is_clarity) {
+        console.log("✅ [SUCCESS] ยิง Payload Clarity:", payload);
+        const mockConfirmMsg: Message = {
+          id: `mock_confirm_${Date.now()}`,
+          role: "assistant",
+          content: `✅ หลังบ้านได้รับ Choice: **"${payload.message}"**\n(ลองเช็กใน Console (F12) ดูครับ จะเห็นว่าส่ง is_clarity: true ไปด้วย)`
+        };
+        setChats(prev => prev.map(chat => chat.id === currentId ? { ...chat, messages: [...chat.messages, mockConfirmMsg] } : chat));
+        setIsLoading(false);
+        return;
+      }
+
+      if (payload.edit_message_id) {
+        console.log("✅ [SUCCESS] ยิง Payload Edit Message:", payload);
+        const mockEditMsg: Message = {
+          id: `mock_edit_${Date.now()}`,
+          role: "assistant",
+          content: `✂️ หลังบ้านได้รับคำสั่ง **Edit**!\n- ข้อความใหม่: **"${payload.message}"**\n- สั่งให้ตัดประวัติตั้งแต่ ID: **${payload.edit_message_id}**\n(ลองเช็กใน Console (F12) ดูได้เลยครับ)`
+        };
+        setChats(prev => prev.map(chat => chat.id === currentId ? { ...chat, messages: [...chat.messages, mockEditMsg] } : chat));
+        setIsLoading(false);
+        return;
+      }
+
       const response = await chatService.sendMessageStream(payload, apiKeys.gistda);
       let realIdToSwapLater = response.headers.get('X-Conversation-Id') || response.headers.get('conversation_id');
       const assistantMsg: Message = { role: "assistant", content: "" };
@@ -358,7 +405,7 @@ export function useChat() {
 
                 const data = JSON.parse(jsonStr);
 
-                //ดัก Error ขอคีย์: จดคำสั่งลง Store และสั่งเด้ง Modal
+                // ดัก Error ขอคีย์: จดคำสั่งลง Store และสั่งเด้ง Modal
                 if (data.code === 'missing_x_api_key' || data.needsApiKey) {
                   setPendingChat({ input, model, images, options }); // แอบจำไว้ในใจ
                   openKeyModal(); // เด้งหน้าต่างทวงคีย์
@@ -380,7 +427,6 @@ export function useChat() {
                 }
 
                 if (data.event === 'layer_catalog' && data.layer) {
-                  // ... (โค้ด map เดิม)
                   const backendData = data.layer;
                   const newLayer: DynamicLayerPayload = {
                     id: backendData.basename || backendData.layerName || `ai-layer-${Date.now()}`,
@@ -398,7 +444,7 @@ export function useChat() {
                   continue;
                 }
 
-                if (data.event === 'clarification' || data.event === 'need_information') {
+                if (data.event === 'map_options' || data.needInfo ) {
                   if (ephemeral) {
                     // กรณีเป็น Ephemeral Message 
                     setEphemeralMessages(prev => {
@@ -420,7 +466,7 @@ export function useChat() {
                         if (lastIdx >= 0 && safeMsgs[lastIdx].role === "assistant") {
                           safeMsgs[lastIdx] = { 
                             ...safeMsgs[lastIdx], 
-                            choices: data.choices // <--- จุดที่เอา Choices ไปเก็บ
+                            choices: data.choices // จุดที่เอา Choices ไปเก็บ
                           };
                         }
                         return { ...chat, messages: safeMsgs };
@@ -428,10 +474,10 @@ export function useChat() {
                       return chat;
                     }));
                   }
-                  continue; //ข้ามไปอ่านบรรทัดต่อไป ไม่ต้องพ่น Choices ออกมาเป็น Text
+                  continue; // ข้ามไปอ่านบรรทัดต่อไป ไม่ต้องพ่น Choices ออกมาเป็น Text
                 }
 
-                // ... (ลอจิกจัดการข้อความและสลับ ID เหมือนเดิม)
+                // ลอจิกจัดการข้อความและสลับ ID เหมือนเดิม
                 const incomingUserId = data.usermessage_id || data.userMessageId;
                 const incomingAssistantId = data.assistantmessage_Id || data.assistantMessageId;
 
@@ -580,7 +626,11 @@ export function useChat() {
         return chat;
       }));
       
-      await sendMessage(newContent, model, [], { isRegenerate: true });
+      // ส่งคำสั่งพร้อมแนบ ID ข้อความไปให้หลังบ้านจัดการตัด Context
+      await sendMessage(newContent, model, [], { 
+        isRegenerate: true,
+        editMessageId: messageId 
+      });
       
     } catch (error) {
       console.error("Failed to edit message:", error);

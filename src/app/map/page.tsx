@@ -9,12 +9,7 @@ export default function MapPage() {
   const [isChatOpen, setIsChatOpen] = useState(true);
 
   return (
-    <main className="relative h-screen w-full overflow-hidden bg-black">
-      
-      {/* 🗺️ 1. แผนที่ (ฉากหลัง) */}
-      <div className="absolute inset-0 z-0">
-        <MapDashboard hideControls={true} />
-      </div>
+    <main className="relative h-screen w-full overflow-hidden">
 
       {/* 💬 2. แถบแชท (Sidebar ฝั่งซ้าย) */}
       <div

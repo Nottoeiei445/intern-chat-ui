@@ -103,13 +103,13 @@ export const Sidebar = ({
       <aside 
         className={`
           ${isOpen ? "w-64" : "w-[68px]"} 
-          flex flex-col bg-[#1e1f20] transition-all duration-300 ease-in-out z-50 h-full overflow-hidden shrink-0
+          flex flex-col bg-sidebar border-r border-sidebar-border transition-all duration-300 ease-in-out z-50 h-full overflow-hidden shrink-0
         `}
       >
         <div className="h-16 flex items-center px-[18px] shrink-0">
           <button 
             onClick={onToggle}
-            className="p-2 hover:bg-white/10 rounded-full text-slate-300 transition-colors"
+            className="p-2 hover:bg-accent rounded-full text-sidebar-foreground transition-colors"
           >
             <Menu size={22} />
           </button>
@@ -119,7 +119,7 @@ export const Sidebar = ({
           <button 
             onClick={handleNewClick}
             className={`
-              flex items-center gap-3 bg-[#2b2c2e] hover:bg-[#37393b] text-slate-200 
+              flex items-center gap-3 bg-primary hover:bg-primary/90 text-primary-foreground 
               h-10 rounded-full transition-all duration-300
               ${isOpen ? "px-4 w-fit" : "w-10 justify-center px-0 mx-auto"}
               ${isGuest ? "opacity-80" : ""} 
@@ -135,7 +135,7 @@ export const Sidebar = ({
         </div>
 
         <div className={`flex-1 overflow-y-auto px-3 space-y-1 transition-opacity duration-200 ${isOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}>
-          <p className="px-4 py-2 text-xs font-bold text-slate-500 font-ibm uppercase tracking-wider">Last Chat</p>
+          <p className="px-4 py-2 text-xs font-bold text-muted-foreground font-ibm uppercase tracking-wider">Last Chat</p>
           
           {chats.map((chat) => (
             <div 
@@ -143,16 +143,16 @@ export const Sidebar = ({
               onClick={() => !editingId && handleSelect(chat.id)}
               className={`
                 flex items-center justify-between gap-3 p-3 rounded-full cursor-pointer group transition-colors
-                ${activeId === chat.id ? "bg-blue-600/20 text-blue-400" : "hover:bg-white/5 text-slate-300"}
+                ${activeId === chat.id ? "bg-accent text-accent-foreground" : "hover:bg-accent/50 text-sidebar-foreground"}
               `}
             >
               <div className="flex items-center gap-3 overflow-hidden flex-1">
-                <MessageSquare size={18} className={`shrink-0 ${activeId === chat.id ? "text-blue-400" : "text-slate-500"}`} />
+                <MessageSquare size={18} className={`shrink-0 ${activeId === chat.id ? "text-primary" : "text-muted-foreground"}`} />
                 
                 {editingId === chat.id ? (
                   <input
                     autoFocus
-                    className="bg-[#050505] border border-blue-500/50 rounded px-2 py-0.5 text-sm w-full outline-none font-ibm"
+                    className="bg-background border border-border rounded px-2 py-0.5 text-sm w-full outline-none font-ibm text-foreground"
                     value={tempTitle}
                     onChange={(e) => setTempTitle(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSave(e, chat.id)}
@@ -166,10 +166,10 @@ export const Sidebar = ({
               <div className="flex items-center gap-1 shrink-0">
                 {editingId === chat.id ? (
                   <>
-                    <button onClick={(e) => handleSave(e, chat.id)} className="p-1 hover:text-green-400">
+                    <button onClick={(e) => handleSave(e, chat.id)} className="p-1 text-muted-foreground hover:text-green-500">
                       <Check size={14} />
                     </button>
-                    <button onClick={handleCancel} className="p-1 hover:text-red-400">
+                    <button onClick={handleCancel} className="p-1 text-muted-foreground hover:text-destructive">
                       <X size={14} />
                     </button>
                   </>
@@ -183,8 +183,8 @@ export const Sidebar = ({
                             onClick={(e) => handleStartEdit(e, chat)}
                             className={`p-1 transition-all ${
                               isGuest 
-                                ? "opacity-40 pointer-events-none" 
-                                : "opacity-0 group-hover:opacity-100 hover:text-blue-400"
+                                ? "opacity-40 pointer-events-none text-muted-foreground" 
+                                : "opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-primary"
                             }`}
                           >
                             <Pencil size={14} />
@@ -192,9 +192,9 @@ export const Sidebar = ({
                         </span>
                       </TooltipTrigger>
                       {isGuest && (
-                        <TooltipContent side="top" className="bg-[#2b2c2e] text-slate-200 border-white/10 font-ibm text-xs">
+                        <TooltipContent side="top" className="bg-popover text-popover-foreground border-border font-ibm text-xs">
                           <div className="flex items-center gap-2">
-                            <Lock size={12} className="text-blue-400" />
+                            <Lock size={12} className="text-primary" />
                             <p>Sign in to rename</p>
                           </div>
                         </TooltipContent>
@@ -208,8 +208,8 @@ export const Sidebar = ({
                             onClick={(e) => handleDelete(e, chat.id)}
                             className={`p-1 transition-all ${
                               isGuest 
-                                ? "opacity-40 pointer-events-none" 
-                                : "opacity-0 group-hover:opacity-100 hover:text-red-400"
+                                ? "opacity-40 pointer-events-none text-muted-foreground" 
+                                : "opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
                             }`}
                           >
                             <Trash2 size={14} />
@@ -217,9 +217,9 @@ export const Sidebar = ({
                         </span>
                       </TooltipTrigger>
                       {isGuest && (
-                        <TooltipContent side="top" className="bg-[#2b2c2e] text-slate-200 border-white/10 font-ibm text-xs">
+                        <TooltipContent side="top" className="bg-popover text-popover-foreground border-border font-ibm text-xs">
                           <div className="flex items-center gap-2">
-                            <Lock size={12} className="text-red-400" />
+                            <Lock size={12} className="text-destructive" />
                             <p>Sign in to delete</p>
                           </div>
                         </TooltipContent>
@@ -233,21 +233,21 @@ export const Sidebar = ({
           ))}
         </div>
 
-        <div className="p-3 border-t border-white/5 shrink-0">
-          <div className={`flex items-center gap-3 p-3 rounded-full hover:bg-white/5 text-slate-400 cursor-pointer ${!isOpen && "justify-center"}`}>
+        <div className="p-3 border-t border-sidebar-border shrink-0">
+          <div className={`flex items-center gap-3 p-3 rounded-full hover:bg-accent text-sidebar-foreground cursor-pointer transition-colors ${!isOpen && "justify-center"}`}>
             <Settings size={18} />
             {isOpen && <span className="font-ibm text-sm">Settings</span>}
           </div>
         </div>
 
         <Dialog open={showGuestModal} onOpenChange={setShowGuestModal}>
-          <DialogContent className="sm:max-w-md bg-[#111] border-slate-800 text-slate-200 shadow-2xl">
+          <DialogContent className="sm:max-w-md bg-background border-border text-foreground shadow-2xl">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2 text-xl font-ibm">
-                <Sparkles className="text-blue-500" size={20} />
+                <Sparkles className="text-primary" size={20} />
                 Unlock Full Features
               </DialogTitle>
-              <DialogDescription className="text-slate-400 pt-2 font-ibm text-sm">
+              <DialogDescription className="text-muted-foreground pt-2 font-ibm text-sm">
                 Guest sessions are limited to a single active conversation. Log in or create an account to save your chat history, start new topics, and customize your experience!
               </DialogDescription>
             </DialogHeader>
@@ -256,14 +256,14 @@ export const Sidebar = ({
               <button 
                 type="button" 
                 onClick={() => setShowGuestModal(false)}
-                className="px-4 py-2 rounded-xl hover:bg-white/5 text-slate-300 font-ibm text-sm transition-colors"
+                className="px-4 py-2 rounded-xl hover:bg-accent text-foreground font-ibm text-sm transition-colors"
               >
                 Cancel
               </button>
               <button 
                 type="button" 
                 onClick={() => router.push("/login")}
-                className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-ibm text-sm transition-colors shadow-lg"
+                className="px-4 py-2 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground font-ibm text-sm transition-colors shadow-lg"
               >
                 Sign in to continue
               </button>

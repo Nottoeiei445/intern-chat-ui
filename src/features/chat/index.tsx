@@ -35,7 +35,6 @@ export const ChatFeature = () => {
     hasMore,          
     isFetchingHistory,   
     isGuestExpired,
-    setChats,
     setIsGuestExpired,
   } = useChat();
 
@@ -67,12 +66,10 @@ export const ChatFeature = () => {
   };
 
   const handleSendChoice = (choiceValue: string) => {
-    const lastUserMsg = [...messagesToShow].reverse().find(m => m.role === "user");
-    const originalPrompt = lastUserMsg?.content || "";
-
-    const newPrompt = `${originalPrompt} ${choiceValue}`.trim();
-
-    sendMessage(newPrompt, selectedModel, [], { isSilentRetry: true } as any);
+    sendMessage(choiceValue, selectedModel, [], { 
+      isSilentRetry: true,       
+      isClarity: true
+    } as any);
   };
 
   const handleSendMessage = async (val: string, images: string[] = []) => {

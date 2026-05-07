@@ -1,4 +1,4 @@
-export interface ClarificationChoice {
+export interface ClarityChoice {
   label: string;
   value: string;
   // อนาคตถ้าอยากแนบประเภท Layer หรือ Provider ก็สามารถเพิ่มได้ เช่น:
@@ -11,7 +11,7 @@ export interface Message {
   content: string;
   thinking?: string;
   images?: string[]; 
-  choices?: ClarificationChoice[];
+  choices?: ClarityChoice[];
 }
 
 export interface ChatThread {

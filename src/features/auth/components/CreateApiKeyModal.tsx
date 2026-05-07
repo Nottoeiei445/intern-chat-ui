@@ -10,7 +10,6 @@ interface Props {
   onSuccess: (newKey: ApiKey) => void;
 }
 
-// 🚀 เพิ่มประเภทการจำกัดสิทธิ์
 type RestrictionType = "None" | "HTTP Referer" | "IP Address";
 
 export const CreateApiKeyModal = ({ isOpen, onClose, onSuccess }: Props) => {

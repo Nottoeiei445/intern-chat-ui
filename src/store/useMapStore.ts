@@ -18,12 +18,10 @@ interface MapState {
   setApiKey: (serviceName: string, key: string) => void;
   clearApiKeys: () => void;
 
-  // 🚀 1. เพิ่มของเกี่ยวกับ Modal ขอคีย์
   isKeyModalOpen: boolean;
   openKeyModal: () => void;
   closeKeyModal: () => void;
 
-  // 🚀 2. เพิ่มของเกี่ยวกับระบบ แอบจำแล้วยิงซ้ำ (Silent Retry)
   pendingChat: PendingChatData | null;
   setPendingChat: (chatData: PendingChatData) => void;
   clearPendingChat: () => void;
