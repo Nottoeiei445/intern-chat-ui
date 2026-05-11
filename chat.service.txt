@@ -2,8 +2,6 @@
 import apiClient from '@/lib/api-client';
 import { CHAT_CONFIG } from '../config/chat.config';
 
-const IS_LOCAL_TEST = true;
-
 export const chatService = {
   // 1. ดึงประวัติแชททั้งหมด
   getHistories: (userId?: string) => {
@@ -17,8 +15,7 @@ export const chatService = {
       
     return apiClient.get<any>(url);
   },
-
-  //3. แก้ตรงนี้ครับ! เพิ่มเงื่อนไข if สับราง
+  // 3. ส่งข้อความใหม่ (แบบไม่ไหล)
   sendMessageStream: (payload: { 
     message: string; 
     userId?: string; 
@@ -26,19 +23,8 @@ export const chatService = {
     ephemeral?: boolean; 
     images?: string[];
     conversationId?: string | null 
-  }, apiKey?: string) => { 
+  }, apiKey?: string) => { // <--- รับ apiKey มาจาก Component
 
-    // ถ้าเปิดโหมดเทส (true) ให้ยิงเข้า Local API Route ของเราที่พึ่งสร้าง
-    if (IS_LOCAL_TEST) {
-      console.log("[DEV MODE] Routing to Local API...");
-      return fetch('/api/local-chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-    }
-
-    // ถ้าปิดโหมดเทส (false) ให้ยิงไปหลังบ้านจริงด้วย apiClient ตามเดิม
     return apiClient.stream(`${CHAT_CONFIG.endpoints.chat}`, payload, {
       headers: {
         'X-API-Key': apiKey || '',

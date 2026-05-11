@@ -21,7 +21,7 @@ interface MessageItemProps {
   isFetchingHistory: boolean;
   scrollToBottom: () => void;
   onEditMessage?: (id: string, newContent: string) => void;
-  onSendChoice?: (choiceValue: string) => void;
+  onSendChoice?: (key: string, choiceValue: string) => void;
 }
 
 export const MessageItem = ({ 
@@ -119,34 +119,38 @@ export const MessageItem = ({
           msg.role === "user" ? "bg-primary text-primary-foreground rounded-tr-none shadow-xl" : "bg-muted border border-border text-foreground rounded-tl-none"
         }`}>
           <div className="flex gap-4">
-            <div className="opacity-60 mt-1">
+            <div className="opacitye-60 mt-1">
               {msg.role === "user" ? <User size={20}/> : <Bot size={20}/>}
             </div>
             <div className="flex-1 space-y-4 min-w-0">
               
               {isEditing ? (
                 <div className="flex flex-col gap-3 w-full min-w-0">
+                  {/* Layer 3: พื้นหลังข้อความ (ดึงสีพื้นหลังแอปมาใช้ เพื่อให้เป็น สีดำใน Dark / สีขาวใน Light) */}
                   <Textarea
                     value={editValue}
                     onChange={(e) => setEditValue(e.target.value)}
-                    className="w-full bg-background border-border text-foreground resize-none focus-visible:ring-primary"
+                    className="w-full bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 border-transparent focus-visible:ring-2 focus-visible:ring-black/20 dark:focus-visible:ring-white/20 p-3 rounded-xl shadow-inner"
                     rows={3}
                     autoFocus
                   />
-                  <div className="flex justify-end gap-2">
+                  <div className="flex justify-end gap-2 mt-1">
+                    {/* ปุ่ม Cancel: ให้ตัวหนังสือสีกลืนกับ Layer 1 แต่พอ Hover ให้มีพื้นหลังจางๆ */}
                     <Button 
                       variant="ghost" 
                       size="sm" 
-                      className="text-xs hover:bg-accent hover:text-foreground" 
+                      className="text-xs text-primary-foreground hover:bg-black/10 dark:hover:bg-white/10" 
                       onClick={handleCancel}
                     >
                       Cancel
                     </Button>
+                    
+                    {/* Layer 2: ปุ่ม Submit (ดึงสีพื้นหลังแอปมาทำเป็นปุ่ม เพื่อให้ลอยตัดกับ Layer 1) */}
                     <Button
                       size="sm"
                       disabled={editValue === msg.content || !editValue.trim() || isLoading}
                       onClick={handleSubmit}
-                      className="text-xs bg-primary text-primary-foreground hover:bg-primary/90"
+                      className="text-xs bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 hover:bg-gray-100 dark:hover:bg-zinc-800 shadow-sm"
                     >
                       Submit
                     </Button>
@@ -188,7 +192,7 @@ export const MessageItem = ({
                     {msg.choices.map((choice, idx) => (
                       <button
                         key={idx}
-                        onClick={() => onSendChoice?.(choice.value)}
+                        onClick={() => onSendChoice?.(msg.choiceKey || "", choice.value)}
                         className="group relative flex items-center justify-between w-full px-4 py-3 bg-background border border-border rounded-xl hover:bg-accent hover:border-primary/50 transition-all duration-300 active:scale-[0.98] text-left overflow-hidden shadow-sm hover:shadow-md"
                       >
                         {/* Text Content */}

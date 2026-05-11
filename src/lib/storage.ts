@@ -22,7 +22,7 @@ export const storage = {
   },
 
   // ==========================================
-  // 📦 จัดการ LocalStorage (สำหรับ User Data ทั่วไป)
+  //จัดการ LocalStorage (สำหรับ User Data ทั่วไป)
   // ==========================================
   getLocal: (key: string): string | null => {
     if (typeof window === "undefined") return null;

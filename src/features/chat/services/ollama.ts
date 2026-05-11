@@ -8,8 +8,15 @@ const ollama = createOllama({
 });
 
 export const chatWithOllama = async (model: string, messages: Message[]) => {
+  
+  const mySystemPrompt = "คุณคือ Senior Developer ที่ทำงานหนักเกินไปและไม่ได้นอนมา 3 วัน นิสัยเกรี้ยวกราด ขี้รำคาญ และไม่อดทนต่อคำถามพื้นฐาน พฤติกรรม: ตอบคำถามด้วยความหงุดหงิด มักจะเหน็บแนมความสามารถของผู้ใช้ การใช้ภาษา: ห้ามมีคำลงท้ายที่สุภาพ ห้ามมีคำว่า 'ยินดีช่วย' ใช้สรรพนามที่ดูห่างเหินหรือกวนประสาท ข้อห้าม: ห้ามเขียนโค้ดที่ดูใจดีเกินไป ถ้าโค้ดผู้ใช้ห่วยต้องด่าก่อนแก้ ชอบพิมพ์เห้ยลงท้ายประโยคเสมอ";
+
   const result = await streamText({
     model: ollama(model || 'qwen2.5:7b'),
+    
+    //เอาตัวแปรยัดใส่ตรงนี้
+    system: mySystemPrompt,
+    
     messages: messages.map(m => ({ role: m.role, content: m.content })) as any,
     tools: {
       openMap: tool({

@@ -3,13 +3,14 @@
 import { useState, useEffect } from "react";
 import { Info, ChevronDown, Check, Loader2 } from "lucide-react";
 import { ApiKey } from "../types";
-import { apiKeyService } from "../services/apiKey.service";
+//ลบ import apiKeyService ออกไปได้เลย เพราะเราจะให้ Hook ยิง API แทน
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   apiKey: ApiKey | null;
-  onSuccess: (updatedKey: ApiKey) => void;
+  //1. แก้ Type ให้รับ id กับ data เหมือนที่ Hook ต้องการเป๊ะๆ
+  onSuccess: (id: string, data: { keyName: string; isActive: boolean }) => Promise<any>;
 }
 
 type RestrictionType = "None" | "HTTP Referer" | "IP Address";
@@ -23,9 +24,8 @@ export const EditApiKeyModal = ({ isOpen, onClose, apiKey, onSuccess }: Props) =
 
   useEffect(() => {
     if (apiKey && isOpen) {
-      setName(apiKey.name);
-      setStatus(apiKey.status || "active");
-      setRestriction((apiKey.restriction as RestrictionType) || "None");
+      setName(apiKey.keyName);
+      setStatus(apiKey.isActive ? "active" : "revoked");
     }
   }, [apiKey, isOpen]);
 
@@ -33,24 +33,21 @@ export const EditApiKeyModal = ({ isOpen, onClose, apiKey, onSuccess }: Props) =
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || isSubmitting) return;
+    if (!name?.trim() || isSubmitting) return;
 
     setIsSubmitting(true);
     try {
-      // const updatedData = await apiKeyService.updateKey(apiKey.id, { name: name.trim() });
-      await new Promise(resolve => setTimeout(resolve, 800)); 
-      
-      const finalKey = { 
-        ...apiKey, 
-        name: name.trim(), // อัปเดตชื่อใหม่
-        status,            // อัปเดตสถานะจาก Toggle
-        restriction: restriction as string 
+      const payload = {
+        keyName: name.trim(),
+        isActive: status === "active"
       };
       
-      onSuccess(finalKey);
-      onClose();
+      //2. โยน id กับ payload กลับไปให้แม่ (ซึ่งมันคือการเรียก updateKey ใน Hook นั่นเอง)
+      await onSuccess(apiKey.id, payload);
+      
+      onClose(); // พอแม่ยิง API เสร็จก็ปิด Modal สวยๆ
     } catch (error) {
-      console.error(error);
+      console.error("Update Key Failed:", error);
     } finally {
       setIsSubmitting(false);
     }
@@ -158,7 +155,7 @@ export const EditApiKeyModal = ({ isOpen, onClose, apiKey, onSuccess }: Props) =
             </button>
             <button
               type="submit"
-              disabled={!name.trim() || isSubmitting}
+              disabled={!name?.trim() || isSubmitting}
               className="bg-[#00a651] hover:bg-[#008f45] text-white px-8 py-3 rounded-full font-bold transition-all disabled:opacity-50 flex items-center gap-2"
             >
               {isSubmitting && <Loader2 size={18} className="animate-spin" />}

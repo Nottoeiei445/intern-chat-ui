@@ -15,6 +15,7 @@ import { authService } from "../auth/services/auth.service";
 import { isGuestTimeUp } from "@/features/auth/utils/guest-timer.util";
 import { useState, useMemo } from "react";  
 import { useRouter } from "next/navigation";
+import { useMapStore } from '@/store/useMapStore';
 
 export const ChatFeature = () => {
   const { user } = useAuth();
@@ -37,6 +38,8 @@ export const ChatFeature = () => {
     isGuestExpired,
     setIsGuestExpired,
   } = useChat();
+
+  const isKeyModalOpen = useMapStore(state => state.isKeyModalOpen);
 
   const { 
     models, 
@@ -65,10 +68,12 @@ export const ChatFeature = () => {
     setActiveChatId(id);
   };
 
-  const handleSendChoice = (choiceValue: string) => {
+  const handleSendChoice = (key: string, choiceValue: string) => {
     sendMessage(choiceValue, selectedModel, [], { 
       isSilentRetry: true,       
-      isClarity: true
+      isClarity: true,
+      choiceKey: key, // ส่ง key ไปด้วยเพื่อให้รู้ว่าชุด choices นี้เกี่ยวข้องกับคำถามหรือข้อความไหน (ถ้ามี)
+      choiceValue: choiceValue // ส่ง value ไปด้วยเผื่อจำเป็นต้องใช้ในอนาคต
     } as any);
   };
 
@@ -116,7 +121,8 @@ export const ChatFeature = () => {
         activeId={activeChatId} 
         onSelect={handleSelect} 
         onNew={handleCreateNew} 
-        onDelete={deleteChat} 
+        onDelete={deleteChat}
+        isKeyModalOpen={isKeyModalOpen} 
       />
       
       <div className="flex-1 flex flex-col relative min-w-0 h-screen">

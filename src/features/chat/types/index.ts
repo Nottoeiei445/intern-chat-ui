@@ -12,6 +12,7 @@ export interface Message {
   thinking?: string;
   images?: string[]; 
   choices?: ClarityChoice[];
+  choiceKey?: string; // เพื่อระบุว่าชุด choices นี้เกี่ยวข้องกับคำถามหรือข้อความไหน (ถ้ามี)
 }
 
 export interface ChatThread {

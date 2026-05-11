@@ -13,7 +13,7 @@ interface Props {
   isFetchingHistory?: boolean;
   onEditMessage?: (id: string, newContent: string) => void;
   onSelectTemplate?: (text: string) => void; 
-  onSendChoice?: (choiceValue: string) => void;
+  onSendChoice?: (key: string, choiceValue: string) => void;
 }
 
 export const MessageList = ({ 

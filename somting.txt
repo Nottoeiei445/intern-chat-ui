@@ -1,0 +1,25 @@
+//--- กรณี VECTOR TILE (ฉบับแก้ไข) ---
+else if (layerConfig.type === 'vector') {
+  map.addSource(sourceId, {
+    type: 'vector',
+    tiles: [fullUrl],
+    // ... ค่า zoom/bounds อื่นๆ ...
+  });
+
+  // 🚀 ตรงนี้แหละครับหัวใจ! 
+  // เราดึงค่า layerType (heatmap/fill/line) และ paint มาจาก config ที่ AI ส่งมา
+  const { layerType, paint } = layerConfig.renderConfig || { layerType: 'circle', paint: {} };
+
+  map.addLayer({
+    id: layerId,
+    type: layerType, // เช่น 'heatmap' หรือ 'fill' หรือ 'line'
+    source: sourceId,
+    'source-layer': layerConfig.layerId || 'default',
+    paint: paint // 🌟 เสียบก้อนสี/สไตล์จาก JSON เข้าไปเลย!
+  });
+
+  activeLayerIds.current.push(layerId);
+  activeLayerIds.current.push(sourceId);
+  
+  // ... ส่วนที่เหลือเหมือนเดิม ...
+}

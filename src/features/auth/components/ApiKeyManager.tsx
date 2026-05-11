@@ -7,16 +7,18 @@ import { ApiKeyCard } from "./ApiKeyCard";
 import { CreateApiKeyModal } from "./CreateApiKeyModal";
 import { EditApiKeyModal } from "./EditApiKeyModal"; 
 import { useApiKeys } from "../hooks/useApiKeys";
+import { ViewApiKeyModal } from './ViewApiKeyModal';
 
 export const ApiKeyManager = () => {
   const { keys, isLoading, addKey, updateKey, deleteKey } = useApiKeys();
-
+  const [viewingKeyId, setViewingKeyId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingKey, setEditingKey] = useState<ApiKey | null>(null);
 
-  const filteredKeys = keys.filter(k => 
-    k.name.toLowerCase().includes(searchQuery.toLowerCase())
+  //เพิ่มการเช็ค Array.isArray ป้องกันหน้าจอขาวเวลาโหลดข้อมูลไม่ทัน
+  const filteredKeys = (Array.isArray(keys) ? keys : []).filter(k => 
+    k?.keyName?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   return (
@@ -26,7 +28,7 @@ export const ApiKeyManager = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-3">
-            API Keys <span className="text-slate-500 text-lg">({keys.length})</span>
+            API Keys <span className="text-slate-500 text-lg">({Array.isArray(keys) ? keys.length : 0})</span>
           </h1>
         </div>
         <button 
@@ -78,6 +80,9 @@ export const ApiKeyManager = () => {
               apiKey={key} 
               onDelete={deleteKey}
               onEdit={(keyToEdit) => setEditingKey(keyToEdit)} 
+              onView={(keyId) => {
+                setViewingKeyId(keyId);
+              }}
             />
           ))}
           
@@ -101,6 +106,13 @@ export const ApiKeyManager = () => {
         apiKey={editingKey}
         onClose={() => setEditingKey(null)}
         onSuccess={updateKey} 
+      />
+
+      {/*เสียบ View Modal เข้าไปตรงนี้ครับ! */}
+      <ViewApiKeyModal
+        isOpen={!!viewingKeyId}
+        onClose={() => setViewingKeyId(null)}
+        apiKeyId={viewingKeyId}
       />
     </div>
   );

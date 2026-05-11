@@ -5,9 +5,7 @@ import { useAuth } from "@/features/auth";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "next/navigation";
 import { AUTH_CONFIG } from "@/features/auth";
-// 1. นำเข้า Sun, Moon มาจาก lucide-react
 import { LogIn, LogOut, KeyRound, User as UserIcon, Sun, Moon } from "lucide-react";
-// 2. นำเข้า useTheme
 import { useTheme } from "next-themes";
 
 const getInitials = (name?: string) => {
@@ -23,7 +21,6 @@ export const AuthWidget = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
   
-  // 3. ดึง theme และฟังก์ชันสลับธีมมาใช้
   const { theme, setTheme } = useTheme();
 
   useEffect(() => {
@@ -81,12 +78,9 @@ export const AuthWidget = () => {
                 Profile
               </button>
 
-              {/* ☀️🌙 ปุ่ม Toggle Theme เพิ่มเข้ามาตรงนี้ครับ */}
               <button
                 onClick={() => {
                   setTheme(theme === "dark" ? "light" : "dark");
-                  // ถ้าอยากให้กดแล้วเมนูหดปิดไปเลย เอาคอมเมนต์บรรทัดล่างออกครับ
-                  // setMenuOpen(false); 
                 }}
                 className="w-full flex items-center gap-3 px-3 py-2 text-sm text-foreground hover:bg-accent rounded-lg transition-colors"
               >

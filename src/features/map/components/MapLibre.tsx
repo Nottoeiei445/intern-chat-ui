@@ -18,7 +18,7 @@ interface MapLibreProps {
   dynamicLayers?: DynamicLayerPayload[];
 }
 
-export const MapLibre = ({ activeHazard, timeRange, mapMode, activeBoundary, dynamicLayers = [] }: MapLibreProps) => {
+export const MapLibre = ({ activeBoundary, dynamicLayers = [] }: MapLibreProps) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<maplibregl.Map | null>(null);
   const [selectedData, setSelectedData] = useState<any>(null);

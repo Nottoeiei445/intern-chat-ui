@@ -1,0 +1,179 @@
+{
+  "wildfire_1d": {
+    "description": "ไฟป่า 1 วัน: ร้อนแรง จุดสว่างชัดเจน รัศมีแคบ (Active Fire)",
+    "renderConfig": {
+      "layerType": "heatmap",
+      "paint": {
+        "heatmap-weight": 1,
+        "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 9, 3],
+        "heatmap-color": ["interpolate", ["linear"], ["heatmap-density"], 0, "rgba(255,255,255,0)", 0.2, "rgb(255,255,178)", 0.5, "rgb(253,141,60)", 1, "rgb(189,0,38)"],
+        "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 3, 9, 12],
+        "heatmap-opacity": 0.9
+      }
+    }
+  },
+  "wildfire_3d": {
+    "description": "ไฟป่า 3 วัน: รัศมีเริ่มกระจาย สีส้มแดง",
+    "renderConfig": {
+      "layerType": "heatmap",
+      "paint": {
+        "heatmap-weight": 0.9,
+        "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 9, 2.5],
+        "heatmap-color": ["interpolate", ["linear"], ["heatmap-density"], 0, "rgba(255,255,255,0)", 0.2, "rgb(254,204,92)", 0.5, "rgb(240,59,32)", 1, "rgb(165,15,21)"],
+        "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 4, 9, 16],
+        "heatmap-opacity": 0.8
+      }
+    }
+  },
+  "wildfire_7d": {
+    "description": "ไฟป่าสะสม 7 วัน: สีแดงเข้ม รัศมีกว้างขึ้น (Accumulated)",
+    "renderConfig": {
+      "layerType": "heatmap",
+      "paint": {
+        "heatmap-weight": 0.8,
+        "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 9, 2],
+        "heatmap-color": ["interpolate", ["linear"], ["heatmap-density"], 0, "rgba(255,255,255,0)", 0.2, "rgb(252,174,145)", 0.5, "rgb(222,45,38)", 1, "rgb(103,0,13)"],
+        "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 5, 9, 22],
+        "heatmap-opacity": 0.7
+      }
+    }
+  },
+  "wildfire_30d": {
+    "description": "ไฟป่าประวัติ 30 วัน: สีแดงคล้ำ/ม่วง กระจายตัวกว้างสุด โปร่งแสง",
+    "renderConfig": {
+      "layerType": "heatmap",
+      "paint": {
+        "heatmap-weight": 0.6,
+        "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 9, 1.5],
+        "heatmap-color": ["interpolate", ["linear"], ["heatmap-density"], 0, "rgba(255,255,255,0)", 0.2, "rgb(251,106,74)", 0.5, "rgb(165,15,21)", 1, "rgb(63,0,12)"],
+        "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 6, 9, 30],
+        "heatmap-opacity": 0.5
+      }
+    }
+  },
+
+  "flood_1d": {
+    "description": "น้ำท่วม 1 วัน: สีฟ้าสว่างใส แสดงถึงน้ำหลากใหม่",
+    "renderConfig": {
+      "layerType": "fill",
+      "paint": {
+        "fill-color": "#5DADE2",
+        "fill-opacity": 0.6,
+        "fill-outline-color": "#2E86C1"
+      }
+    }
+  },
+  "flood_3d": {
+    "description": "น้ำท่วม 3 วัน: สีน้ำเงินฟ้า เริ่มมีการขัง",
+    "renderConfig": {
+      "layerType": "fill",
+      "paint": {
+        "fill-color": "#3498DB",
+        "fill-opacity": 0.65,
+        "fill-outline-color": "#2874A6"
+      }
+    }
+  },
+  "flood_7d": {
+    "description": "น้ำท่วมขัง 7 วัน: สีน้ำเงินเข้ม",
+    "renderConfig": {
+      "layerType": "fill",
+      "paint": {
+        "fill-color": "#2471A3",
+        "fill-opacity": 0.7,
+        "fill-outline-color": "#1A5276"
+      }
+    }
+  },
+  "flood_30d": {
+    "description": "น้ำท่วมขังยาวนาน 30 วัน: สีน้ำเงินคล้ำ/กรมท่า",
+    "renderConfig": {
+      "layerType": "fill",
+      "paint": {
+        "fill-color": "#154360",
+        "fill-opacity": 0.8,
+        "fill-outline-color": "#0B233F"
+      }
+    }
+  },
+
+  "drought_1d": {
+    "description": "เริ่มมีแนวโน้มแห้งแล้ง 1 วัน: สีเหลืองอ่อน",
+    "renderConfig": {
+      "layerType": "fill",
+      "paint": {
+        "fill-color": "#F4D03F",
+        "fill-opacity": 0.4,
+        "fill-outline-color": "#D4AC0D"
+      }
+    }
+  },
+  "drought_3d": {
+    "description": "พื้นที่แห้งแล้ง 3 วัน: สีเหลืองทอง",
+    "renderConfig": {
+      "layerType": "fill",
+      "paint": {
+        "fill-color": "#F39C12",
+        "fill-opacity": 0.5,
+        "fill-outline-color": "#D68910"
+      }
+    }
+  },
+  "drought_7d": {
+    "description": "พื้นที่แห้งแล้ง 7 วัน: สีส้มดิน",
+    "renderConfig": {
+      "layerType": "fill",
+      "paint": {
+        "fill-color": "#E67E22",
+        "fill-opacity": 0.6,
+        "fill-outline-color": "#BA4A00"
+      }
+    }
+  },
+  "drought_30d": {
+    "description": "พื้นที่แห้งแล้งวิกฤต 30 วัน: สีน้ำตาลไหม้/แดง",
+    "renderConfig": {
+      "layerType": "fill",
+      "paint": {
+        "fill-color": "#A04000",
+        "fill-opacity": 0.7,
+        "fill-outline-color": "#6E2C00"
+      }
+    }
+  },
+
+  "boundary_province": {
+    "description": "ขอบเขตระดับจังหวัด: เส้นทึบ หนา สีเทาเข้ม",
+    "renderConfig": {
+      "layerType": "line",
+      "paint": {
+        "line-color": "#2C3E50",
+        "line-width": 2.5
+      }
+    }
+  },
+  "boundary_district": {
+    "description": "ขอบเขตระดับอำเภอ: เส้นปะ บางกว่า สีเทาอ่อน",
+    "renderConfig": {
+      "layerType": "line",
+      "paint": {
+        "line-color": "#7F8C8D",
+        "line-width": 1,
+        "line-dasharray": [3, 3]
+      }
+    }
+  },
+
+  "default": {
+    "description": "สไตล์สำรองกรณีไม่ระบุประเภทข้อมูล",
+    "renderConfig": {
+      "layerType": "circle",
+      "paint": {
+        "circle-radius": 5,
+        "circle-color": "#E74C3C",
+        "circle-stroke-width": 1.5,
+        "circle-stroke-color": "#FFFFFF"
+      }
+    }
+  }
+}

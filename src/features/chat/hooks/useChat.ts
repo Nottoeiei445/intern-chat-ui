@@ -6,8 +6,6 @@ import { useAuth } from "../../auth/context/AuthContext";
 import { chatService } from "../services/chat.service"; 
 import { AUTH_CONFIG } from "@/features/auth/config/auth.config";
 import { storage } from "@/lib/storage";
-import { useRouter } from "next/navigation";
-import { chatWithOllama } from "../services/ollama";
 import { DynamicLayerPayload } from '@/features/map/types';
 import { useMapStore } from '@/store/useMapStore';
 
@@ -35,7 +33,6 @@ export function useChat() {
 
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [isGuestExpired, setIsGuestExpired] = useState(false);
-  const router = useRouter();
   
   const dynamicLayers = useMapStore(state => state.dynamicLayers);
   const setDynamicLayers = useMapStore(state => state.setDynamicLayers);
@@ -245,6 +242,8 @@ export function useChat() {
       isSilentRetry?: boolean;
       isClarity?: boolean; // ประกาศ Type ตรงนี้
       editMessageId?: string;    // ประกาศ Type ตรงนี้
+      choiceKey?: string; // เพื่อระบุว่าชุด choices นี้เกี่ยวข้องกับคำถามหรือข้อความไหน (ถ้ามี)
+      choiceValue?: string; // เพื่อระบุค่าของ choice ที่ถูกเลือก (ถ้ามี)
     }
   ) => { 
     if (!input.trim() && images.length === 0) return; 
@@ -254,6 +253,7 @@ export function useChat() {
     const isSilentRetry = options?.isSilentRetry ?? false; 
     const isClarity = options?.isClarity ?? false;
     const editMessageId = options?.editMessageId ?? null;
+    const isChoiceResponse = !!options?.choiceKey;
 
     if(!input.trim() && images.length === 0 && !isRegenerate) return;
     
@@ -325,49 +325,13 @@ export function useChat() {
         is_generate: isRegenerate,
         is_silent_retry: isSilentRetry, 
         is_clarity: isClarity, // ส่ง flag ไปให้หลังบ้าน
+
+        ...(options?.choiceKey && { key: options.choiceKey }),
+        ...(options?.choiceValue && { value: options.choiceValue }),
         ...(editMessageId && { edit_message_id: editMessageId }), // ส่ง ID ไปให้หลังบ้านเพื่อตัด History
         ...(images.length > 0 && { images }), 
         ...((isNewSession || ephemeral) ? {} : { conversationId: currentId })
       };
-      
-      if (input.trim() === "test_flow") {
-        const mockChoiceMsg: Message = {
-          id: `mock_choice_${Date.now()}`,
-          role: "assistant",
-          content: "เลือกช่วงเวลาที่ต้องการดูข้อมูล:",
-          choices: [
-            { label: "🔥 24 ชั่วโมง", value: "24 ชม." },
-            { label: "📅 7 วัน", value: "7 วัน" }
-          ]
-        };
-        setChats(prev => prev.map(chat => chat.id === currentId ? { ...chat, messages: [...chat.messages, mockChoiceMsg] } : chat));
-        setIsLoading(false);
-        return; 
-      }
-
-      if (payload.is_clarity) {
-        console.log("✅ [SUCCESS] ยิง Payload Clarity:", payload);
-        const mockConfirmMsg: Message = {
-          id: `mock_confirm_${Date.now()}`,
-          role: "assistant",
-          content: `✅ หลังบ้านได้รับ Choice: **"${payload.message}"**\n(ลองเช็กใน Console (F12) ดูครับ จะเห็นว่าส่ง is_clarity: true ไปด้วย)`
-        };
-        setChats(prev => prev.map(chat => chat.id === currentId ? { ...chat, messages: [...chat.messages, mockConfirmMsg] } : chat));
-        setIsLoading(false);
-        return;
-      }
-
-      if (payload.edit_message_id) {
-        console.log("✅ [SUCCESS] ยิง Payload Edit Message:", payload);
-        const mockEditMsg: Message = {
-          id: `mock_edit_${Date.now()}`,
-          role: "assistant",
-          content: `✂️ หลังบ้านได้รับคำสั่ง **Edit**!\n- ข้อความใหม่: **"${payload.message}"**\n- สั่งให้ตัดประวัติตั้งแต่ ID: **${payload.edit_message_id}**\n(ลองเช็กใน Console (F12) ดูได้เลยครับ)`
-        };
-        setChats(prev => prev.map(chat => chat.id === currentId ? { ...chat, messages: [...chat.messages, mockEditMsg] } : chat));
-        setIsLoading(false);
-        return;
-      }
 
       const response = await chatService.sendMessageStream(payload, apiKeys.gistda);
       let realIdToSwapLater = response.headers.get('X-Conversation-Id') || response.headers.get('conversation_id');
@@ -465,8 +429,9 @@ export function useChat() {
                         // ถ้าเจอข้อความ Assistant ล่าสุด ให้ยัด choices เข้าไป
                         if (lastIdx >= 0 && safeMsgs[lastIdx].role === "assistant") {
                           safeMsgs[lastIdx] = { 
-                            ...safeMsgs[lastIdx], 
-                            choices: data.choices // จุดที่เอา Choices ไปเก็บ
+                            ...safeMsgs[lastIdx], // จุดที่เอา Choices ไปเก็บ
+                            choices: data.choices,
+                            choiceKey: data.key 
                           };
                         }
                         return { ...chat, messages: safeMsgs };
@@ -474,7 +439,7 @@ export function useChat() {
                       return chat;
                     }));
                   }
-                  continue; // ข้ามไปอ่านบรรทัดต่อไป ไม่ต้องพ่น Choices ออกมาเป็น Text
+                  continue;
                 }
 
                 // ลอจิกจัดการข้อความและสลับ ID เหมือนเดิม
@@ -493,6 +458,16 @@ export function useChat() {
                           }
                         }
                       }
+
+                      if (incomingUserId && !isChoiceResponse) { 
+                          for (let i = safeMsgs.length - 1; i >= 0; i--) {
+                            if (safeMsgs[i].role === "user" && (!safeMsgs[i].id || String(safeMsgs[i].id).startsWith("temp_"))) {
+                              safeMsgs[i] = { ...safeMsgs[i], id: incomingUserId };
+                              break;
+                            }
+                          }
+                        }
+
                       if (incomingAssistantId) {
                         for (let i = safeMsgs.length - 1; i >= 0; i--) {
                           if (safeMsgs[i].role === "assistant" && (!safeMsgs[i].id || String(safeMsgs[i].id).startsWith("temp_"))) {

@@ -30,6 +30,7 @@ interface SidebarProps {
   onNew: () => void;
   onDelete: (id: string) => void;
   onRename: (id: string, newTitle: string) => void;
+  isKeyModalOpen?: boolean;
 }
 
 export const Sidebar = ({ 
@@ -40,7 +41,8 @@ export const Sidebar = ({
   onSelect, 
   onNew, 
   onDelete,
-  onRename
+  onRename,
+  isKeyModalOpen
 }: SidebarProps) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [tempTitle, setTempTitle] = useState("");
@@ -72,6 +74,7 @@ export const Sidebar = ({
 
   const handleNewClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isKeyModalOpen) return;
     if (isGuest) {
       setShowGuestModal(true); 
       return;
@@ -118,11 +121,16 @@ export const Sidebar = ({
         <div className="px-3 mb-6 mt-2 shrink-0">
           <button 
             onClick={handleNewClick}
+            disabled={isKeyModalOpen} 
             className={`
-              flex items-center gap-3 bg-primary hover:bg-primary/90 text-primary-foreground 
+              flex items-center gap-3 bg-primary text-primary-foreground 
               h-10 rounded-full transition-all duration-300
               ${isOpen ? "px-4 w-fit" : "w-10 justify-center px-0 mx-auto"}
-              ${isGuest ? "opacity-80" : ""} 
+              ${isKeyModalOpen 
+                ? "opacity-50 cursor-not-allowed grayscale" 
+                : "hover:bg-primary/90" 
+              }
+              ${isGuest && !isKeyModalOpen ? "opacity-80" : ""} 
             `}
           >
             <MessageSquarePlus size={20} className="shrink-0" />
@@ -140,9 +148,16 @@ export const Sidebar = ({
           {chats.map((chat) => (
             <div 
               key={chat.id}
-              onClick={() => !editingId && handleSelect(chat.id)}
+              onClick={() => {
+                if (isKeyModalOpen) return; 
+                if (!editingId) handleSelect(chat.id);
+              }}
               className={`
                 flex items-center justify-between gap-3 p-3 rounded-full cursor-pointer group transition-colors
+                ${isKeyModalOpen 
+                  ? "opacity-50 cursor-not-allowed grayscale" 
+                  : "cursor-pointer" 
+                }
                 ${activeId === chat.id ? "bg-accent text-accent-foreground" : "hover:bg-accent/50 text-sidebar-foreground"}
               `}
             >

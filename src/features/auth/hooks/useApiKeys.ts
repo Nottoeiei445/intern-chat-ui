@@ -1,65 +1,82 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ApiKey } from "../types";
-
-const MOCK_KEYS: ApiKey[] = [
-  {
-    id: "1",
-    name: "chaiwatAPI",
-    key: "g1stda-9db10283-4a12-4c91",
-    status: "active",
-    restriction: "None",
-    createdAt: "13 days ago",
-    applications: ["🍃", "📊", "📈"]
-  },
-  {
-    id: "2",
-    name: "Development_Key",
-    key: "g1stda-7fac2011-8b33-2a01",
-    status: "active",
-    restriction: "IP Restricted",
-    createdAt: "2 days ago",
-    applications: ["⚙️"]
-  }
-];
+import { ApiKey, CreateApiKeyDTO } from "../types";
+import { apiKeyService } from "../services/apiKey.service";
 
 export const useApiKeys = () => {
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  /**
+   * 1. ดึงรายการคีย์ทั้งหมด
+   */
   const fetchKeys = useCallback(async () => {
     setIsLoading(true);
     try {
-      // TODO: อนาคตเปลี่ยนเป็น const data = await apiKeyService.getKeys();
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      setKeys(MOCK_KEYS);
+      const response = await apiKeyService.getKeys();
+      
+      const actualKeys = response?.data || []; 
+      
+      setKeys(actualKeys);
     } catch (error) {
       console.error("Failed to fetch API keys:", error);
+      setKeys([]);
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // ดึงข้อมูลครั้งแรกเมื่อ Component ถูก Mount
   useEffect(() => {
     fetchKeys();
   }, [fetchKeys]);
 
-  const addKey = (newKey: ApiKey) => {
-    setKeys((prev) => [newKey, ...prev]);
+  /**
+   * 2. สร้างคีย์ใหม่ (ใช้ CreateApiKeyDTO)
+   */
+  const addKey = async (data: CreateApiKeyDTO) => {
+    try {
+      const response = await apiKeyService.createKey(data);
+      const newKey = response?.data || (response as unknown as ApiKey); // ปรับ
+
+      setKeys((prev) => [...prev, newKey]);
+      return newKey;
+    } catch (error) {
+      console.error("Failed to create API key:", error);
+      throw error;
+    }
   };
 
-  const updateKey = (updatedKey: ApiKey) => {
-    setKeys((prev) => prev.map((k) => (k.id === updatedKey.id ? updatedKey : k)));
+  /**
+   * 3. อัปเดตข้อมูลคีย์ (ส่ง id แยก และใช้ Partial<CreateApiKeyDTO>)
+   */
+  const updateKey = async (id: string, data: Partial<CreateApiKeyDTO>) => {
+    try {
+      const response = await apiKeyService.updateKey(id, data);
+      const updatedKey = response?.data || (response as unknown as ApiKey); // ปรับตามโครงสร้างจริงของ response
+
+      setKeys((prev) =>
+        prev.map((k) => 
+          k.id === id ? { ...k, ...updatedKey } : k
+        )
+      );
+      return updatedKey;
+    } catch (error) {
+      console.error("Failed to update API key:", error);
+      throw error;
+    }
   };
 
+  /**
+   * 4. ลบ API Key
+   */
   const deleteKey = async (id: string) => {
     try {
-      // TODO: อนาคตเรียก await apiKeyService.deleteKey(id);
+      await apiKeyService.deleteKey(id);
       setKeys((prev) => prev.filter((k) => k.id !== id));
     } catch (error) {
       console.error("Failed to delete API key:", error);
+      throw error;
     }
   };
 
@@ -69,6 +86,6 @@ export const useApiKeys = () => {
     addKey,
     updateKey,
     deleteKey,
-    refetch: fetchKeys, // เผื่อปุ่มอยากกด Refresh ข้อมูลใหม่
+    refetch: fetchKeys,
   };
 };
