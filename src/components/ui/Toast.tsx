@@ -71,47 +71,44 @@ export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
     <ToastContext.Provider value={{ push, success, error, info, dismiss }}>
       {children}
 
-      <div aria-live="polite" className="fixed top-4 right-4 z-50 flex flex-col gap-3 w-[320px] max-w-full">
+      <div 
+        aria-live="polite" 
+        className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[150] flex flex-col items-center gap-3 w-max pointer-events-none"
+      >
         {toasts.map((t) => (
           <div
             key={t.id}
-            className="flex items-start gap-3 p-3 rounded-lg shadow-lg bg-[#0b0b0b] border border-white/5"
+            className="flex items-center gap-3 p-1.5 pl-4 rounded-full shadow-2xl bg-[#141414] border border-white/10 pointer-events-auto animate-in slide-in-from-bottom-5 fade-in duration-300"
             role="status"
           >
-            <div className="flex-shrink-0 mt-0.5">
+            {/* ไอคอนด้านซ้าย */}
+            <div className="flex-shrink-0">
               {t.type === "success" && (
-                <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 00-1.414-1.414L8 11.172 4.707 7.879A1 1 0 003.293 9.293l4 4a1 1 0 001.414 0l8-8z" clipRule="evenodd" />
+                <svg className="h-5 w-5 text-[#00a651]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               )}
               {t.type === "error" && (
-                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-                  <path fillRule="evenodd" d="M8.257 3.099c.366-.446.957-.57 1.438-.28l.094.07 7 5.5A1 1 0 0117 9.5V15a3 3 0 01-3 3H6a3 3 0 01-3-3V6.5a1 1 0 01.379-.774l5.878-4.627zM9 7a1 1 0 10-2 0v4a1 1 0 102 0V7zm1 7a1 1 0 11-2 0 1 1 0 012 0z" clipRule="evenodd" />
+                <svg className="h-5 w-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               )}
               {t.type === "info" && (
-                <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-                  <path fillRule="evenodd" d="M18 10A8 8 0 11 2 10a8 8 0 0116 0zm-9-1a1 1 0 10-2 0v4a1 1 0 102 0V9zm1-3a1 1 0 11-2 0 1 1 0 012 0z" clipRule="evenodd" />
+                <svg className="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               )}
             </div>
-
-            <div className="flex-1 min-w-0">
-              {t.title && <div className="text-sm font-bold text-slate-200">{t.title}</div>}
-              <div className="mt-1 text-xs text-slate-400">{t.description}</div>
+            <div className="text-sm font-medium text-white pr-4">
+              {t.description || t.title}
             </div>
-
-            <div className="flex-shrink-0">
-              <button
-                aria-label="Dismiss"
-                onClick={() => dismiss(t.id)}
-                className="text-slate-400 hover:text-slate-200 focus:outline-none"
-              >
-                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden>
-                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
-                </svg>
-              </button>
-            </div>
+            <button
+              aria-label="Dismiss"
+              onClick={() => dismiss(t.id)}
+              className="bg-[#1a3324] hover:bg-[#20402d] text-[#00a651] px-5 py-2 rounded-full text-xs font-bold transition-colors focus:outline-none"
+            >
+              Close
+            </button>
           </div>
         ))}
       </div>

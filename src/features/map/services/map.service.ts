@@ -9,22 +9,26 @@ const appendApiKey = (url: string, key?: string) => {
 
 export const mapService = {
   buildDynamicUrl: (payload: DynamicLayerPayload, userKeys: Record<string, string>): string => {
-    const { type, baseUrl, layerId, apiProvider } = payload;
+    const { type, baseUrl, styleId, layerId, apiProvider } = payload;
     
     let key = userKeys.gistda; // ค่าเริ่มต้น
     if (apiProvider === 'vallaris' || baseUrl.includes('vallaris')) {
       key = userKeys.vallaris || userKeys.gistda; 
     }
 
+    const decodedBaseUrl = baseUrl ? decodeURIComponent(baseUrl) : '';
+
     if (type === 'wms') {
-      return `${baseUrl}?api_key=${key}&SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&FORMAT=image/png&TRANSPARENT=true&LAYERS=${layerId || ''}&STYLES=&SRS=EPSG:3857&WIDTH=256&HEIGHT=256&BBOX={bbox-epsg-3857}`;
+      const targetLayer = layerId || styleId || 'default';
+      return `${decodedBaseUrl}?api_key=${key}&SERVICE=WMS&VERSION=1.1.1&REQUEST=GetMap&FORMAT=image/png&TRANSPARENT=true&LAYERS=${targetLayer}&STYLES=&SRS=EPSG:3857&WIDTH=256&HEIGHT=256&BBOX={bbox-epsg-3857}`;
     }
 
-    let cleanUrl = baseUrl;
+    let cleanUrl = decodedBaseUrl;
     switch (type) {
-      case 'tms':     cleanUrl = mapUrlBuilder.tms(baseUrl); break;
-      case 'vector':  cleanUrl = mapUrlBuilder.vector(baseUrl); break;
-      case 'geojson': cleanUrl = mapUrlBuilder.geojson(baseUrl); break;
+      case 'tms':     cleanUrl = mapUrlBuilder.tms(decodedBaseUrl); break;
+      case 'wmts':    cleanUrl = mapUrlBuilder.wmts(decodedBaseUrl, layerId || styleId || 'default'); break;
+      case 'vector':  cleanUrl = mapUrlBuilder.vector(decodedBaseUrl); break;
+      case 'geojson': cleanUrl = mapUrlBuilder.geojson(decodedBaseUrl); break;
     }
 
     return appendApiKey(cleanUrl, key);

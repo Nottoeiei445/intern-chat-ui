@@ -14,6 +14,8 @@ interface Props {
   onEditMessage?: (id: string, newContent: string) => void;
   onSelectTemplate?: (text: string) => void; 
   onSendChoice?: (key: string, choiceValue: string) => void;
+  canEdit?: boolean;
+  isLastUserMessage?: boolean;
 }
 
 export const MessageList = ({ 
@@ -24,7 +26,9 @@ export const MessageList = ({
   isFetchingHistory, 
   onEditMessage,
   onSelectTemplate,
-  onSendChoice
+  onSendChoice,
+  canEdit,
+  isLastUserMessage
 }: Props) => {
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -154,9 +158,11 @@ export const MessageList = ({
       
       {messages.map((msg, index) => (
         <MessageItem 
-          key={msg.id || index}
+          key={`${msg.id || 'temp-msg'}-${index}`}
           msg={msg}
+          canEdit={index === lastUserIdx && !isLoading}
           isLatestUser={index === lastUserIdx}
+          isLatestMessage={index === messages.length - 1} 
           isLoading={isLoading}
           isFetchingHistory={isFetchingHistory ?? false}
           scrollToBottom={scrollToBottom}

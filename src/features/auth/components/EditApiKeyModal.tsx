@@ -3,13 +3,11 @@
 import { useState, useEffect } from "react";
 import { Info, ChevronDown, Check, Loader2 } from "lucide-react";
 import { ApiKey } from "../types";
-//ลบ import apiKeyService ออกไปได้เลย เพราะเราจะให้ Hook ยิง API แทน
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   apiKey: ApiKey | null;
-  //1. แก้ Type ให้รับ id กับ data เหมือนที่ Hook ต้องการเป๊ะๆ
   onSuccess: (id: string, data: { keyName: string; isActive: boolean }) => Promise<any>;
 }
 
@@ -42,10 +40,9 @@ export const EditApiKeyModal = ({ isOpen, onClose, apiKey, onSuccess }: Props) =
         isActive: status === "active"
       };
       
-      //2. โยน id กับ payload กลับไปให้แม่ (ซึ่งมันคือการเรียก updateKey ใน Hook นั่นเอง)
       await onSuccess(apiKey.id, payload);
       
-      onClose(); // พอแม่ยิง API เสร็จก็ปิด Modal สวยๆ
+      onClose(); 
     } catch (error) {
       console.error("Update Key Failed:", error);
     } finally {
@@ -55,31 +52,27 @@ export const EditApiKeyModal = ({ isOpen, onClose, apiKey, onSuccess }: Props) =
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-background/80 backdrop-blur-sm" onClick={onClose} />
 
-      {/* Modal Content */}
-      <div className="relative w-full max-w-[500px] bg-[#1e1e1e] rounded-[24px] p-8 shadow-2xl animate-in zoom-in-95 duration-200">
-        <h2 className="text-2xl font-bold text-white mb-6">Edit API Key</h2>
+      <div className="relative w-full max-w-[500px] bg-popover border border-border rounded-[24px] p-8 shadow-2xl animate-in zoom-in-95 duration-200">
+        <h2 className="text-2xl font-bold text-popover-foreground mb-6">Edit API Key</h2>
 
         <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Name Field (เต็มบรรทัด) */}
           <div className="space-y-3">
-            <div className="flex items-center gap-1.5 text-slate-400">
+            <div className="flex items-center gap-1.5 text-muted-foreground">
               <span className="text-sm">Name</span>
               <Info size={14} className="cursor-help" />
             </div>
             <input
               type="text"
-              className="w-full bg-[#111111] border-none rounded-xl px-4 py-3.5 text-white placeholder:text-slate-700 outline-none focus:ring-1 focus:ring-[#00a651]/50 transition-all"
+              className="w-full bg-background border border-border rounded-xl px-4 py-3.5 text-foreground placeholder:text-muted-foreground outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
           </div>
 
-          {/* Status Field (ซ้าย-ขวา) */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-slate-400">
+            <div className="flex items-center gap-1.5 text-muted-foreground">
               <span className="text-sm">Status</span>
               <Info size={14} className="cursor-help" />
             </div>
@@ -87,7 +80,7 @@ export const EditApiKeyModal = ({ isOpen, onClose, apiKey, onSuccess }: Props) =
               type="button"
               onClick={() => setStatus(status === "active" ? "revoked" : "active")}
               className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-300 focus:outline-none ${
-                status === "active" ? "bg-[#00a651]" : "bg-slate-600"
+                status === "active" ? "bg-primary" : "bg-muted-foreground/30"
               }`}
             >
               <span
@@ -98,9 +91,8 @@ export const EditApiKeyModal = ({ isOpen, onClose, apiKey, onSuccess }: Props) =
             </button>
           </div>
 
-          {/* Restriction Type Field (ซ้าย-ขวา) */}
           <div className="flex items-center justify-between relative z-10">
-            <div className="flex items-center gap-1.5 text-slate-400">
+            <div className="flex items-center gap-1.5 text-muted-foreground">
               <span className="text-sm">Restriction Type</span>
               <Info size={14} className="cursor-help" />
             </div>
@@ -109,27 +101,23 @@ export const EditApiKeyModal = ({ isOpen, onClose, apiKey, onSuccess }: Props) =
               <button
                 type="button"
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="w-full flex items-center justify-between bg-[#111111] rounded-xl px-4 py-2.5 text-white text-sm"
+                className="w-full flex items-center justify-between bg-background border border-border rounded-xl px-4 py-2.5 text-foreground text-sm focus:border-primary transition-all"
               >
                 <span>{restriction}</span>
                 <ChevronDown size={18} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
               </button>
 
-              {/* Dropdown Menu */}
               {isDropdownOpen && (
-                <div className="absolute top-[calc(100%+8px)] right-0 w-full bg-[#252525] border border-white/5 rounded-2xl p-1.5 shadow-2xl z-50 animate-in fade-in slide-in-from-top-2">
+                <div className="absolute top-[calc(100%+8px)] right-0 w-full bg-popover border border-border rounded-2xl p-1.5 shadow-xl z-50 animate-in fade-in slide-in-from-top-2">
                   {(["None", "HTTP Referer", "IP Address"] as RestrictionType[]).map((type) => (
                     <button
                       key={type}
                       type="button"
-                      onClick={() => {
-                        setRestriction(type);
-                        setIsDropdownOpen(false);
-                      }}
-                      className="w-full flex items-center justify-between px-3 py-2.5 text-sm text-slate-300 hover:bg-white/5 hover:text-white rounded-xl transition-colors"
+                      onClick={() => { setRestriction(type); setIsDropdownOpen(false); }}
+                      className="w-full flex items-center justify-between px-3 py-2.5 text-sm text-foreground hover:bg-accent rounded-xl transition-colors"
                     >
                       {type}
-                      {restriction === type && <Check size={14} className="text-white" />}
+                      {restriction === type && <Check size={14} className="text-primary" />}
                     </button>
                   ))}
                 </div>
@@ -137,26 +125,24 @@ export const EditApiKeyModal = ({ isOpen, onClose, apiKey, onSuccess }: Props) =
             </div>
           </div>
 
-          {/* Text & Links */}
-          <p className="text-sm text-slate-400 leading-relaxed pt-2">
+          <p className="text-sm text-muted-foreground leading-relaxed pt-2">
             This API Key can set up service access. To prevent reliance on unnecessary services this can be set at{" "}
-            <a href="#" className="text-blue-400 hover:underline">Application access</a> or{" "}
-            <a href="#" className="text-blue-400 hover:underline">Learn more</a>
+            <a href="#" className="text-primary hover:underline">Application access</a> or{" "}
+            <a href="#" className="text-primary hover:underline">Learn more</a>
           </p>
 
-          {/* Actions */}
           <div className="flex items-center justify-end gap-6 pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="text-white font-bold hover:opacity-80 transition-opacity"
+              className="text-foreground font-bold hover:text-muted-foreground transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!name?.trim() || isSubmitting}
-              className="bg-[#00a651] hover:bg-[#008f45] text-white px-8 py-3 rounded-full font-bold transition-all disabled:opacity-50 flex items-center gap-2"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground px-8 py-3 rounded-full font-bold transition-all disabled:opacity-50 flex items-center gap-2"
             >
               {isSubmitting && <Loader2 size={18} className="animate-spin" />}
               Update

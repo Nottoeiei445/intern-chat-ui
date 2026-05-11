@@ -141,11 +141,25 @@ export function useChat() {
       
       try {
         const responseData = await chatService.getConversationDetail(targetId, 1); 
-        let messages = [];
-        if (Array.isArray(responseData?.data?.messages)) messages = responseData.data.messages;
-        else if (Array.isArray(responseData?.messages)) messages = responseData.messages;
-        else if (Array.isArray(responseData?.data)) messages = responseData.data;
-        else if (Array.isArray(responseData)) messages = responseData;
+        let rawMessages = [];
+        if (Array.isArray(responseData?.data?.messages)) rawMessages = responseData.data.messages;
+        else if (Array.isArray(responseData?.messages)) rawMessages = responseData.messages;
+        else if (Array.isArray(responseData?.data)) rawMessages = responseData.data;
+        else if (Array.isArray(responseData)) rawMessages = responseData;
+        
+        const messages = rawMessages.map((msg: any) => {
+          const isMapOptions = msg.metadata?.event === 'map_options';
+          const payload = msg.metadata?.payload;
+
+          return {
+            ...msg, 
+
+            content: msg.content || (isMapOptions ? payload?.question : "") || "",
+            
+            choices: isMapOptions ? payload?.choices : msg.choices,
+            choiceKey: isMapOptions ? payload?.key : msg.choiceKey,
+          };
+        });
         
         setChats(prev => {
           const existingChat = prev.find(chat => chat.id === targetId);
@@ -199,26 +213,41 @@ export function useChat() {
 
     try {
       const responseData = await chatService.getConversationDetail(targetId, nextPage);
-      let olderMessages = [];
-      if (Array.isArray(responseData?.data?.messages)) olderMessages = responseData.data.messages;
-      else if (Array.isArray(responseData?.messages)) olderMessages = responseData.messages;
-      else if (Array.isArray(responseData?.data)) olderMessages = responseData.data;
-      else if (Array.isArray(responseData)) olderMessages = responseData;
+      let rawOlderMessages = [];
+      if (Array.isArray(responseData?.data?.messages)) rawOlderMessages = responseData.data.messages;
+      else if (Array.isArray(responseData?.messages)) rawOlderMessages = responseData.messages;
+      else if (Array.isArray(responseData?.data)) rawOlderMessages = responseData.data;
+      else if (Array.isArray(responseData)) rawOlderMessages = responseData;
 
-      if (olderMessages.length === 0) {
+      if (rawOlderMessages.length === 0) {
         setPaginationConfig(prev => ({ 
           ...prev, 
           [targetId]: { ...config, hasMore: false } 
         }));
       } else {
+        const mappedOlderMessages = rawOlderMessages.map((msg: any) => {
+          const isMapOptions = msg.metadata?.event === 'map_options';
+          const payload = msg.metadata?.payload;
+
+          return {
+            ...msg,
+            // ดึงคำถามมาแสดงแทนถ้า content ว่าง
+            content: msg.content || (isMapOptions ? payload?.question : "") || "",
+            // ดึง choices ออกมาให้ UI ใช้งาน
+            choices: isMapOptions ? payload?.choices : msg.choices,
+            choiceKey: isMapOptions ? payload?.key : msg.choiceKey,
+          };
+        });
+
         setChats(prev => prev.map(chat =>
           chat.id === targetId
-            ? { ...chat, messages: [...olderMessages, ...chat.messages] }
+            ? { ...chat, messages: [...mappedOlderMessages, ...chat.messages] }
             : chat
         ));
+        
         setPaginationConfig(prev => ({ 
           ...prev, 
-          [targetId]: { page: nextPage, hasMore: olderMessages.length >= 5 } 
+          [targetId]: { page: nextPage, hasMore: mappedOlderMessages.length >= 5 } 
         }));
       }
     } catch (error) {
@@ -326,8 +355,13 @@ export function useChat() {
         is_silent_retry: isSilentRetry, 
         is_clarity: isClarity, // ส่ง flag ไปให้หลังบ้าน
 
-        ...(options?.choiceKey && { key: options.choiceKey }),
-        ...(options?.choiceValue && { value: options.choiceValue }),
+        ...(options?.choiceKey && options?.choiceValue && { 
+          mapselection: {
+            key: options.choiceKey,
+            value: options.choiceValue
+          }
+        }),
+
         ...(editMessageId && { edit_message_id: editMessageId }), // ส่ง ID ไปให้หลังบ้านเพื่อตัด History
         ...(images.length > 0 && { images }), 
         ...((isNewSession || ephemeral) ? {} : { conversationId: currentId })
@@ -393,10 +427,10 @@ export function useChat() {
                 if (data.event === 'layer_catalog' && data.layer) {
                   const backendData = data.layer;
                   const newLayer: DynamicLayerPayload = {
-                    id: backendData.basename || backendData.layerName || `ai-layer-${Date.now()}`,
+                    id: backendData.styleId || backendData.basename || backendData.layerName || `ai-layer-${Date.now()}`,
                     type: backendData.type,
                     baseUrl: backendData.url,
-                    layerId: backendData.basename || backendData.layerName,
+                    layerId: backendData.basename || backendData.layerName || backendData.styleId,
                     title: backendData.title,
                     apiProvider: backendData.url.includes('vallaris') ? 'vallaris' : 'gistda',
 
@@ -585,7 +619,7 @@ export function useChat() {
     if (!activeChatId) return;
     setIsLoading(true);
     try {
-      await chatService.editMessage(messageId, newContent, true);
+      //await chatService.editMessage(messageId, newContent, true);
 
       setChats(prev => prev.map(chat => {
         if (chat.id === activeChatId) {

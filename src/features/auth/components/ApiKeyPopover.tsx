@@ -26,12 +26,10 @@ export const ApiKeyPopover = () => {
   };
 
   return (
-    // ยึดติดกับด้านล่างแบบลอยๆ เหมือนเดิม
     <div className="absolute bottom-[calc(100%+12px)] left-0 w-full z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
       
       <div className="relative">
         
-        {/* 🌟 1. ปุ่ม Close: เปลี่ยนสีให้กลืนกับ Theme และเด้งเป็นสีแดงตอน Hover */}
         <button 
           onClick={(e) => {
             e.preventDefault();
@@ -43,12 +41,10 @@ export const ApiKeyPopover = () => {
           <X size={14} strokeWidth={3} />
         </button>
 
-        {/* 🌟 2. กล่องหลัก: ใช้ bg-card เพื่อสลับ ขาว/ดำ อัตโนมัติตาม Theme และมีเงา shadow-xl เพื่อให้ Popover เด่นขึ้นครับ */}
         <div className="bg-card/95 backdrop-blur-xl border border-border rounded-2xl shadow-xl p-4 flex flex-col gap-3">
           
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              {/* 🌟 3. ไอคอนกุญแจ: ใช้สี Primary ของ Theme */}
               <div className="p-1.5 bg-primary/10 text-primary rounded-lg">
                 <KeyRound size={16} />
               </div>
@@ -56,7 +52,6 @@ export const ApiKeyPopover = () => {
                 Authentication Required
               </span>
             </div>
-            {/* 🌟 4. ข้อความเตือน: สลับสีส้มเข้ม/ส้มสว่าง ตามโหมด */}
             <span className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1 hidden sm:flex font-medium">
               <ShieldAlert size={12} /> Map layers need API token
             </span>
@@ -64,7 +59,6 @@ export const ApiKeyPopover = () => {
 
           {/* ช่องพิมพ์ + ปุ่มกด */}
           <div className="flex gap-2">
-            {/* 🌟 5. ช่องกรอกคีย์: ใช้ bg-background */}
             <input
               ref={inputRef}
               type="password"
@@ -77,7 +71,6 @@ export const ApiKeyPopover = () => {
                 if (e.key === "Escape") closeKeyModal(); 
               }}
             />
-            {/* 🌟 6. ปุ่ม Submit: เพิ่มเงา shadow-lg shadow-primary/25, hover:shadow-primary/40 และเอฟเฟกต์ active:scale-95 เพื่อให้ดูเด่นและมีน้ำหนักขึ้นครับ */}
             <button
               onClick={handleSave}
               disabled={!inputValue.trim()}

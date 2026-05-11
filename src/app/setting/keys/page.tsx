@@ -17,26 +17,24 @@ export default function ApiKeysPage() {
 
   return (
     <AuthGuard>
-      <main className="min-h-screen bg-[#050505] pb-20">
+      <main className="min-h-screen bg-background pb-20 transition-colors duration-300">
         <div className="max-w-5xl mx-auto px-6 pt-10">
           
-          {/* Navigation Back */}
           <Link 
             href="/" 
-            className="flex items-center gap-2 text-slate-500 hover:text-white transition-colors mb-8 w-fit"
+            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors mb-8 w-fit"
           >
             <ChevronLeft size={18} />
             <span className="text-sm">Back to Chat</span>
           </Link>
 
-          {/* Page Header */}
-          <div className="flex items-center gap-4 mb-10">
-            <div className="p-3 bg-blue-500/10 text-blue-400 rounded-2xl border border-blue-500/20">
+          <div className="flex items-center gap-4 mb-6">
+            <div className="p-3 bg-primary/10 text-primary rounded-2xl border border-primary/20">
               <KeyRound size={28} />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-white">Settings</h1>
-              <p className="text-slate-500">Manage your API authentication tokens</p>
+              <h1 className="text-3xl font-bold text-foreground">Settings</h1>
+              <p className="text-muted-foreground">Manage your API authentication tokens</p>
             </div>
           </div>
 

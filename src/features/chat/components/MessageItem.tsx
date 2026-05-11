@@ -22,6 +22,8 @@ interface MessageItemProps {
   scrollToBottom: () => void;
   onEditMessage?: (id: string, newContent: string) => void;
   onSendChoice?: (key: string, choiceValue: string) => void;
+  canEdit?: boolean;
+  isLatestMessage?: boolean;
 }
 
 export const MessageItem = ({ 
@@ -31,10 +33,13 @@ export const MessageItem = ({
   isFetchingHistory, 
   scrollToBottom, 
   onEditMessage,
-  onSendChoice
+  onSendChoice,
+  canEdit,
+  isLatestMessage
 }: MessageItemProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
+  const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
  
   const { user } = useAuth();
   const isGuest = !user; 
@@ -71,7 +76,7 @@ export const MessageItem = ({
             <Copy size={14} />
           </Button>
           
-          {isLatestUser && msg.id && (
+          {canEdit && msg.id && (
             <TooltipProvider delayDuration={200}>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -126,7 +131,6 @@ export const MessageItem = ({
               
               {isEditing ? (
                 <div className="flex flex-col gap-3 w-full min-w-0">
-                  {/* Layer 3: พื้นหลังข้อความ (ดึงสีพื้นหลังแอปมาใช้ เพื่อให้เป็น สีดำใน Dark / สีขาวใน Light) */}
                   <Textarea
                     value={editValue}
                     onChange={(e) => setEditValue(e.target.value)}
@@ -135,7 +139,6 @@ export const MessageItem = ({
                     autoFocus
                   />
                   <div className="flex justify-end gap-2 mt-1">
-                    {/* ปุ่ม Cancel: ให้ตัวหนังสือสีกลืนกับ Layer 1 แต่พอ Hover ให้มีพื้นหลังจางๆ */}
                     <Button 
                       variant="ghost" 
                       size="sm" 
@@ -145,7 +148,7 @@ export const MessageItem = ({
                       Cancel
                     </Button>
                     
-                    {/* Layer 2: ปุ่ม Submit (ดึงสีพื้นหลังแอปมาทำเป็นปุ่ม เพื่อให้ลอยตัดกับ Layer 1) */}
+                    {/* Layer 2: ปุ่ม Submit */}
                     <Button
                       size="sm"
                       disabled={editValue === msg.content || !editValue.trim() || isLoading}
@@ -189,30 +192,56 @@ export const MessageItem = ({
                   </span>
                   
                   <div className="flex flex-col gap-2 w-full">
-                    {msg.choices.map((choice, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => onSendChoice?.(msg.choiceKey || "", choice.value)}
-                        className="group relative flex items-center justify-between w-full px-4 py-3 bg-background border border-border rounded-xl hover:bg-accent hover:border-primary/50 transition-all duration-300 active:scale-[0.98] text-left overflow-hidden shadow-sm hover:shadow-md"
-                      >
-                        {/* Text Content */}
-                        <span className="text-sm font-medium text-foreground group-hover:text-primary transition-colors z-10">
-                          {choice.label}
-                        </span>
-                        
-                        {/* Arrow Icon */}
-                        <div className="opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 z-10 text-primary">
-                          <svg 
-                            className="w-4 h-4" 
-                            fill="none" 
-                            viewBox="0 0 24 24" 
-                            stroke="currentColor"
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                          </svg>
-                        </div>
-                      </button>
-                    ))}
+                    {msg.choices.map((choice, idx) => {
+                      const isSelected = selectedChoice === choice.value;
+                      const hasSelection = selectedChoice !== null;
+                      const isChoiceClickable = isLatestMessage && !isLoading && !hasSelection;
+
+                      return (
+                        <button
+                          key={idx}
+                          disabled={!isChoiceClickable} // ป้องกันการกดซ้ำ
+                          onClick={() => {
+                            setSelectedChoice(choice.value); // บันทึกว่าเลือกปุ่มนี้
+                            onSendChoice?.(msg.choiceKey || "", choice.value); // ส่งค่าไปให้ AI
+                          }}
+                          className={`group relative flex items-center justify-between w-full px-4 py-3 bg-background border rounded-xl transition-all duration-300 text-left overflow-hidden shadow-sm ${
+                            isSelected
+                              ? "border-primary bg-primary/10 ring-1 ring-primary/50" //สีตอนถูกเลือก (เด่นสุด ขอบสี Primary)
+                              : !isChoiceClickable 
+                                ? "border-transparent opacity-50 cursor-not-allowed bg-muted/50 grayscale" //สีตอนโดนบล็อก (ปุ่มที่ไม่ได้ถูกเลือก)
+                                : "border-border hover:bg-accent hover:border-primary/50 active:scale-[0.98] hover:shadow-md" // สีปกติ
+                          }`}
+                        >
+                          {/* Text Content */}
+                          <span className={`text-sm font-medium z-10 transition-colors ${
+                            isSelected 
+                              ? 'text-primary font-bold' // ข้อความสี Primary
+                              : !isChoiceClickable 
+                                ? 'text-muted-foreground' 
+                                : 'text-foreground group-hover:text-primary'
+                          }`}>
+                            {choice.label}
+                          </span>
+                          
+                          <div className={`transition-all duration-300 z-10 ${
+                            isSelected 
+                              ? 'opacity-100 text-primary' 
+                              : 'opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 text-primary'
+                          }`}>
+                            {isSelected ? (
+                              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                              </svg>
+                            ) : isChoiceClickable ? (
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                            ) : null}
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}

@@ -8,9 +8,6 @@ export const useApiKeys = () => {
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  /**
-   * 1. ดึงรายการคีย์ทั้งหมด
-   */
   const fetchKeys = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -31,9 +28,6 @@ export const useApiKeys = () => {
     fetchKeys();
   }, [fetchKeys]);
 
-  /**
-   * 2. สร้างคีย์ใหม่ (ใช้ CreateApiKeyDTO)
-   */
   const addKey = async (data: CreateApiKeyDTO) => {
     try {
       const response = await apiKeyService.createKey(data);
@@ -47,9 +41,6 @@ export const useApiKeys = () => {
     }
   };
 
-  /**
-   * 3. อัปเดตข้อมูลคีย์ (ส่ง id แยก และใช้ Partial<CreateApiKeyDTO>)
-   */
   const updateKey = async (id: string, data: Partial<CreateApiKeyDTO>) => {
     try {
       const response = await apiKeyService.updateKey(id, data);
@@ -67,9 +58,6 @@ export const useApiKeys = () => {
     }
   };
 
-  /**
-   * 4. ลบ API Key
-   */
   const deleteKey = async (id: string) => {
     try {
       await apiKeyService.deleteKey(id);

@@ -15,11 +15,26 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
 
     // ฟังก์ชันล้างเลเยอร์
     const clearLayers = () => {
-      activeLayerIds.current.forEach(id => {
-        if (map.getLayer(id)) map.removeLayer(id);
-        if (map.getSource(id)) map.removeSource(id);
-      });
-      activeLayerIds.current = [];
+      if (!map) return; 
+
+      try {
+        if (!map.getStyle || !map.getStyle()) return;
+
+        activeLayerIds.current.forEach(id => {
+          if (id.startsWith('ai-layer-') && map.getLayer(id)) {
+            map.removeLayer(id);
+          }
+        });
+        activeLayerIds.current.forEach(id => {
+          if (id.startsWith('ai-source-') && map.getSource(id)) {
+            map.removeSource(id);
+          }
+        });
+      } catch (error) {
+        console.warn("MapLibre: แผนที่ถูกทำลายไปแล้ว ข้ามการลบเลเยอร์");
+      } finally {
+        activeLayerIds.current = [];
+      }
     };
 
     // ฟังก์ชันวาดเลเยอร์
@@ -34,8 +49,9 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
           const fullUrl = mapService.buildDynamicUrl(layerConfig, apiKeys);
 
           if (!map.getSource(sourceId)) {
-            if (layerConfig.type === 'wms' || layerConfig.type === 'tms') {
-              map.addSource(sourceId, { type: 'raster', tiles: [fullUrl], tileSize: 256 });
+            if (layerConfig.type === 'wms' || layerConfig.type === 'tms'|| layerConfig.type === 'wmts') {
+              const titleSize = layerConfig.type === 'wmts' ? 512 : 256;
+              map.addSource(sourceId, { type: 'raster', tiles: [fullUrl], tileSize: titleSize });
             } else if (layerConfig.type === 'vector') {
               map.addSource(sourceId, {
                 type: 'vector',
@@ -51,7 +67,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
           }
 
           if (!map.getLayer(layerId)) {
-            if (layerConfig.type === 'wms' || layerConfig.type === 'tms') {
+            if (layerConfig.type === 'wms' || layerConfig.type === 'tms' || layerConfig.type === 'wmts') {
               map.addLayer({
                 id: layerId,
                 type: 'raster',
