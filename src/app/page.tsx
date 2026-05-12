@@ -5,6 +5,7 @@ import { MapDashboard } from '../features/map';
 import { ChatFeature } from "../features/chat"
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { AuthWidget } from "@/features/auth/components/AuthWidget";
+import { LayerManager } from "@/features/map/components/LayerManager";
 
 export default function MapPage() {
   const [isChatOpen, setIsChatOpen] = useState(true);
@@ -56,7 +57,17 @@ export default function MapPage() {
         </button>
       )}
 
-      <AuthWidget />
+      <div className="absolute top-5 right-5 z-30 flex flex-col items-end gap-3 pointer-events-none">
+        <div className="pointer-events-auto">
+          <AuthWidget />
+        </div>
+        
+        <div className="pointer-events-auto">
+          <LayerManager />
+        </div>
+
+      </div>
+
       {/* ปรับแต่งสำหรับ Mobile */}
       <style jsx global>{`
         @media (max-width: 768px) {

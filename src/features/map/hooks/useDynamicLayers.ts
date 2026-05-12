@@ -7,7 +7,7 @@ import { mapService } from '../services/map.service';
 import { useMapStore } from '@/store/useMapStore';
 
 export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: DynamicLayerPayload[]) => {
-  const { apiKeys } = useMapStore();
+  const { apiKeys, hiddenLayers, isBaseMapVisible } = useMapStore();
   const activeLayerIds = useRef<string[]>([]);
 
   useEffect(() => {
@@ -125,10 +125,32 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
     
     map.on('styledata', handleStyleData);
 
+    if (map.getStyle()) {
+      dynamicLayers.forEach(layer => {
+        const layerId = `ai-layer-${layer.id}`;
+        if (map.getLayer(layerId)) {
+          const visibility = hiddenLayers.includes(layer.id) ? 'none' : 'visible';
+          map.setLayoutProperty(layerId, 'visibility', visibility);
+        }
+      });
+    }
+
+    if (map.getStyle()) {
+      const style = map.getStyle();
+      if (style && style.layers) {
+        style.layers.forEach(layer => {
+          if (!layer.id.startsWith('ai-layer-')) {
+             const visibility = isBaseMapVisible ? 'visible' : 'none';
+             map.setLayoutProperty(layer.id, 'visibility', visibility);
+          }
+        });
+      }
+    }
+
     return () => {
       map.off('styledata', handleStyleData);
       clearLayers();
     };
 
-  }, [map, dynamicLayers, apiKeys]); 
+  }, [map, dynamicLayers, apiKeys, hiddenLayers, isBaseMapVisible]); 
 };

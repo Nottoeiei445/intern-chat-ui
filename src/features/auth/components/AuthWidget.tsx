@@ -34,7 +34,7 @@ export const AuthWidget = () => {
   const canManageKeys = user && user.email;
 
   return (
-    <div className="absolute top-4 right-4 z-30 flex items-center bg-background/80 backdrop-blur-md border border-border p-1.5 rounded-full shadow-lg">
+    <div className="flex items-center bg-background/80 backdrop-blur-md border border-border p-1.5 rounded-full shadow-lg">
       {user ? (
         <div className="relative" ref={menuRef}>
           <button

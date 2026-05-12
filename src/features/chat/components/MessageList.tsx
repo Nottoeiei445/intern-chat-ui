@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useEffect, useLayoutEffect } from "react"
-import { MapPin, Sparkles, User, Layers } from "lucide-react" 
+import { MapPin, Sparkles, Layers } from "lucide-react" 
 import { Message } from "../types"
 import { MessageItem } from "./MessageItem"
 
@@ -115,7 +115,7 @@ export const MessageList = ({
       {messages.length === 0 && !isFetchingHistory && (
         <div className="h-full flex flex-col items-center justify-center p-4 min-h-[60vh]">
           {/* Hero Element */}
-          <div className="relative mb-12">
+          <div className="relative mb-10">
             <div className="absolute inset-0 bg-primary/20 blur-[100px] rounded-full animate-pulse" />
             <div className="relative bg-card border border-border p-8 rounded-full shadow-2xl">
               <MapPin size={48} className="text-primary" />
@@ -123,36 +123,31 @@ export const MessageList = ({
           </div>
 
           {/* Header */}
-          <div className="text-center mb-12 space-y-2">
+          <div className="text-center mb-8 space-y-2">
             <h2 className="text-3xl font-black tracking-tighter text-foreground uppercase italic">
               Geospatial <span className="text-primary">Intelligence</span>
             </h2>
-            <p className="text-muted-foreground text-sm font-ibm max-w-md">
-              Start by choosing a task to analyze geospatial data.
+            <p className="text-muted-foreground text-sm font-ibm max-w-md mx-auto">
+              Start your mapping journey with a single click.
             </p>
           </div>
 
-          {/* Bento Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl w-full px-4">
-            {[
-              { title: "Population Density", desc: "Analyze how people are distributed.", icon: <User size={18}/> },
-              { title: "Radius Search", desc: "Find locations within specific range.", icon: <MapPin size={18}/> },
-              { title: "Environmental Layers", desc: "Compare vegetation and city zones.", icon: <Sparkles size={18}/> },
-              { title: "Custom Analysis", desc: "Upload your CSV/GeoJSON data.", icon: <Layers size={18}/> }
-            ].map((item, i) => (
-              <button 
-                key={i}
-                onClick={() => onSelectTemplate?.(item.title)}  
-                className="group flex flex-col items-start p-5 bg-card border border-border rounded-2xl hover:bg-accent hover:border-primary/50 transition-all text-left"
-              >
-                <div className="p-2 bg-primary/10 rounded-lg text-primary mb-3 group-hover:scale-110 transition-transform">
-                  {item.icon}
-                </div>
-                <h3 className="text-foreground font-bold text-sm mb-1">{item.title}</h3>
-                <p className="text-muted-foreground text-xs leading-relaxed">{item.desc}</p>
-              </button>
-            ))}
-          </div>
+          <button 
+            onClick={() => onSelectTemplate?.("show all layer style of Vallaris")}  
+            className="group relative flex items-center gap-4 p-4 px-8 bg-card border border-border rounded-full hover:bg-accent hover:border-primary/50 transition-all duration-300 shadow-sm hover:shadow-md active:scale-95"
+          >
+            <div className="p-2 bg-primary/10 rounded-full text-primary group-hover:scale-110 transition-transform">
+              <Layers size={20} />
+            </div>
+            <span className="text-foreground font-semibold text-sm tracking-wide group-hover:text-primary transition-colors">
+              Show all layer style of Vallaris
+            </span>
+            <div className="opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 text-primary">
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+            </div>
+          </button>
         </div>
       )}
       

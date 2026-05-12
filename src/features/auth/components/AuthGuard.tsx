@@ -12,7 +12,6 @@ export const AuthGuard = ({ children }: Props) => {
 
   useEffect(() => {
     if (!isLoading && !user) {
-      // Use replace to avoid back-button returning to protected route
       router.replace("/login");
     }
   }, [isLoading, user, router]);

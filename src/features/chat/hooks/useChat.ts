@@ -36,7 +36,6 @@ export function useChat() {
   
   const dynamicLayers = useMapStore(state => state.dynamicLayers);
   const setDynamicLayers = useMapStore(state => state.setDynamicLayers);
-  
 
   const sortChats = useCallback((list: ChatThread[]) => { 
     return [...list].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)); 
@@ -46,7 +45,6 @@ export function useChat() {
     if (apiKeys.gistda && pendingChat) {
       console.log("[useChat] API Key detected! Retrying pending request silently...");
       
-      // เรียก sendMessage เดิม แต่เปิดโหมด isSilentRetry
       sendMessage(
         pendingChat.input,
         pendingChat.model,
@@ -54,12 +52,10 @@ export function useChat() {
         { ...pendingChat.options, isSilentRetry: true }
       );
 
-      // ยิงเสร็จเคลียร์สถานะทิ้ง
       clearPendingChat();
     }
   }, [apiKeys.gistda, pendingChat]);
 
-  // 0. Initialize Session
   useEffect(() => {
     const initSession = async () => {
       setIsSessionReady(true);
@@ -67,7 +63,6 @@ export function useChat() {
     initSession();
   }, []);
 
-  // 1. Fetch All Histories
   useEffect(() => {
     const fetchAllHistories = async () => {
       if (!isSessionReady) return;
@@ -128,7 +123,6 @@ export function useChat() {
     fetchAllHistories(); 
   }, [isSessionReady, sortChats, user]);
 
-  // 2. Fetch Chat Detail (Messages)
   useEffect(() => {
     const fetchChatDetail = async () => { 
       const guestId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
@@ -153,9 +147,7 @@ export function useChat() {
 
           return {
             ...msg, 
-
             content: msg.content || (isMapOptions ? payload?.question : "") || "",
-            
             choices: isMapOptions ? payload?.choices : msg.choices,
             choiceKey: isMapOptions ? payload?.key : msg.choiceKey,
           };
@@ -198,7 +190,6 @@ export function useChat() {
     fetchChatDetail(); 
   }, [activeChatId, paginationConfig, user]);
 
-  // Fetch Next Page
   const fetchNextPage = async () => {
     const guestId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
     const targetId = !user && guestId ? (guestId as string) : activeChatId;
@@ -231,9 +222,7 @@ export function useChat() {
 
           return {
             ...msg,
-            // ดึงคำถามมาแสดงแทนถ้า content ว่าง
             content: msg.content || (isMapOptions ? payload?.question : "") || "",
-            // ดึง choices ออกมาให้ UI ใช้งาน
             choices: isMapOptions ? payload?.choices : msg.choices,
             choiceKey: isMapOptions ? payload?.key : msg.choiceKey,
           };
@@ -259,7 +248,6 @@ export function useChat() {
 
   const createNewChat = () => setActiveChatId(null); 
 
-  // 3. Send Message
   const sendMessage = async (
     input: string, 
     model: string, 
@@ -269,10 +257,10 @@ export function useChat() {
       isRegenerate?: boolean; 
       explicitChatId?: string; 
       isSilentRetry?: boolean;
-      isClarity?: boolean; // ประกาศ Type ตรงนี้
-      editMessageId?: string;    // ประกาศ Type ตรงนี้
-      choiceKey?: string; // เพื่อระบุว่าชุด choices นี้เกี่ยวข้องกับคำถามหรือข้อความไหน (ถ้ามี)
-      choiceValue?: string; // เพื่อระบุค่าของ choice ที่ถูกเลือก (ถ้ามี)
+      isClarity?: boolean; 
+      editMessageId?: string;    
+      choiceKey?: string; 
+      choiceValue?: string; 
     }
   ) => { 
     if (!input.trim() && images.length === 0) return; 
@@ -294,7 +282,6 @@ export function useChat() {
     let currentId = initialId;
     let isNewSession = false; 
 
-    // ปรับเงื่อนไข: ถ้าเป็น Silent Retry ห้าม Render ข้อความ User ซ้ำบนจอ
     if (!isRegenerate && !isSilentRetry) {
       const userMsg: Message = { 
         role: "user", 
@@ -353,7 +340,7 @@ export function useChat() {
         ephemeral: ephemeral,
         is_generate: isRegenerate,
         is_silent_retry: isSilentRetry, 
-        is_clarity: isClarity, // ส่ง flag ไปให้หลังบ้าน
+        is_clarity: isClarity, 
 
         ...(options?.choiceKey && options?.choiceValue && { 
           mapselection: {
@@ -362,7 +349,7 @@ export function useChat() {
           }
         }),
 
-        ...(editMessageId && { edit_message_id: editMessageId }), // ส่ง ID ไปให้หลังบ้านเพื่อตัด History
+        ...(editMessageId && { edit_message_id: editMessageId }), 
         ...(images.length > 0 && { images }), 
         ...((isNewSession || ephemeral) ? {} : { conversationId: currentId })
       };
@@ -403,12 +390,24 @@ export function useChat() {
 
                 const data = JSON.parse(jsonStr);
 
-                // ดัก Error ขอคีย์: จดคำสั่งลง Store และสั่งเด้ง Modal
-                if (data.code === 'missing_x_api_key' || data.needsApiKey) {
-                  setPendingChat({ input, model, images, options }); // แอบจำไว้ในใจ
-                  openKeyModal(); // เด้งหน้าต่างทวงคีย์
+                if (data.conversationId || data.conversation_id || data.chat_id || data.chatId) {
+                  const realId = data.conversationId || data.conversation_id || data.chat_id || data.chatId;
+                  if (currentId?.startsWith('session_')) {
+                    setChats(prev => prev.map(chat => 
+                      chat.id === currentId ? { ...chat, id: realId } : chat
+                    ));
+                    currentId = realId;
+                    setActiveChatId(realId);
+                  }
+                  if (isNewSession && !realIdToSwapLater && !ephemeral) {
+                    realIdToSwapLater = String(realId);
+                  }
+                }
 
-                  // ลบบับเบิ้ล Assistant ว่างๆ ออกเพื่อให้จอไม่ค้างข้อความเปล่า
+                if (data.code === 'missing_x_api_key' || data.needsApiKey) {
+                  setPendingChat({ input, model, images, options: { ...options, explicitChatId: currentId } });
+                  openKeyModal(); 
+
                   setChats(prev => prev.map(chat => {
                     if (chat.id === currentId) {
                       return { 
@@ -419,7 +418,6 @@ export function useChat() {
                     return chat;
                   }));
                   
-                  // ตัดจบการอ่าน Stream นี้ทันที
                   reader.cancel(); 
                   return; 
                 }
@@ -433,7 +431,6 @@ export function useChat() {
                     layerId: backendData.basename || backendData.layerName || backendData.styleId,
                     title: backendData.title,
                     apiProvider: backendData.url.includes('vallaris') ? 'vallaris' : 'gistda',
-
                     bounds: backendData.bounds,
                     minzoom: backendData.minzoom,
                     maxzoom: backendData.maxzoom
@@ -444,7 +441,6 @@ export function useChat() {
 
                 if (data.event === 'map_options' || data.needInfo ) {
                   if (ephemeral) {
-                    // กรณีเป็น Ephemeral Message 
                     setEphemeralMessages(prev => {
                       const newMsgs = [...prev];
                       const lastIdx = newMsgs.length - 1;
@@ -454,16 +450,14 @@ export function useChat() {
                       return newMsgs;
                     });
                   } else {
-                    // กรณีแชทปกติ
                     setChats(prev => prev.map(chat => {
                       if (chat.id === currentId) {
                         const safeMsgs = [...chat.messages];
                         const lastIdx = safeMsgs.length - 1;
                         
-                        // ถ้าเจอข้อความ Assistant ล่าสุด ให้ยัด choices เข้าไป
                         if (lastIdx >= 0 && safeMsgs[lastIdx].role === "assistant") {
                           safeMsgs[lastIdx] = { 
-                            ...safeMsgs[lastIdx], // จุดที่เอา Choices ไปเก็บ
+                            ...safeMsgs[lastIdx], 
                             choices: data.choices,
                             choiceKey: data.key 
                           };
@@ -476,7 +470,6 @@ export function useChat() {
                   continue;
                 }
 
-                // ลอจิกจัดการข้อความและสลับ ID เหมือนเดิม
                 const incomingUserId = data.usermessage_id || data.userMessageId;
                 const incomingAssistantId = data.assistantmessage_Id || data.assistantMessageId;
 
@@ -514,13 +507,6 @@ export function useChat() {
                     }
                     return chat;
                   }));
-                }
-      
-                if (isNewSession && !realIdToSwapLater && !ephemeral) {
-                  const streamId = data.conversation_id || data.conversationId || data.chat_id || data.chatId;
-                  if (streamId) {
-                    realIdToSwapLater = String(streamId);
-                  }
                 }
 
                 const textChunk = data.text || data.content || "";
@@ -579,7 +565,6 @@ export function useChat() {
     }
   };
 
-  // 4. Delete Chat
   const deleteChat = async (id: string) => {
     console.log(`[PROCESS] Requesting server to delete conversation: ${id}`);
     setIsLoading(true);
@@ -602,7 +587,6 @@ export function useChat() {
     }
   };
 
-  // 5. Rename Chat
   const renameChat = async (id: string, newTitle: string) => { 
     const originalChats = [...chats]; 
     setChats(prev => prev.map(chat => chat.id === id ? { ...chat, title: newTitle } : chat));   
@@ -619,8 +603,6 @@ export function useChat() {
     if (!activeChatId) return;
     setIsLoading(true);
     try {
-      //await chatService.editMessage(messageId, newContent, true);
-
       setChats(prev => prev.map(chat => {
         if (chat.id === activeChatId) {
           const msgIndex = chat.messages.findIndex(m => m.id === messageId);
@@ -635,7 +617,6 @@ export function useChat() {
         return chat;
       }));
       
-      // ส่งคำสั่งพร้อมแนบ ID ข้อความไปให้หลังบ้านจัดการตัด Context
       await sendMessage(newContent, model, [], { 
         isRegenerate: true,
         editMessageId: messageId 

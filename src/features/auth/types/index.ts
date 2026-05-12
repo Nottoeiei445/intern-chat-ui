@@ -37,9 +37,9 @@ export interface TokenInfo {
 
 export interface ApiKey {
   id: string;
-  provider: string;     // เช่น "GISTDA"
-  keyName: string;      // 👈 เปลี่ยนจาก name เป็น keyName
-  maskedKey: string;    // 👈 เปลี่ยนจาก key เป็น maskedKey
+  provider: string;    
+  keyName: string;      
+  maskedKey: string;    
   isActive: boolean;
   createdAt: string;
 }
