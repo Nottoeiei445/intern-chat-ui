@@ -3,7 +3,7 @@
 
 export type TimeRange = 1 | 3 | 7 | 30;
 export type HazardType = 'viirs' | 'flood' | 'drought';
-export type MapMode = 'wms' | 'tms' | 'wmts' | 'vector' | 'geojson';
+export type MapMode = 'wms' | 'tms' | 'wmts' | 'vector_tile' | 'geojson' | 'vector'; // vector เผื่อหลังบ้านส่งมาเฉยๆ ไม่บอกว่าเป็น vector_tile หรือ geojson
 
 // ==========================================
 //1. พิมพ์เขียวสำหรับรับข้อมูลดิบจาก Backend (เพื่อนส่งมา)
@@ -37,4 +37,5 @@ export interface DynamicLayerPayload {
   bounds?: [number, number, number, number]; // บังคับว่าเป็น Array ตัวเลข 4 ตัว
   minzoom?: number;
   maxzoom?: number;
+  tiles?: string[];
 }

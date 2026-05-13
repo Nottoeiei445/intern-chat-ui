@@ -158,22 +158,7 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
                 disabled={isInputDisabled} 
                 className={`p-2 transition-colors ${isInputDisabled ? "text-muted-foreground/50 cursor-not-allowed" : "text-muted-foreground hover:text-primary"}`}
               >
-                <Paperclip size={18} />
-              </button>
-              <button 
-                type="button"
-                onClick={() => !isInputDisabled && fileInputRef.current?.click()} 
-                disabled={isInputDisabled} 
-                className={`p-2 transition-colors ${isInputDisabled ? "text-muted-foreground/50 cursor-not-allowed" : "text-muted-foreground hover:text-primary"}`}
-              >
                 <ImageIcon size={18} />
-              </button>
-              <button 
-                type="button" 
-                disabled={isInputDisabled} 
-                className={`p-2 transition-colors ${isInputDisabled ? "text-muted-foreground/50 cursor-not-allowed" : "text-muted-foreground hover:text-primary"}`}
-              >
-                <MapPin size={18} />
               </button>
             </div>
             

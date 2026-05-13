@@ -3,12 +3,20 @@
 import { useState, useEffect, useCallback } from "react";
 import { ApiKey, CreateApiKeyDTO } from "../types";
 import { apiKeyService } from "../services/apiKey.service";
+import { useAuth } from "@/features/auth"; 
 
 export const useApiKeys = () => {
+  const { user } = useAuth();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchKeys = useCallback(async () => {
+    // 🌟 3. ถ้าไม่มี user (เป็น Guest) ให้หยุดทำงานเลย ไม่ต้องยิง API
+    if (!user) {
+      setIsLoading(false);
+      return;
+    }
+
     setIsLoading(true);
     try {
       const response = await apiKeyService.getKeys();
@@ -22,8 +30,8 @@ export const useApiKeys = () => {
     } finally {
       setIsLoading(false);
     }
-  }, []);
-
+  }, [user]); 
+  
   useEffect(() => {
     fetchKeys();
   }, [fetchKeys]);
@@ -31,7 +39,7 @@ export const useApiKeys = () => {
   const addKey = async (data: CreateApiKeyDTO) => {
     try {
       const response = await apiKeyService.createKey(data);
-      const newKey = response?.data || (response as unknown as ApiKey); // ปรับ
+      const newKey = response?.data || (response as unknown as ApiKey);
 
       setKeys((prev) => [...prev, newKey]);
       return newKey;
@@ -44,7 +52,7 @@ export const useApiKeys = () => {
   const updateKey = async (id: string, data: Partial<CreateApiKeyDTO>) => {
     try {
       const response = await apiKeyService.updateKey(id, data);
-      const updatedKey = response?.data || (response as unknown as ApiKey); // ปรับตามโครงสร้างจริงของ response
+      const updatedKey = response?.data || (response as unknown as ApiKey);
 
       setKeys((prev) =>
         prev.map((k) => 

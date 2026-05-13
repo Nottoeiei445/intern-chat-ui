@@ -9,6 +9,9 @@ import { HazardType, TimeRange, MapMode } from '../types';
 import { useDynamicLayers } from '../hooks/useDynamicLayers';
 import { DynamicLayerPayload } from '../types';
 import { useTheme } from 'next-themes';
+import { useMapEvents } from '../hooks/useMapEvents';
+import { FeaturePopup } from './FeaturePopup';
+import { createRoot } from 'react-dom/client';
 
 interface MapLibreProps {
   activeHazard: HazardType | null;
@@ -84,41 +87,48 @@ export const MapLibre = ({ activeBoundary, dynamicLayers = [] }: MapLibreProps) 
   }, [resolvedTheme, map]);
 
   useDynamicLayers(map, dynamicLayers);
+  useMapEvents(map, selectedData, setSelectedData);
+
+  // สร้าง Ref เอาไว้เก็บตัว Popup ของ MapLibre จะได้ลบ/สร้างใหม่ได้ถูกต้อง
+  const popupRef = useRef<maplibregl.Popup | null>(null);
+
+  useEffect(() => {
+    if (!map) return;
+
+    if (popupRef.current) {
+      popupRef.current.remove();
+      popupRef.current = null;
+    }
+
+    if (selectedData) {
+      const popupNode = document.createElement('div');
+      const root = createRoot(popupNode);
+      root.render(<FeaturePopup properties={selectedData.properties} />);
+
+      const anchorPosition = selectedData.point.y < 350 ? 'top' : 'bottom';
+
+      const popup = new maplibregl.Popup({ 
+        maxWidth: '320px',
+        closeButton: true,
+        focusAfterOpen: false,
+        anchor: anchorPosition, 
+        className: resolvedTheme === 'dark' ? 'dark-popup' : '' 
+      })
+        .setLngLat(selectedData.lngLat)
+        .setDOMContent(popupNode)
+        .addTo(map);
+
+      popup.on('close', () => {
+        setSelectedData(null);
+        setTimeout(() => root.unmount(), 0); 
+      });
+
+      popupRef.current = popup;
+    }
+  }, [selectedData, map, resolvedTheme]);
 
   return (
     <div className="relative w-full h-full min-h-[600px] rounded-lg overflow-hidden font-sans bg-background">
-      
-      {selectedData && (
-        <div className="absolute top-4 right-4 z-20 bg-card shadow-2xl rounded-lg w-80 max-h-[90%] flex flex-col border border-border text-sm overflow-hidden animate-in fade-in slide-in-from-right-4">
-          
-          <div className="flex justify-between items-center px-4 py-3 border-b border-border bg-muted/50">
-            <h3 className="text-foreground text-base font-semibold">Identify results</h3>
-            <button onClick={() => setSelectedData(null)} className="text-muted-foreground hover:text-foreground bg-transparent hover:bg-muted/80 rounded-md p-1 transition">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-          
-          <div className="flex gap-2 px-4 py-2 border-b border-border text-xs bg-card">
-            <span className="bg-secondary text-secondary-foreground px-3 py-1.5 rounded-full font-medium">Properties</span>
-          </div>
-
-          <div className="flex px-4 py-2 bg-muted/30 text-xs text-muted-foreground border-b border-border font-semibold">
-            <div className="w-1/3">field</div>
-            <div className="w-2/3 pl-2">value</div>
-          </div>
-
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 text-xs bg-card custom-scrollbar">
-            {Object.entries(selectedData).map(([key, val]) => (
-              <div key={key} className="flex gap-2 border-b border-border/50 pb-2 hover:bg-muted/30 transition">
-                <div className="w-1/3 text-muted-foreground truncate" title={key}>{key}</div>
-                <div className="w-2/3 pl-2 text-foreground break-words">
-                  {val !== null && val !== undefined ? String(val) : '-'}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       <div className="absolute bottom-6 right-6 z-10">
         <Button 

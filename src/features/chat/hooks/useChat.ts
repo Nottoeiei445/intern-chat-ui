@@ -8,81 +8,85 @@ import { AUTH_CONFIG } from "@/features/auth/config/auth.config";
 import { storage } from "@/lib/storage";
 import { DynamicLayerPayload } from '@/features/map/types';
 import { useMapStore } from '@/store/useMapStore';
-
 import { 
   checkAndCleanupExpiredGuest, 
   startGuestExpiryTimer 
 } from "../../auth/utils/guest-timer.util";
 
+// --- Helpers ---
+const sortChats = (list: ChatThread[]) => { 
+  return [...list].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)); 
+};
+
+const mapBackendMessage = (msg: any) => {
+  const isMapOptions = msg.metadata?.event === 'map_options';
+  const payload = msg.metadata?.payload;
+  return {
+    ...msg, 
+    content: msg.content || (isMapOptions ? payload?.question : "") || "",
+    choices: isMapOptions ? payload?.choices : msg.choices,
+    choiceKey: isMapOptions ? payload?.key : msg.choiceKey,
+  };
+};
+
 export function useChat() {
+  // 1. Context & Store
   const { user } = useAuth(); 
   const { 
-    apiKeys, 
-    openKeyModal, 
-    pendingChat, 
-    setPendingChat, 
-    clearPendingChat 
+    apiKeys, openKeyModal, pendingChat, 
+    setPendingChat, clearPendingChat,
+    dynamicLayers, setDynamicLayers 
   } = useMapStore();
+
+  // 2. Main Chat State
   const [chats, setChats] = useState<ChatThread[]>([]); 
   const [activeChatId, setActiveChatId] = useState<string | null>(null); 
   const [isLoading, setIsLoading] = useState(false); 
   const [ephemeralMessages, setEphemeralMessages] = useState<Message[]>([]); 
 
+  // 3. History & Pagination State
   const [isFetchingHistory, setIsFetchingHistory] = useState(false);
   const [paginationConfig, setPaginationConfig] = useState<Record<string, { page: number, hasMore: boolean }>>({});
 
+  // 4. Session State
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [isGuestExpired, setIsGuestExpired] = useState(false);
-  
-  const dynamicLayers = useMapStore(state => state.dynamicLayers);
-  const setDynamicLayers = useMapStore(state => state.setDynamicLayers);
 
-  const sortChats = useCallback((list: ChatThread[]) => { 
-    return [...list].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)); 
+  // --- 5. Initialization Effects ---
+  // Init Session
+  useEffect(() => {
+    setIsSessionReady(true);
   }, []);
 
+  // Retry pending chat when API Key arrives
   useEffect(() => {
     if (apiKeys.gistda && pendingChat) {
-      console.log("[useChat] API Key detected! Retrying pending request silently...");
-      
+      const options = { ...pendingChat.options, isSilentRetry: true };
+      if (user && options.explicitChatId?.startsWith('guest_')) {
+        delete options.explicitChatId;
+      }
       sendMessage(
         pendingChat.input,
         pendingChat.model,
         pendingChat.images,
-        { ...pendingChat.options, isSilentRetry: true }
+        options
       );
-
       clearPendingChat();
     }
-  }, [apiKeys.gistda, pendingChat]);
+  }, [apiKeys.gistda, pendingChat, user]);
 
+  // Fetch all chat histories
   useEffect(() => {
-    const initSession = async () => {
-      setIsSessionReady(true);
-    };
-    initSession();
-  }, []);
+    if (!isSessionReady) return;
 
-  useEffect(() => {
     const fetchAllHistories = async () => {
-      if (!isSessionReady) return;
-
       const token = storage.getCookie(AUTH_CONFIG.session.accessTokenStorageKey);
-      if (!token) {
-        console.log("[useChat] No token found, skipping history fetch.");
-        return; 
-      }
+      if (!token) return; 
 
-      console.group("[INIT] Fetching Chat Histories"); 
-      
       try {
         const responseData = await chatService.getHistories(); 
         const rawList = responseData.data || responseData; 
-
-        const filteredList = rawList.filter((item: any) => { 
-          const isActive = item.is_active !== false && item.deleted !== true; 
-          return isActive; 
-        });
+        const filteredList = Array.isArray(rawList) ? rawList.filter((item: any) => item.is_active !== false && !item.deleted) : [];
 
         const mappedChats: ChatThread[] = filteredList.map((item: any) => ({ 
           id: item.id, 
@@ -97,89 +101,50 @@ export function useChat() {
         setChats(prev => {
           const serverChats = sorted.map(newChat => {
             const existingChat = prev.find(c => c.id === newChat.id);
-            if (existingChat && existingChat.messages.length > 0) {
-              return { ...newChat, messages: existingChat.messages };
-            }
-            return newChat;
+            return existingChat?.messages.length ? { ...newChat, messages: existingChat.messages } : newChat;
           });
-
           const localChats = prev.filter(p => !serverChats.some(s => s.id === p.id));
-          return [...localChats, ...serverChats].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0));
+          return sortChats([...localChats, ...serverChats]);
         });
         
         const guestId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
-        if (!user && guestId) {
-          setActiveChatId(guestId as string);
-        } else if (sorted.length > 0 && !activeChatId) { 
-          setActiveChatId(sorted[0].id); 
-        }
+        if (!user && guestId) setActiveChatId(guestId as string);
+        else if (sorted.length > 0 && !activeChatId) setActiveChatId(sorted[0].id);
+
       } catch (error) {
         console.error("Failed to fetch histories:", error); 
-      } finally {
-        console.groupEnd(); 
       }
     };
     
     fetchAllHistories(); 
-  }, [isSessionReady, sortChats, user]);
+  }, [isSessionReady, user]);
 
+  // Fetch specific chat detail
   useEffect(() => {
+    const guestId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
+    const targetId = !user && guestId ? (guestId as string) : activeChatId;
+
+    if (!targetId || targetId.startsWith('session_') || paginationConfig[targetId]) return; 
+
     const fetchChatDetail = async () => { 
-      const guestId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
-      const targetId = !user && guestId ? (guestId as string) : activeChatId;
-
-      if (!targetId || targetId.startsWith('session_')) return; 
-      if (paginationConfig[targetId]) return; 
-
       setIsFetchingHistory(true); 
-      
       try {
         const responseData = await chatService.getConversationDetail(targetId, 1); 
-        let rawMessages = [];
-        if (Array.isArray(responseData?.data?.messages)) rawMessages = responseData.data.messages;
-        else if (Array.isArray(responseData?.messages)) rawMessages = responseData.messages;
-        else if (Array.isArray(responseData?.data)) rawMessages = responseData.data;
-        else if (Array.isArray(responseData)) rawMessages = responseData;
-        
-        const messages = rawMessages.map((msg: any) => {
-          const isMapOptions = msg.metadata?.event === 'map_options';
-          const payload = msg.metadata?.payload;
-
-          return {
-            ...msg, 
-            content: msg.content || (isMapOptions ? payload?.question : "") || "",
-            choices: isMapOptions ? payload?.choices : msg.choices,
-            choiceKey: isMapOptions ? payload?.key : msg.choiceKey,
-          };
-        });
+        const rawMessages = responseData?.data?.messages || responseData?.messages || responseData?.data || (Array.isArray(responseData) ? responseData : []);
+        const messages = rawMessages.map(mapBackendMessage);
         
         setChats(prev => {
           const existingChat = prev.find(chat => chat.id === targetId);
-          if (existingChat && existingChat.messages.length > 0) {
-            const lastMsg = existingChat.messages[existingChat.messages.length - 1];
-            if (lastMsg.role === "user") {
-              return prev;
-            }
-          }
+          if (existingChat?.messages.length && existingChat.messages[existingChat.messages.length - 1].role === "user") return prev;
 
           const chatExists = prev.some(chat => chat.id === targetId);
           if (!chatExists && targetId === guestId) {
-            return [{
-              id: targetId,
-              title: "Guest Session",
-              messages: messages,
-              createdAt: Date.now(),
-              updatedAt: Date.now()
-            }, ...prev];
+            return [{ id: targetId, title: "Guest Session", messages, createdAt: Date.now(), updatedAt: Date.now() }, ...prev];
           }
-          return prev.map(chat => chat.id === targetId ? { ...chat, messages: messages } : chat);
+          return prev.map(chat => chat.id === targetId ? { ...chat, messages } : chat);
         });
 
-        setPaginationConfig(prev => ({
-          ...prev,
-          [targetId]: { page: 1, hasMore: messages.length >= 5 }
-        }));
-
+        setPaginationConfig(prev => ({ ...prev, [targetId]: { page: 1, hasMore: messages.length >= 5 } }));
       } catch (error) {
         console.error("Failed to load messages:", error);
       } finally {
@@ -190,10 +155,11 @@ export function useChat() {
     fetchChatDetail(); 
   }, [activeChatId, paginationConfig, user]);
 
+  // --- 6. Chat Actions ---
+
   const fetchNextPage = async () => {
     const guestId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
     const targetId = !user && guestId ? (guestId as string) : activeChatId;
-
     if (!targetId || targetId.startsWith('session_')) return;
 
     const config = paginationConfig[targetId] || { page: 1, hasMore: true };
@@ -204,40 +170,14 @@ export function useChat() {
 
     try {
       const responseData = await chatService.getConversationDetail(targetId, nextPage);
-      let rawOlderMessages = [];
-      if (Array.isArray(responseData?.data?.messages)) rawOlderMessages = responseData.data.messages;
-      else if (Array.isArray(responseData?.messages)) rawOlderMessages = responseData.messages;
-      else if (Array.isArray(responseData?.data)) rawOlderMessages = responseData.data;
-      else if (Array.isArray(responseData)) rawOlderMessages = responseData;
+      const rawOlderMessages = responseData?.data?.messages || responseData?.messages || responseData?.data || (Array.isArray(responseData) ? responseData : []);
 
       if (rawOlderMessages.length === 0) {
-        setPaginationConfig(prev => ({ 
-          ...prev, 
-          [targetId]: { ...config, hasMore: false } 
-        }));
+        setPaginationConfig(prev => ({ ...prev, [targetId]: { ...config, hasMore: false } }));
       } else {
-        const mappedOlderMessages = rawOlderMessages.map((msg: any) => {
-          const isMapOptions = msg.metadata?.event === 'map_options';
-          const payload = msg.metadata?.payload;
-
-          return {
-            ...msg,
-            content: msg.content || (isMapOptions ? payload?.question : "") || "",
-            choices: isMapOptions ? payload?.choices : msg.choices,
-            choiceKey: isMapOptions ? payload?.key : msg.choiceKey,
-          };
-        });
-
-        setChats(prev => prev.map(chat =>
-          chat.id === targetId
-            ? { ...chat, messages: [...mappedOlderMessages, ...chat.messages] }
-            : chat
-        ));
-        
-        setPaginationConfig(prev => ({ 
-          ...prev, 
-          [targetId]: { page: nextPage, hasMore: mappedOlderMessages.length >= 5 } 
-        }));
+        const mappedOlderMessages = rawOlderMessages.map(mapBackendMessage);
+        setChats(prev => prev.map(chat => chat.id === targetId ? { ...chat, messages: [...mappedOlderMessages, ...chat.messages] } : chat));
+        setPaginationConfig(prev => ({ ...prev, [targetId]: { page: nextPage, hasMore: mappedOlderMessages.length >= 5 } }));
       }
     } catch (error) {
       console.error("Failed to fetch older messages:", error);
@@ -248,107 +188,43 @@ export function useChat() {
 
   const createNewChat = () => setActiveChatId(null); 
 
-  const sendMessage = async (
-    input: string, 
-    model: string, 
-    images: string[] = [], 
-    options?: { 
-      ephemeral?: boolean; 
-      isRegenerate?: boolean; 
-      explicitChatId?: string; 
-      isSilentRetry?: boolean;
-      isClarity?: boolean; 
-      editMessageId?: string;    
-      choiceKey?: string; 
-      choiceValue?: string; 
+  const sendMessage = async (input: string, model: string, images: string[] = [], options?: any) => { 
+    if (!input.trim() && images.length === 0 && !options?.isRegenerate) return; 
+    
+    const { ephemeral = false, isRegenerate = false, isSilentRetry = false, isClarity = false, editMessageId = null, choiceKey, choiceValue } = options || {};
+    const isChoiceResponse = !!choiceKey;
+    
+    let currentId = options?.explicitChatId || activeChatId || (!user && storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey) as string) || null;
+    if (user && typeof currentId === 'string' && currentId.startsWith('guest_')) {
+      currentId = null; 
+      if (options) delete options.explicitChatId;
     }
-  ) => { 
-    if (!input.trim() && images.length === 0) return; 
-    
-    const ephemeral = options?.ephemeral ?? false;
-    const isRegenerate = options?.isRegenerate ?? false;
-    const isSilentRetry = options?.isSilentRetry ?? false; 
-    const isClarity = options?.isClarity ?? false;
-    const editMessageId = options?.editMessageId ?? null;
-    const isChoiceResponse = !!options?.choiceKey;
-
-    if(!input.trim() && images.length === 0 && !isRegenerate) return;
-    
-    let initialId = options?.explicitChatId || activeChatId;
-    if (!initialId && !user) {
-      initialId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey) as string || null;
-    }
-    
-    let currentId = initialId;
     let isNewSession = false; 
 
+    // Update Local UI Immediately
     if (!isRegenerate && !isSilentRetry) {
-      const userMsg: Message = { 
-        role: "user", 
-        content: input,
-        ...(images.length > 0 && { images }) 
-      }; 
-      
-      if (ephemeral) {
-        setEphemeralMessages(prev => [...prev, userMsg]); 
-      } 
+      const userMsg: Message = { role: "user", content: input, ...(images.length > 0 && { images }) }; 
+      if (ephemeral) setEphemeralMessages(prev => [...prev, userMsg]); 
       else if (currentId && !currentId.startsWith('session_')) { 
         setChats(prev => {
           const exists = prev.some(c => c.id === currentId);
-          if (!exists) {
-            return [{
-              id: currentId as string,
-              title: input.slice(0, 30) || "Guest Session",
-              messages: [userMsg], 
-              model: model,
-              createdAt: Date.now(),
-              updatedAt: Date.now()
-            }, ...prev];
-          } 
-          else {
-            const updated = prev.map(chat => 
-              chat.id === currentId 
-                ? { ...chat, messages: [...chat.messages, userMsg], updatedAt: Date.now() } 
-                : chat
-            );
-            return sortChats(updated); 
-          }
+          if (!exists) return [{ id: currentId as string, title: input.slice(0, 30) || "Guest Session", messages: [userMsg], model, createdAt: Date.now(), updatedAt: Date.now() }, ...prev];
+          return sortChats(prev.map(chat => chat.id === currentId ? { ...chat, messages: [...chat.messages, userMsg], updatedAt: Date.now() } : chat));
         });
         setActiveChatId(currentId);
-      } 
-      else {
+      } else {
         isNewSession = true; 
-        const tempId = `session_${Date.now()}`; 
-        setChats(prev => [{ 
-          id: tempId, 
-          title: input.slice(0, 30), 
-          messages: [userMsg], 
-          model: model, 
-          createdAt: Date.now(), 
-          updatedAt: Date.now() 
-        }, ...prev]); 
-        setActiveChatId(tempId); 
-        currentId = tempId; 
+        currentId = `session_${Date.now()}`; 
+        setChats(prev => [{ id: currentId as string, title: input.slice(0, 30), messages: [userMsg], model, createdAt: Date.now(), updatedAt: Date.now() }, ...prev]); 
+        setActiveChatId(currentId); 
       }
     }
 
     setIsLoading(true);
     try {
       const payload = { 
-        message: input, 
-        model: model, 
-        ephemeral: ephemeral,
-        is_generate: isRegenerate,
-        is_silent_retry: isSilentRetry, 
-        is_clarity: isClarity, 
-
-        ...(options?.choiceKey && options?.choiceValue && { 
-          mapselection: {
-            key: options.choiceKey,
-            value: options.choiceValue
-          }
-        }),
-
+        message: input, model, ephemeral, is_generate: isRegenerate, is_silent_retry: isSilentRetry, is_clarity: isClarity, 
+        ...(choiceKey && choiceValue && { mapselection: { key: choiceKey, value: choiceValue } }),
         ...(editMessageId && { edit_message_id: editMessageId }), 
         ...(images.length > 0 && { images }), 
         ...((isNewSession || ephemeral) ? {} : { conversationId: currentId })
@@ -358,20 +234,15 @@ export function useChat() {
       let realIdToSwapLater = response.headers.get('X-Conversation-Id') || response.headers.get('conversation_id');
       const assistantMsg: Message = { role: "assistant", content: "" };
 
-      if (!ephemeral) {
-        setChats(prev => prev.map(chat => 
-          chat.id === currentId 
-            ? { ...chat, messages: [...chat.messages, assistantMsg] } 
-            : chat
-        ));
-      } else {
-        setEphemeralMessages(prev => [...prev, assistantMsg]);
-      }
+      if (!ephemeral) setChats(prev => prev.map(chat => chat.id === currentId ? { ...chat, messages: [...chat.messages, assistantMsg] } : chat));
+      else setEphemeralMessages(prev => [...prev, assistantMsg]);
       
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       let accumulatedContent = "";
       let buffer = "";
+      
+      let currentEvent = "message"; 
 
       if (reader) {
         while (true) {
@@ -383,220 +254,162 @@ export function useChat() {
           buffer = lines.pop() || "";
 
           for (const line of lines) {
-            if (line.startsWith('data: ')) {
-              try {
-                const jsonStr = line.replace('data: ', '').trim();
-                if (!jsonStr || jsonStr === '[DONE]') continue;
+            if (line.startsWith('event: ')) {
+              currentEvent = line.replace('event: ', '').trim();
+              continue;
+            }
 
-                const data = JSON.parse(jsonStr);
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const jsonStr = line.replace('data: ', '').trim();
+              if (!jsonStr || jsonStr === '[DONE]') continue;
+              const data = JSON.parse(jsonStr);
 
-                if (data.conversationId || data.conversation_id || data.chat_id || data.chatId) {
-                  const realId = data.conversationId || data.conversation_id || data.chat_id || data.chatId;
-                  if (currentId?.startsWith('session_')) {
-                    setChats(prev => prev.map(chat => 
-                      chat.id === currentId ? { ...chat, id: realId } : chat
-                    ));
-                    currentId = realId;
-                    setActiveChatId(realId);
-                  }
-                  if (isNewSession && !realIdToSwapLater && !ephemeral) {
-                    realIdToSwapLater = String(realId);
-                  }
+              const eventType = data.event || currentEvent;
+
+              // Handle Conversation ID Swapping
+              const realId = data.conversationId || data.conversation_id || data.chat_id || data.chatId;
+              
+              if (realId) {
+                if (currentId?.startsWith('session_')) {
+                  const oldSessionId = currentId;
+                  setChats(prev => prev.map(chat => chat.id === oldSessionId ? { ...chat, id: realId } : chat));
+                  currentId = realId;
+                  setActiveChatId(realId);
+
+                  // 🌟 FIX 1: ป้องกัน Race Condition! สั่งบล็อก useEffect ไม่ให้วิ่งไปดึงข้อมูลมาทับ Stream
+                  setPaginationConfig(prev => ({ ...prev, [realId]: { page: 1, hasMore: false } }));
                 }
-
-                if (data.code === 'missing_x_api_key' || data.needsApiKey) {
-                  setPendingChat({ input, model, images, options: { ...options, explicitChatId: currentId } });
-                  openKeyModal(); 
-
-                  setChats(prev => prev.map(chat => {
-                    if (chat.id === currentId) {
-                      return { 
-                        ...chat, 
-                        messages: chat.messages.filter(m => m.role !== "assistant" || m.content !== "") 
-                      };
-                    }
-                    return chat;
-                  }));
-                  
-                  reader.cancel(); 
-                  return; 
+                if (isNewSession && !realIdToSwapLater && !ephemeral) {
+                  realIdToSwapLater = String(realId);
                 }
-
-                if (data.event === 'layer_catalog' && data.layer) {
-                  const backendData = data.layer;
-                  const newLayer: DynamicLayerPayload = {
-                    id: backendData.styleId || backendData.basename || backendData.layerName || `ai-layer-${Date.now()}`,
-                    type: backendData.type,
-                    baseUrl: backendData.url,
-                    layerId: backendData.basename || backendData.layerName || backendData.styleId,
-                    title: backendData.title,
-                    apiProvider: backendData.url.includes('vallaris') ? 'vallaris' : 'gistda',
-                    bounds: backendData.bounds,
-                    minzoom: backendData.minzoom,
-                    maxzoom: backendData.maxzoom
-                  };
-                  setDynamicLayers([newLayer]);
-                  continue;
-                }
-
-                if (data.event === 'map_options' || data.needInfo ) {
-                  if (ephemeral) {
-                    setEphemeralMessages(prev => {
-                      const newMsgs = [...prev];
-                      const lastIdx = newMsgs.length - 1;
-                      if (lastIdx >= 0 && newMsgs[lastIdx].role === "assistant") {
-                        newMsgs[lastIdx] = { ...newMsgs[lastIdx], choices: data.choices };
-                      }
-                      return newMsgs;
-                    });
-                  } else {
-                    setChats(prev => prev.map(chat => {
-                      if (chat.id === currentId) {
-                        const safeMsgs = [...chat.messages];
-                        const lastIdx = safeMsgs.length - 1;
-                        
-                        if (lastIdx >= 0 && safeMsgs[lastIdx].role === "assistant") {
-                          safeMsgs[lastIdx] = { 
-                            ...safeMsgs[lastIdx], 
-                            choices: data.choices,
-                            choiceKey: data.key 
-                          };
-                        }
-                        return { ...chat, messages: safeMsgs };
-                      }
-                      return chat;
-                    }));
-                  }
-                  continue;
-                }
-
-                const incomingUserId = data.usermessage_id || data.userMessageId;
-                const incomingAssistantId = data.assistantmessage_Id || data.assistantMessageId;
-
-                if (incomingUserId || incomingAssistantId) {
-                  setChats(prev => prev.map(chat => {
-                    if(chat.id === currentId) {
-                      const safeMsgs = [...chat.messages];
-                      if (incomingUserId) {
-                        for (let i = safeMsgs.length - 1; i >= 0; i--) {
-                          if (safeMsgs[i].role === "user" && (!safeMsgs[i].id || String(safeMsgs[i].id).startsWith("temp_"))) {
-                            safeMsgs[i] = { ...safeMsgs[i], id: incomingUserId };
-                            break;
-                          }
-                        }
-                      }
-
-                      if (incomingUserId && !isChoiceResponse) { 
-                          for (let i = safeMsgs.length - 1; i >= 0; i--) {
-                            if (safeMsgs[i].role === "user" && (!safeMsgs[i].id || String(safeMsgs[i].id).startsWith("temp_"))) {
-                              safeMsgs[i] = { ...safeMsgs[i], id: incomingUserId };
-                              break;
-                            }
-                          }
-                        }
-
-                      if (incomingAssistantId) {
-                        for (let i = safeMsgs.length - 1; i >= 0; i--) {
-                          if (safeMsgs[i].role === "assistant" && (!safeMsgs[i].id || String(safeMsgs[i].id).startsWith("temp_"))) {
-                            safeMsgs[i] = { ...safeMsgs[i], id: incomingAssistantId };
-                            break;
-                          }
-                        }
-                      }
-                      return { ...chat, messages: safeMsgs };
-                    }
-                    return chat;
-                  }));
-                }
-
-                const textChunk = data.text || data.content || "";
-                accumulatedContent += textChunk;
-                const displayContent = accumulatedContent.split("<thinking>").pop()?.trim() || accumulatedContent;
-
-                if (ephemeral) {
-                  setEphemeralMessages(prev => {
-                    const newMsgs = [...prev];
-                    const lastIdx = newMsgs.length - 1;
-                    if (newMsgs[lastIdx]?.role === "assistant") {
-                      newMsgs[lastIdx] = { ...newMsgs[lastIdx], content: displayContent };
-                    }
-                    return newMsgs;
-                  });
-                } else {
-                  setChats(prev => prev.map(chat => {
-                    if (chat.id === currentId) {
-                      const safeMsgs = [...chat.messages];
-                      const lastIdx = safeMsgs.length - 1;
-                      if (lastIdx >= 0 && safeMsgs[lastIdx].role === "assistant") {
-                        safeMsgs[lastIdx] = { ...safeMsgs[lastIdx], content: displayContent };
-                      } else {
-                        safeMsgs.push({ 
-                          id: `temp_assistant_${Date.now()}`,
-                          role: "assistant", 
-                          content: displayContent,
-                        });
-                      }
-                      return { ...chat, messages: safeMsgs };
-                    }
-                    return chat;
-                  }));
-                }
-              } catch (e) {
-                console.error("JSON Parse Error", e);
               }
+
+              // Handle Missing API Key
+              if (data.code === 'missing_x_api_key' || data.needsApiKey) {
+                setPendingChat({ input, model, images, options: { ...options, explicitChatId: currentId } });
+                openKeyModal(); 
+                setChats(prev => prev.map(chat => chat.id === currentId ? { ...chat, messages: chat.messages.filter(m => m.role !== "assistant" || m.content !== "") } : chat));
+                reader.cancel(); return; 
+              }
+
+              // Handle Map Events
+              if (eventType === 'layer_catalog' && data.layer) {
+                const b = data.layer;
+                setDynamicLayers([{
+                  id: b.styleId || b.basename || b.layerName || `ai-layer-${Date.now()}`,
+                  type: b.type, baseUrl: b.url, layerId: b.basename || b.layerName || b.styleId,
+                  title: b.title, apiProvider: b.url.includes('vallaris') ? 'vallaris' : 'gistda',
+                  bounds: b.bounds, minzoom: b.minzoom, maxzoom: b.maxzoom
+                }]);
+                continue;
+              }
+
+              if (eventType === 'map_options' || data.needInfo || data.choices) {
+                const choices = data.choices || data.payload?.choices;
+                const key = data.key || data.payload?.key;
+                const questionText = data.question || data.payload?.question || ""; 
+
+                // 🌟 FIX 2: ดึงคำถามมาแสดงด้วย (ถ้ามี)
+                const updateMsg = (m: Message) => m.role === "assistant" ? { 
+                  ...m, 
+                  content: questionText || m.content, 
+                  choices: choices, 
+                  choiceKey: key 
+                } : m;
+                
+                if (ephemeral) {
+                  setEphemeralMessages(prev => prev.map((m, i) => i === prev.length - 1 ? updateMsg(m) : m));
+                } else {
+                  setChats(prev => prev.map(c => 
+                    c.id === currentId ? { ...c, messages: c.messages.map((m, i) => i === c.messages.length - 1 ? updateMsg(m) : m) } : c
+                  ));
+                }
+                continue;
+              }
+
+              // Handle Message IDs
+              const incomingUserId = data.usermessage_id || data.userMessageId;
+              const incomingAssistantId = data.assistantmessage_Id || data.assistantMessageId;
+              if (incomingUserId || incomingAssistantId) {
+                setChats(prev => prev.map(chat => {
+                  if(chat.id !== currentId) return chat;
+                  const safeMsgs = [...chat.messages];
+                  if (incomingUserId) {
+                    for (let i = safeMsgs.length - 1; i >= 0; i--) {
+                      if (safeMsgs[i].role === "user" && (!safeMsgs[i].id || String(safeMsgs[i].id).startsWith("temp_"))) { 
+                        safeMsgs[i] = { ...safeMsgs[i], id: incomingUserId }; 
+                        break; 
+                      }
+                    }
+                  }
+                  if (incomingAssistantId) {
+                    for (let i = safeMsgs.length - 1; i >= 0; i--) {
+                      if (safeMsgs[i].role === "assistant" && (!safeMsgs[i].id || String(safeMsgs[i].id).startsWith("temp_"))) { 
+                        safeMsgs[i] = { ...safeMsgs[i], id: incomingAssistantId }; 
+                        break; 
+                      }
+                    }
+                  }
+                  return { ...chat, messages: safeMsgs };
+                }));
+              }
+
+              // Handle Content Streaming
+              const textChunk = data.text || data.content || "";
+              accumulatedContent += textChunk;
+              const displayContent = accumulatedContent.split("<thinking>").pop()?.trim() || accumulatedContent;
+
+              if (ephemeral) {
+                setEphemeralMessages(prev => prev.map((m, i) => i === prev.length - 1 ? { ...m, content: displayContent } : m));
+              } else {
+                setChats(prev => prev.map(chat => {
+                  if (chat.id !== currentId) return chat;
+                  const safeMsgs = [...chat.messages];
+                  const lastIdx = safeMsgs.length - 1;
+                  
+                  if (lastIdx >= 0 && safeMsgs[lastIdx].role === "assistant") {
+                     // 🌟 FIX 3: โคลน Object ใหม่เสมอ และถ้า displayContent ว่าง ให้คงข้อความเดิม(question)ไว้
+                     safeMsgs[lastIdx] = { ...safeMsgs[lastIdx], content: displayContent || safeMsgs[lastIdx].content }; 
+                  } else {
+                     safeMsgs.push({ id: `temp_assistant_${Date.now()}`, role: "assistant", content: displayContent });
+                  }
+                  return { ...chat, messages: safeMsgs };
+                }));
+              }
+
+            } catch (e) { 
+              console.error("JSON Parse Error", e); 
             }
           }
         }
       }
 
       if (!ephemeral && isNewSession && realIdToSwapLater) {
-        const finalRealId = realIdToSwapLater; 
-        setPaginationConfig(prev => ({ ...prev, [finalRealId]: { page: 1, hasMore: false } }));
-        setChats(prev => prev.map(chat => 
-          chat.id === currentId ? { ...chat, id: finalRealId } : chat
-        ));
-        setActiveChatId(finalRealId);
+        setPaginationConfig(prev => ({ ...prev, [realIdToSwapLater as string]: { page: 1, hasMore: false } }));
+        setChats(prev => prev.map(chat => chat.id === currentId ? { ...chat, id: realIdToSwapLater as string } : chat));
+        setActiveChatId(realIdToSwapLater as string);
       }
-
-    } catch (error) {
-      console.error("Stream failed:", error);
-    } finally {
-      setIsLoading(false);
-    }
+    } catch (error) { console.error("Stream failed:", error); } 
+    finally { setIsLoading(false); }
   };
 
   const deleteChat = async (id: string) => {
-    console.log(`[PROCESS] Requesting server to delete conversation: ${id}`);
     setIsLoading(true);
-
     try {
       await chatService.deleteConversation(id); 
-      console.log(`[SUCCESS] Server confirmed deletion`);
-
       const filtered = chats.filter(c => c.id !== id);
       setChats(filtered);
-      
-      if (activeChatId === id) {
-        setActiveChatId(filtered[0]?.id || null);
-      }
-    } catch (error: any) {
-      console.error("[FAILURE] Server rejected deletion:", error);
-      alert(`Failed to delete chat. Server responded with an error.`);
-    } finally {
-      setIsLoading(false);
-    }
+      if (activeChatId === id) setActiveChatId(filtered[0]?.id || null);
+    } catch (error: any) { alert(`Failed to delete chat.`); } 
+    finally { setIsLoading(false); }
   };
 
   const renameChat = async (id: string, newTitle: string) => { 
     const originalChats = [...chats]; 
-    setChats(prev => prev.map(chat => chat.id === id ? { ...chat, title: newTitle } : chat));   
-    
-    try { 
-      await chatService.renameConversation(id, newTitle); 
-    } catch (error) {
-      console.error("[FAILURE] Failed to rename chat:", error);
-      setChats(originalChats); 
-    }
+    setChats(prev => prev.map(chat => chat.id === id ? { ...chat, title: newTitle } : chat)); 
+    try { await chatService.renameConversation(id, newTitle); } 
+    catch (error) { setChats(originalChats); }
   };
  
   const editAndResend = async (messageId: string, newContent: string, model: string) => {
@@ -604,87 +417,44 @@ export function useChat() {
     setIsLoading(true);
     try {
       setChats(prev => prev.map(chat => {
-        if (chat.id === activeChatId) {
-          const msgIndex = chat.messages.findIndex(m => m.id === messageId);
-          if (msgIndex == -1) return chat;
-          
-          const updatedMessages = chat.messages.slice(0, msgIndex + 1).map(m=> 
-            m.id === messageId ? { ...m, content: newContent, id: "temp_edit_" + Date.now() } : m
-          );
-          
-          return { ...chat, messages: updatedMessages };
-        }
-        return chat;
+        if (chat.id !== activeChatId) return chat;
+        const msgIndex = chat.messages.findIndex(m => m.id === messageId);
+        if (msgIndex == -1) return chat;
+        const updatedMessages = chat.messages.slice(0, msgIndex + 1).map(m => m.id === messageId ? { ...m, content: newContent, id: "temp_edit_" + Date.now() } : m);
+        return { ...chat, messages: updatedMessages };
       }));
-      
-      await sendMessage(newContent, model, [], { 
-        isRegenerate: true,
-        editMessageId: messageId 
-      });
-      
-    } catch (error) {
-      console.error("Failed to edit message:", error);
-    } finally {
-      setIsLoading(false);
-    }
+      await sendMessage(newContent, model, [], { isRegenerate: true, editMessageId: messageId });
+    } finally { setIsLoading(false); }
   };
+
+  // --- 7. Computed Values & Cleanup ---
 
   const migrationInfo = useMemo(() => {
     const gId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
     const guestChat = chats.find(c => String(c.id) === String(gId));
-    const hasContent = (guestChat?.messages.length || 0) > 0;
-
-    return {
-      guestId: gId as string | null,
-      canMigrate: !!gId && hasContent,
-    };
+    return { guestId: gId as string | null, canMigrate: !!gId && (guestChat?.messages.length || 0) > 0 };
   }, [chats]);
 
   useEffect(() => {
     if (user || !isSessionReady) return;
-
-    const wasSwept = checkAndCleanupExpiredGuest();
-    if (wasSwept) {
-      setChats([]);
-      setActiveChatId(null);
-      setIsGuestExpired(false);
+    if (checkAndCleanupExpiredGuest()) {
+      setChats([]); setActiveChatId(null); setIsGuestExpired(false);
     }
   }, [user, isSessionReady]); 
 
   useEffect(() => {
     if (user || !isSessionReady || isGuestExpired) return;
-
     const stopTimer = startGuestExpiryTimer(() => {
       setIsGuestExpired(true); 
       storage.removeCookie(AUTH_CONFIG.session.accessTokenStorageKey);
     });
-
     return () => stopTimer();
   }, [user, isSessionReady, isGuestExpired]);
 
-  const currentHasMore = activeChatId ? (paginationConfig[activeChatId]?.hasMore ?? false) : false;
-
   return { 
-    chats, 
-    setChats,
-    activeChatId, 
-    setActiveChatId, 
-    dynamicLayers,    
-    setDynamicLayers, 
-    isLoading, 
-    sendMessage, 
-    createNewChat, 
-    deleteChat, 
-    renameChat, 
-    editAndResend,
-    ephemeralMessages,
-    fetchNextPage,
-    isFetchingHistory,
-    hasMore: currentHasMore,
-    isSessionReady, 
-    guestId: migrationInfo.guestId,
-    canMigrate: migrationInfo.canMigrate,
-    isGuestExpired,
-    setIsGuestExpired
+    chats, setChats, activeChatId, setActiveChatId, dynamicLayers, setDynamicLayers, 
+    isLoading, sendMessage, createNewChat, deleteChat, renameChat, editAndResend,
+    ephemeralMessages, fetchNextPage, isFetchingHistory, hasMore: activeChatId ? (paginationConfig[activeChatId]?.hasMore ?? false) : false,
+    isSessionReady, guestId: migrationInfo.guestId, canMigrate: migrationInfo.canMigrate, isGuestExpired, setIsGuestExpired
   };
 }

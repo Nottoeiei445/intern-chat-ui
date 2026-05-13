@@ -52,12 +52,14 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
             if (layerConfig.type === 'wms' || layerConfig.type === 'tms'|| layerConfig.type === 'wmts') {
               const titleSize = layerConfig.type === 'wmts' ? 512 : 256;
               map.addSource(sourceId, { type: 'raster', tiles: [fullUrl], tileSize: titleSize });
-            } else if (layerConfig.type === 'vector') {
+            } 
+            else if (layerConfig.type === 'vector' || layerConfig.type === 'vector_tile') {
               map.addSource(sourceId, {
                 type: 'vector',
-                tiles: [fullUrl],
-                ...(layerConfig.minzoom && { minzoom: layerConfig.minzoom }),
-                ...(layerConfig.maxzoom && { maxzoom: layerConfig.maxzoom }),
+                tiles: [fullUrl], 
+                promoteId: '_id', 
+                ...(layerConfig.minzoom !== undefined && { minzoom: layerConfig.minzoom }),
+                ...(layerConfig.maxzoom !== undefined && { maxzoom: layerConfig.maxzoom }),
                 ...(layerConfig.bounds && { bounds: layerConfig.bounds })
               });
             } else if (layerConfig.type === 'geojson') {
@@ -74,24 +76,54 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
                 source: sourceId,
                 paint: { 'raster-opacity': layerConfig.style?.opacity || 0.8 }
               });
-            } else if (layerConfig.type === 'vector') {
+            } 
+            else if (layerConfig.type === 'vector' || layerConfig.type === 'vector_tile') {
+              const urlPathId = layerConfig.baseUrl ? layerConfig.baseUrl.split('?')[0].split('/').pop() : null;
+              const sourceLayerName = layerConfig.layerId || urlPathId || 'core';
+
+              const fillLayerId = `${layerId}-fill`;
               map.addLayer({
-                id: layerId,
-                type: 'heatmap',
+                id: fillLayerId,
+                type: 'fill',
                 source: sourceId,
-                'source-layer': layerConfig.layerId || 'default',
+                'source-layer': sourceLayerName,
                 paint: { 
-                  'heatmap-weight': 1,
-                  'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 1, 9, 3],
-                  'heatmap-color': [
-                    'interpolate', ['linear'], ['heatmap-density'],
-                    0, 'rgba(33,102,172,0)', 0.2, 'rgb(255,255,204)', 0.4, 'rgb(255,237,160)',
-                    0.6, 'rgb(254,178,76)', 0.8, 'rgb(252,78,42)', 1, 'rgb(189,0,38)'
-                  ],
-                  'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 2, 9, 20],
-                  'heatmap-opacity': 0.8
+                  'fill-color': ['case', ['boolean', ['feature-state', 'hover'], false], '#facc15', '#74c476'], 
+                  'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.9, 0.6],   
+                  'fill-outline-color': '#ffffff'
                 }
               });
+
+              const lineLayerId = `${layerId}-line`;
+              map.addLayer({
+                id: lineLayerId,
+                type: 'line',
+                source: sourceId,
+                'source-layer': sourceLayerName,
+                paint: { 
+                  'line-color': ['case', ['boolean', ['feature-state', 'hover'], false], '#facc15', '#3b82f6'],
+                  'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 4, 2] 
+                }
+              });
+
+              const pointLayerId = `${layerId}-point`;
+              map.addLayer({
+                id: pointLayerId,
+                type: 'circle',
+                source: sourceId,
+                'source-layer': sourceLayerName,
+                paint: { 
+                  'circle-color': ['case', ['boolean', ['feature-state', 'hover'], false], '#facc15', '#ef4444'],
+                  'circle-radius': ['case', ['boolean', ['feature-state', 'hover'], false], 8, 5],
+                  'circle-stroke-width': 1,
+                  'circle-stroke-color': '#ffffff'
+                }
+              });
+
+              if (!activeLayerIds.current.includes(fillLayerId)) activeLayerIds.current.push(fillLayerId);
+              if (!activeLayerIds.current.includes(lineLayerId)) activeLayerIds.current.push(lineLayerId);
+              if (!activeLayerIds.current.includes(pointLayerId)) activeLayerIds.current.push(pointLayerId);
+
               if (layerConfig.bounds) map.fitBounds(layerConfig.bounds, { padding: 50, duration: 1500 });
             } else if (layerConfig.type === 'geojson') {
               map.addLayer({
@@ -127,11 +159,20 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
 
     if (map.getStyle()) {
       dynamicLayers.forEach(layer => {
-        const layerId = `ai-layer-${layer.id}`;
-        if (map.getLayer(layerId)) {
-          const visibility = hiddenLayers.includes(layer.id) ? 'none' : 'visible';
-          map.setLayoutProperty(layerId, 'visibility', visibility);
-        }
+        const visibility = hiddenLayers.includes(layer.id) ? 'none' : 'visible';
+
+        const targetLayerIds = [
+          `ai-layer-${layer.id}`,        // สำหรับ Raster, GeoJSON
+          `ai-layer-${layer.id}-fill`,   // สำหรับ Vector (พื้นที่)
+          `ai-layer-${layer.id}-line`,   // สำหรับ Vector (เส้น)
+          `ai-layer-${layer.id}-point`   // สำหรับ Vector (จุด)
+        ];
+
+        targetLayerIds.forEach(targetId => {
+          if (map.getLayer(targetId)) {
+            map.setLayoutProperty(targetId, 'visibility', visibility);
+          }
+        });
       });
     }
 

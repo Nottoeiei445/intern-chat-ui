@@ -27,6 +27,7 @@ export const mapService = {
     switch (type) {
       case 'tms':     cleanUrl = mapUrlBuilder.tms(decodedBaseUrl); break;
       case 'wmts':    cleanUrl = mapUrlBuilder.wmts(decodedBaseUrl, layerId || styleId || 'default'); break;
+      case 'vector_tile': cleanUrl = mapUrlBuilder.vector(decodedBaseUrl); break;
       case 'vector':  cleanUrl = mapUrlBuilder.vector(decodedBaseUrl); break;
       case 'geojson': cleanUrl = mapUrlBuilder.geojson(decodedBaseUrl); break;
     }

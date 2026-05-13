@@ -2,13 +2,17 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useMapStore } from "@/store/useMapStore"; 
-import { KeyRound, ShieldAlert, ArrowRight, X, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { KeyRound, ShieldAlert, ArrowRight, X, ChevronDown, ChevronUp, Loader2, Lock } from "lucide-react"; // 🌟 ดึง Lock เข้ามาใช้
 import { useApiKeys } from "@/features/auth/hooks/useApiKeys"; 
 import { apiKeyService } from "@/features/auth/services/apiKey.service"; 
+import { useAuth } from "@/features/auth";
 
 export const ApiKeyPopover = () => {
+  const { user } = useAuth();
   const { setApiKey, isKeyModalOpen, closeKeyModal } = useMapStore();
+  
   const [selectedKeyId, setSelectedKeyId] = useState(""); 
+  
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isFetchingKey, setIsFetchingKey] = useState(false); 
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -34,6 +38,8 @@ export const ApiKeyPopover = () => {
   };
 
   const handleSave = async () => {
+    if (!user) return; 
+
     if (selectedKeyId.trim() === "") return;
     
     setIsFetchingKey(true);
@@ -57,6 +63,8 @@ export const ApiKeyPopover = () => {
   };
 
   const selectedKeyObj = Array.isArray(keys) ? keys.find(k => k.id === selectedKeyId) : null;
+  
+  const isSubmitDisabled = !user || !selectedKeyId;
 
   return (
     <div className="absolute bottom-[calc(100%+12px)] left-0 w-full z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
@@ -95,78 +103,106 @@ export const ApiKeyPopover = () => {
             
             <div className="relative flex-1" ref={dropdownRef}>
               
-              {isDropdownOpen && !isFetchingKey && (
-                <div className="absolute bottom-[calc(100%+8px)] left-0 w-full bg-popover border border-border rounded-xl shadow-xl z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                  <div className="max-h-[200px] overflow-y-auto p-1 custom-scrollbar">
-                    {Array.isArray(keys) && keys.length === 0 ? (
-                       <div className="p-3 text-center text-xs text-muted-foreground">No API Keys found</div>
+              {user ? (
+                <>
+                  {isDropdownOpen && !isFetchingKey && (
+                    <div className="absolute bottom-[calc(100%+8px)] left-0 w-full bg-popover border border-border rounded-xl shadow-xl z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                      <div className="max-h-[200px] overflow-y-auto p-1 custom-scrollbar">
+                        {Array.isArray(keys) && keys.length === 0 ? (
+                           <div className="p-3 text-center text-xs text-muted-foreground">No API Keys found</div>
+                        ) : (
+                          Array.isArray(keys) && keys.map((item) => (
+                            <button
+                              key={item.id}
+                              onClick={() => {
+                                setSelectedKeyId(item.id);
+                                setIsDropdownOpen(false);
+                              }}
+                              className={`w-full text-left px-3 py-2 rounded-lg flex flex-col gap-1 transition-colors ${
+                                selectedKeyId === item.id ? "bg-primary/10 text-primary" : "hover:bg-accent text-foreground"
+                              }`}
+                            >
+                              <div className="flex items-center justify-between">
+                                <span className="font-semibold text-sm">{item.keyName}</span>
+                                <span className="text-[9px] opacity-70 border border-border px-1.5 rounded-md uppercase tracking-wider bg-background">
+                                  {item.provider || 'VALLARIS'}
+                                </span>
+                              </div>
+                              <span className="text-[11px] text-muted-foreground font-mono truncate">
+                                {formatMaskedKey(item.maskedKey)}
+                              </span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                    disabled={isFetchingKey} 
+                    className="w-full h-14 px-4 bg-background border border-input rounded-xl flex items-center justify-between focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all disabled:opacity-70 disabled:cursor-not-allowed overflow-hidden shadow-inner"
+                  >
+                    {selectedKeyObj ? (
+                      <div className="flex flex-col items-start justify-center overflow-hidden w-[calc(100%-24px)] h-full">
+                        <span className="text-foreground font-semibold text-sm truncate w-full text-left">
+                          {selectedKeyObj.keyName}
+                        </span>
+                        <span className="text-[10px] text-muted-foreground font-mono truncate w-full text-left opacity-80 mt-0.5">
+                          {formatMaskedKey(selectedKeyObj.maskedKey)}
+                        </span>
+                      </div>
                     ) : (
-                      Array.isArray(keys) && keys.map((item) => (
-                        <button
-                          key={item.id}
-                          onClick={() => {
-                            setSelectedKeyId(item.id);
-                            setIsDropdownOpen(false);
-                          }}
-                          className={`w-full text-left px-3 py-2 rounded-lg flex flex-col gap-1 transition-colors ${
-                            selectedKeyId === item.id ? "bg-primary/10 text-primary" : "hover:bg-accent text-foreground"
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span className="font-semibold text-sm">{item.keyName}</span>
-                            <span className="text-[9px] opacity-70 border border-border px-1.5 rounded-md uppercase tracking-wider bg-background">
-                              {item.provider || 'VALLARIS'}
-                            </span>
-                          </div>
-                          <span className="text-[11px] text-muted-foreground font-mono truncate">
-                            {formatMaskedKey(item.maskedKey)}
-                          </span>
-                        </button>
-                      ))
+                      <span className="text-muted-foreground text-sm">Select an API Key...</span>
                     )}
+                    
+                    <div className="shrink-0 ml-2">
+                      {isDropdownOpen ? (
+                        <ChevronUp size={16} className="text-muted-foreground" />
+                      ) : (
+                        <ChevronDown size={16} className="text-muted-foreground" />
+                      )}
+                    </div>
+                  </button>
+                </>
+              ) : (
+                <div className="relative group w-full">
+                  <div className="w-full h-14 px-4 bg-muted/30 border border-border/50 rounded-xl flex items-center justify-between cursor-not-allowed opacity-70 transition-all">
+                    <div className="flex items-center gap-3">
+                      <Lock size={14} className="text-muted-foreground" />
+                      <span className="text-muted-foreground text-sm">Login to select API key...</span>
+                    </div>
+                    <ChevronDown size={16} className="text-muted-foreground/40" />
+                  </div>
+
+                  {/* Tooltip สไตล์เนียนๆ กลืนไปกับแอป */}
+                  <div className="absolute -top-11 left-1/2 -translate-x-1/2 bg-popover border border-border text-foreground text-xs font-medium px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl flex items-center gap-2">
+                    <Lock size={12} className="text-muted-foreground" />
+                    Please log in to access this feature
                   </div>
                 </div>
               )}
+            </div>
 
+            {/* ปุ่ม Save */}
+            <div className="relative group h-14" title={!user ? "Login Required" : ""}>
               <button
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                disabled={isFetchingKey} 
-                className="w-full h-14 px-4 bg-background border border-input rounded-xl flex items-center justify-between focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/50 transition-all disabled:opacity-70 disabled:cursor-not-allowed overflow-hidden shadow-inner"
+                onClick={handleSave}
+                disabled={isSubmitDisabled || isFetchingKey}
+                className={`px-5 h-full rounded-xl flex items-center justify-center transition-all shadow-lg active:scale-95 ${
+                  !user 
+                    ? "bg-primary/40 text-primary-foreground/50 cursor-not-allowed"
+                    : "bg-primary hover:bg-primary/90 text-primary-foreground shadow-primary/25 hover:shadow-primary/40 disabled:opacity-50 disabled:cursor-not-allowed"
+                }`}
               >
-                {selectedKeyObj ? (
-                  <div className="flex flex-col items-start justify-center overflow-hidden w-[calc(100%-24px)] h-full">
-                    <span className="text-foreground font-semibold text-sm truncate w-full text-left">
-                      {selectedKeyObj.keyName}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground font-mono truncate w-full text-left opacity-80 mt-0.5">
-                      {formatMaskedKey(selectedKeyObj.maskedKey)}
-                    </span>
-                  </div>
+                {isFetchingKey ? (
+                  <Loader2 size={18} className="animate-spin" />
                 ) : (
-                  <span className="text-muted-foreground text-sm">Select an API Key...</span>
+                  <ArrowRight size={18} />
                 )}
-                
-                <div className="shrink-0 ml-2">
-                  {isDropdownOpen ? (
-                    <ChevronUp size={16} className="text-muted-foreground" />
-                  ) : (
-                    <ChevronDown size={16} className="text-muted-foreground" />
-                  )}
-                </div>
               </button>
             </div>
 
-            <button
-              onClick={handleSave}
-              disabled={!selectedKeyId || isFetchingKey}
-              className="px-5 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl flex items-center justify-center transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-primary/25 hover:shadow-primary/40 active:scale-95"
-            >
-              {isFetchingKey ? (
-                <Loader2 size={18} className="animate-spin" />
-              ) : (
-                <ArrowRight size={18} />
-              )}
-            </button>
           </div>
 
         </div>
