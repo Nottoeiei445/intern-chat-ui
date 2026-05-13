@@ -21,11 +21,15 @@ const sortChats = (list: ChatThread[]) => {
 const mapBackendMessage = (msg: any) => {
   const isMapOptions = msg.metadata?.event === 'map_options';
   const payload = msg.metadata?.payload;
+  const attachments = msg.metadata?.vision?.attachments || msg.metadata?.attachments || [];
+  const imageUrl = attachments.length > 0 ? attachments[0].url : undefined;
+
   return {
     ...msg, 
     content: msg.content || (isMapOptions ? payload?.question : "") || "",
     choices: isMapOptions ? payload?.choices : msg.choices,
     choiceKey: isMapOptions ? payload?.key : msg.choiceKey,
+    imageUrl: imageUrl, 
   };
 };
 

@@ -13,6 +13,7 @@ export interface Message {
   images?: string[]; 
   choices?: ClarityChoice[];
   choiceKey?: string; // เพื่อระบุว่าชุด choices นี้เกี่ยวข้องกับคำถามหรือข้อความไหน (ถ้ามี)
+  imageUrl?: string; // สำหรับเก็บ URL ของภาพที่แนบมา (ถ้ามี)
 }
 
 export interface ChatThread {

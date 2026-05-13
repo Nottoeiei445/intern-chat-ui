@@ -163,9 +163,9 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
 
         const targetLayerIds = [
           `ai-layer-${layer.id}`,        // สำหรับ Raster, GeoJSON
-          `ai-layer-${layer.id}-fill`,   // สำหรับ Vector (พื้นที่)
-          `ai-layer-${layer.id}-line`,   // สำหรับ Vector (เส้น)
-          `ai-layer-${layer.id}-point`   // สำหรับ Vector (จุด)
+          `ai-layer-${layer.id}-fill`,   // สำหรับ Vector polygon
+          `ai-layer-${layer.id}-line`,   // สำหรับ Vector line
+          `ai-layer-${layer.id}-point`   // สำหรับ Vector point
         ];
 
         targetLayerIds.forEach(targetId => {

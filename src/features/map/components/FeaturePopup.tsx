@@ -10,7 +10,6 @@ export const FeaturePopup = ({ properties }: FeaturePopupProps) => {
   const title = properties.pv_tn || properties.ap_tn || properties.name || properties.title || "Feature Details";
 
   return (
-    // คุม Theme และสีให้เหมือน LayerManager
     <div className="flex flex-col w-full min-w-[250px] max-w-[320px] bg-card text-foreground font-sans">
       
       {/* Header */}

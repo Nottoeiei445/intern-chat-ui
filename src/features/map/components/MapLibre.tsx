@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { Button } from '@/components/ui/button'; 
-import { LocateFixed, X } from 'lucide-react';
+import { LocateFixed } from 'lucide-react';
 import { HazardType, TimeRange, MapMode } from '../types';
 import { useDynamicLayers } from '../hooks/useDynamicLayers';
 import { DynamicLayerPayload } from '../types';
@@ -89,15 +89,17 @@ export const MapLibre = ({ activeBoundary, dynamicLayers = [] }: MapLibreProps) 
   useDynamicLayers(map, dynamicLayers);
   useMapEvents(map, selectedData, setSelectedData);
 
-  // สร้าง Ref เอาไว้เก็บตัว Popup ของ MapLibre จะได้ลบ/สร้างใหม่ได้ถูกต้อง
   const popupRef = useRef<maplibregl.Popup | null>(null);
+  const isUpdatingPopup = useRef(false);
 
   useEffect(() => {
     if (!map) return;
 
     if (popupRef.current) {
-      popupRef.current.remove();
+      isUpdatingPopup.current = true; 
+      popupRef.current.remove();      
       popupRef.current = null;
+      isUpdatingPopup.current = false; 
     }
 
     if (selectedData) {
@@ -111,6 +113,7 @@ export const MapLibre = ({ activeBoundary, dynamicLayers = [] }: MapLibreProps) 
         maxWidth: '320px',
         closeButton: true,
         focusAfterOpen: false,
+        closeOnClick: false,
         anchor: anchorPosition, 
         className: resolvedTheme === 'dark' ? 'dark-popup' : '' 
       })
@@ -119,7 +122,9 @@ export const MapLibre = ({ activeBoundary, dynamicLayers = [] }: MapLibreProps) 
         .addTo(map);
 
       popup.on('close', () => {
-        setSelectedData(null);
+        if (!isUpdatingPopup.current) {
+          setSelectedData(null);
+        }
         setTimeout(() => root.unmount(), 0); 
       });
 

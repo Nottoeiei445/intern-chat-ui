@@ -182,6 +182,19 @@ export const MessageItem = ({
                 </div>
               )}
 
+              {msg.imageUrl && !isEditing && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  <div className="relative max-w-[200px] max-h-[200px] overflow-hidden rounded-xl border border-border shadow-lg">
+                    <img 
+                      src={msg.imageUrl} 
+                      alt="history-attachment"
+                      className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                      loading="lazy"
+                      onLoad={() => { if (!isFetchingHistory) scrollToBottom() }}
+                    />
+                  </div>
+                </div>
+              )}
 
               {msg.role === "assistant" && msg.choices && msg.choices.length > 0 && !isEditing && (
                 <div className="mt-5 pt-4 border-t border-border flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-500">
