@@ -60,6 +60,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
             }
             if (!activeLayerIds.current.includes(sourceId)) activeLayerIds.current.push(sourceId);
           }
+
           if (!map.getLayer(layerId) && !map.getLayer(`${layerId}-fill`)) {
             if (layerConfig.type === 'wms' || layerConfig.type === 'tms' || layerConfig.type === 'wmts' || layerConfig.type === 'coverage_tile') {
               map.addLayer({
@@ -71,57 +72,101 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
               if (!activeLayerIds.current.includes(layerId)) activeLayerIds.current.push(layerId);
             } 
             else if (layerConfig.type === 'vector' || layerConfig.type === 'vector_tile') {
-              const urlPathId = layerConfig.baseUrl ? layerConfig.baseUrl.split('?')[0].split('/').pop() : null;
-              const sourceLayerName = layerConfig.layerId || urlPathId || 'core';
+              const sourceLayerId = layerConfig.layerId || 'default';
+              
+              const hasAiStyle = layerConfig.renderStyles && layerConfig.renderStyles.length > 0;
+              const appliedFlag = `${layerId}-ai-applied`;
 
-              const fillLayerId = `${layerId}-fill`;
-              map.addLayer({
-                id: fillLayerId,
-                type: 'fill',
-                source: sourceId,
-                'source-layer': sourceLayerName,
-                filter: ['==', ['geometry-type'], 'Polygon'],
-                paint: { 
-                  'fill-color': ['case', ['boolean', ['feature-state', 'hover'], false], '#facc15', '#069c0b'], 
-                  'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.9, 0.6],   
-                  'fill-outline-color': '#ffffff'
-                }
-              });
+              // กรณีมีสไตล์ส่งมาจาก AI
+              if (hasAiStyle && !activeLayerIds.current.includes(appliedFlag)) {
+                
+                // ลบ fallback เดิมทิ้งก่อน
+                ['fill', 'line', 'point'].forEach(suffix => {
+                  const fId = `${layerId}-${suffix}`;
+                  if (map.getLayer(fId)) map.removeLayer(fId);
+                });
 
-              const lineLayerId = `${layerId}-line`;
-              map.addLayer({
-                id: lineLayerId,
-                type: 'line',
-                source: sourceId,
-                'source-layer': sourceLayerName,
-                filter: ['==', ['geometry-type'], 'LineString'],
-                paint: { 
-                  'line-color': ['case', ['boolean', ['feature-state', 'hover'], false], '#facc15', '#3b82f6'],
-                  'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 4, 2] 
-                }
-              });
+                // สร้างเลเยอร์ใหม่จากข้อมูล style ที่คัดกรองแล้ว
+                layerConfig.renderStyles?.forEach((styleObj: any) => {
+                  let suffix = 'fill';
+                  if (styleObj.type === 'line') suffix = 'line';
+                  else if (['circle', 'symbol', 'heatmap'].includes(styleObj.type)) suffix = 'point';
+                  
+                  const aiLayerId = `${layerId}-${suffix}`;
 
-              const pointLayerId = `${layerId}-point`;
-              map.addLayer({
-                id: pointLayerId,
-                type: 'heatmap',
-                source: sourceId,
-                'source-layer': sourceLayerName,
-                filter: ['==', ['geometry-type'], 'Point'],
-                "paint": {
-                  "heatmap-weight": 1,
-                  "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 9, 3],
-                  "heatmap-color": ["interpolate", ["linear"], ["heatmap-density"], 0, "rgba(255,255,255,0)", 0.2, "rgb(254,204,92)", 0.5, "rgb(240,59,32)", 1, "rgb(189,0,38)"],
-                  "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 5, 9, 15],
-                  "heatmap-opacity": 0.8
-                }
-              });
+                  if (!map.getLayer(aiLayerId)) {
+                    // โครงสร้างบังคับใช้ของ Frontend ทั้งหมด
+                    const layerParams: any = {
+                      id: aiLayerId,
+                      type: styleObj.type || 'fill',
+                      source: sourceId,
+                      'source-layer': sourceLayerId
+                    };
 
-              if (!activeLayerIds.current.includes(fillLayerId)) activeLayerIds.current.push(fillLayerId);
-              if (!activeLayerIds.current.includes(lineLayerId)) activeLayerIds.current.push(lineLayerId);
-              if (!activeLayerIds.current.includes(pointLayerId)) activeLayerIds.current.push(pointLayerId);
+                    // รับเฉพาะ paint เท่านั้น ข้อมูลอื่นทิ้ง
+                    if (styleObj.paint && Object.keys(styleObj.paint).length > 0) {
+                      layerParams.paint = styleObj.paint;
+                    }
 
-              if (layerConfig.bounds) map.fitBounds(layerConfig.bounds, { padding: 50, duration: 1500 });
+                    map.addLayer(layerParams);
+                    if (!activeLayerIds.current.includes(aiLayerId)) activeLayerIds.current.push(aiLayerId);
+                  }
+                });
+
+                activeLayerIds.current.push(appliedFlag);
+              } 
+              // กรณีข้อมูลสตรีมแรก ยังไม่มีสไตล์ 
+              else if (!hasAiStyle && !map.getLayer(`${layerId}-fill`)) {
+                const fillLayerId = `${layerId}-fill`;
+                map.addLayer({
+                  id: fillLayerId,
+                  type: 'fill',
+                  source: sourceId,
+                  'source-layer': sourceLayerId,
+                  filter: ['==', ['geometry-type'], 'Polygon'],
+                  paint: { 
+                    'fill-color': ['case', ['boolean', ['feature-state', 'hover'], false], '#facc15', '#069c0b'], 
+                    'fill-opacity': ['case', ['boolean', ['feature-state', 'hover'], false], 0.9, 0.6],   
+                    'fill-outline-color': '#ffffff'
+                  }
+                });
+
+                const lineLayerId = `${layerId}-line`;
+                map.addLayer({
+                  id: lineLayerId,
+                  type: 'line',
+                  source: sourceId,
+                  'source-layer': sourceLayerId,
+                  filter: ['==', ['geometry-type'], 'LineString'],
+                  paint: { 
+                    'line-color': ['case', ['boolean', ['feature-state', 'hover'], false], '#facc15', '#3b82f6'],
+                    'line-width': ['case', ['boolean', ['feature-state', 'hover'], false], 4, 2] 
+                  }
+                });
+
+                const pointLayerId = `${layerId}-point`;
+                map.addLayer({
+                  id: pointLayerId,
+                  type: 'heatmap',
+                  source: sourceId,
+                  'source-layer': sourceLayerId,
+                  filter: ['==', ['geometry-type'], 'Point'],
+                  "paint": {
+                    "heatmap-weight": 1,
+                    "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 9, 3],
+                    "heatmap-color": ["interpolate", ["linear"], ["heatmap-density"], 0, "rgba(255,255,255,0)", 0.2, "rgb(254,204,92)", 0.5, "rgb(240,59,32)", 1, "rgb(189,0,38)"],
+                    "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 0, 5, 9, 15],
+                    "heatmap-opacity": 0.8
+                  }
+                });
+
+                if (!activeLayerIds.current.includes(fillLayerId)) activeLayerIds.current.push(fillLayerId);
+                if (!activeLayerIds.current.includes(lineLayerId)) activeLayerIds.current.push(lineLayerId);
+                if (!activeLayerIds.current.includes(pointLayerId)) activeLayerIds.current.push(pointLayerId);
+
+                // ซูมเข้าพื้นที่เมื่อโหลดแบบ fallback
+                if (layerConfig.bounds) map.fitBounds(layerConfig.bounds, { padding: 50, duration: 1500 });
+              }
             } 
             else if (layerConfig.type === 'geojson') {
               map.addLayer({
