@@ -6,7 +6,6 @@ import { useAuth } from "../../auth/context/AuthContext";
 import { chatService } from "../services/chat.service"; 
 import { AUTH_CONFIG } from "@/features/auth/config/auth.config";
 import { storage } from "@/lib/storage";
-import { DynamicLayerPayload } from '@/features/map/types';
 import { useMapStore } from '@/store/useMapStore';
 import { 
   checkAndCleanupExpiredGuest, 
@@ -281,7 +280,6 @@ export function useChat() {
                   currentId = realId;
                   setActiveChatId(realId);
 
-                  // 🌟 FIX 1: ป้องกัน Race Condition! สั่งบล็อก useEffect ไม่ให้วิ่งไปดึงข้อมูลมาทับ Stream
                   setPaginationConfig(prev => ({ ...prev, [realId]: { page: 1, hasMore: false } }));
                 }
                 if (isNewSession && !realIdToSwapLater && !ephemeral) {
@@ -297,24 +295,54 @@ export function useChat() {
                 reader.cancel(); return; 
               }
 
-              // Handle Map Events
+              // Handle Map Events (Catalog)
               if (eventType === 'layer_catalog' && data.layer) {
                 const b = data.layer;
-                setDynamicLayers([{
-                  id: b.styleId || b.basename || b.layerName || `ai-layer-${Date.now()}`,
-                  type: b.type, baseUrl: b.url, layerId: b.basename || b.layerName || b.styleId,
-                  title: b.title, apiProvider: b.url.includes('vallaris') ? 'vallaris' : 'gistda',
-                  bounds: b.bounds, minzoom: b.minzoom, maxzoom: b.maxzoom
-                }]);
+                const currentLayers = useMapStore.getState().dynamicLayers; 
+                
+                // จัดลำดับความสำคัญของ ID ให้ใช้ layerId เป็นหลัก
+                const newLayerId = b.layerId || b.styleId || b.basename || b.layerName || `ai-layer-${Date.now()}`;
+                
+                if (!currentLayers.some(l => l.id === newLayerId)) {
+                  setDynamicLayers([...currentLayers, {
+                    id: newLayerId,
+                    type: b.type, 
+                    baseUrl: b.url, 
+                    layerId: newLayerId, // ใช้ ID ที่จัดรูปแบบแล้วเพื่อกันพลาด
+                    title: b.title, 
+                    apiProvider: b.url.includes('vallaris') ? 'vallaris' : 'gistda',
+                    bounds: b.bounds, 
+                    minzoom: b.minzoom, 
+                    maxzoom: b.maxzoom,
+                  }]);
+                }
                 continue;
               }
 
+              // Handle Map Events (Style)
+              if (eventType === 'map_style' && data.layers) {
+                const currentLayers = useMapStore.getState().dynamicLayers; 
+                
+                const updatedLayers = currentLayers.map(layer => {
+                  if (layer.layerId === data.layerId || layer.id === data.layerId) {
+                    return { 
+                      ...layer, 
+                      renderStyles: data.layers 
+                    };
+                  }
+                  return layer;
+                });
+                
+                setDynamicLayers(updatedLayers);
+                continue;
+              }
+
+              // Handle Map Options
               if (eventType === 'map_options' || data.needInfo || data.choices) {
                 const choices = data.choices || data.payload?.choices;
                 const key = data.key || data.payload?.key;
                 const questionText = data.question || data.payload?.question || ""; 
 
-                // 🌟 FIX 2: ดึงคำถามมาแสดงด้วย (ถ้ามี)
                 const updateMsg = (m: Message) => m.role === "assistant" ? { 
                   ...m, 
                   content: questionText || m.content, 
@@ -373,7 +401,6 @@ export function useChat() {
                   const lastIdx = safeMsgs.length - 1;
                   
                   if (lastIdx >= 0 && safeMsgs[lastIdx].role === "assistant") {
-                     // 🌟 FIX 3: โคลน Object ใหม่เสมอ และถ้า displayContent ว่าง ให้คงข้อความเดิม(question)ไว้
                      safeMsgs[lastIdx] = { ...safeMsgs[lastIdx], content: displayContent || safeMsgs[lastIdx].content }; 
                   } else {
                      safeMsgs.push({ id: `temp_assistant_${Date.now()}`, role: "assistant", content: displayContent });

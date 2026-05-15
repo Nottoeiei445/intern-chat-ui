@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMapStore } from "@/store/useMapStore";
-import { Layers, Eye, EyeOff, Map, ChevronLeft, ChevronRight } from "lucide-react";
+import { Layers, Eye, EyeOff, Map, ChevronRight } from "lucide-react";
 
 export const LayerManager = () => {
   const { 

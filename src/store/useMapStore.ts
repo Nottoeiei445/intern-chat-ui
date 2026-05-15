@@ -26,11 +26,9 @@ interface MapState {
   setPendingChat: (chatData: PendingChatData) => void;
   clearPendingChat: () => void;
 
-  // 🌟 [เพิ่มใหม่] ตัวจัดการการซ่อน/แสดงเลเยอร์
   hiddenLayers: string[];
   toggleLayerVisibility: (layerId: string) => void;
   
-  // 🌟 [เพิ่มใหม่] ตัวจัดการพื้นหลังแผนที่ (Base Map)
   isBaseMapVisible: boolean;
   toggleBaseMap: () => void;
 }

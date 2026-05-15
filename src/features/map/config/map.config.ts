@@ -30,7 +30,14 @@ export const mapUrlBuilder = {
       : (baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`) + '{z}/{x}/{y}';
   },
 
-  geojson: (baseUrl: string) => baseUrl
+  geojson: (baseUrl: string) => baseUrl,
+
+  coverage_tile: (baseUrl: string) => {
+    const hasTiles = baseUrl.includes('{z}');
+    return hasTiles 
+      ? baseUrl 
+      : (baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`) + '{z}/{x}/{y}';
+   }
 };
 
 const getTmsUrl = (baseUrl: string, _layerId: string) => mapUrlBuilder.tms(baseUrl);
