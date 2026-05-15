@@ -74,38 +74,59 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
             else if (layerConfig.type === 'vector' || layerConfig.type === 'vector_tile') {
               const sourceLayerId = layerConfig.layerId || 'default';
               
-              const hasAiStyle = layerConfig.renderStyles && layerConfig.renderStyles.length > 0;
-              const appliedFlag = `${layerId}-ai-applied`;
+              // เช็คว่ามีสไตล์ที่พร้อมใช้งานหรือไม่
+              const hasAvailableStyles = layerConfig.availableStyles && layerConfig.availableStyles.length > 0;
+              const hasAiStyle = hasAvailableStyles || (layerConfig.renderStyles && layerConfig.renderStyles.length > 0);
+              
+              const currentStyleKey = layerConfig.activeStyleKey || 'default';
+              const appliedFlag = `${layerId}-ai-applied-${currentStyleKey}`;
 
-              // กรณีมีสไตล์ส่งมาจาก AI
+              // กรณีมีสไตล์จาก AI และยังไม่ได้วาดสไตล์ "ตัวปัจจุบัน" ลงไป
               if (hasAiStyle && !activeLayerIds.current.includes(appliedFlag)) {
                 
-                // ลบ fallback เดิมทิ้งก่อน
-                ['fill', 'line', 'point'].forEach(suffix => {
+                // ลบสไตล์เดิมทุกรูปแบบทิ้งก่อนวาดใหม่
+                ['fill', 'line', 'point', 'fill-extrusion'].forEach(suffix => {
                   const fId = `${layerId}-${suffix}`;
                   if (map.getLayer(fId)) map.removeLayer(fId);
                 });
 
-                // สร้างเลเยอร์ใหม่จากข้อมูล style ที่คัดกรองแล้ว
-                layerConfig.renderStyles?.forEach((styleObj: any) => {
+                // ค้นหาสไตล์ที่ตรงกับ Dropdown ที่เลือก
+                let stylesToRender: any[] = [];
+                if (hasAvailableStyles) {
+                  const selected = layerConfig.availableStyles?.find(s => s.styleKey === currentStyleKey) 
+                                   || layerConfig.availableStyles?.[0];
+                  
+                  if (selected) {
+                    stylesToRender = Array.isArray(selected.layers) ? selected.layers 
+                                   : Array.isArray(selected.renderConfig) ? selected.renderConfig 
+                                   : [selected.renderConfig].filter(Boolean);
+                  }
+                } else {
+                  stylesToRender = layerConfig.renderStyles || [];
+                }
+
+                // วาดเลเยอร์ใหม่
+                stylesToRender.forEach((styleObj: any) => {
                   let suffix = 'fill';
-                  if (styleObj.type === 'line') suffix = 'line';
-                  else if (['circle', 'symbol', 'heatmap'].includes(styleObj.type)) suffix = 'point';
+                  if (styleObj.type === 'line' || styleObj.layerType === 'line') suffix = 'line';
+                  else if (['circle', 'symbol', 'heatmap'].includes(styleObj.type || styleObj.layerType)) suffix = 'point';
+                  else if (styleObj.type === 'fill-extrusion' || styleObj.layerType === 'fill-extrusion') suffix = 'fill-extrusion';
                   
                   const aiLayerId = `${layerId}-${suffix}`;
 
                   if (!map.getLayer(aiLayerId)) {
-                    // โครงสร้างบังคับใช้ของ Frontend ทั้งหมด
                     const layerParams: any = {
                       id: aiLayerId,
-                      type: styleObj.type || 'fill',
+                      type: styleObj.type || styleObj.layerType || 'fill',
                       source: sourceId,
                       'source-layer': sourceLayerId
                     };
 
-                    // รับเฉพาะ paint เท่านั้น ข้อมูลอื่นทิ้ง
                     if (styleObj.paint && Object.keys(styleObj.paint).length > 0) {
                       layerParams.paint = styleObj.paint;
+                    }
+                    if (styleObj.layout && Object.keys(styleObj.layout).length > 0) {
+                      layerParams.layout = styleObj.layout;
                     }
 
                     map.addLayer(layerParams);
@@ -113,6 +134,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
                   }
                 });
 
+                // บันทึกธงว่าวาดสไตล์นี้เสร็จแล้ว
                 activeLayerIds.current.push(appliedFlag);
               } 
               // กรณีข้อมูลสตรีมแรก ยังไม่มีสไตล์ 
@@ -164,7 +186,6 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
                 if (!activeLayerIds.current.includes(lineLayerId)) activeLayerIds.current.push(lineLayerId);
                 if (!activeLayerIds.current.includes(pointLayerId)) activeLayerIds.current.push(pointLayerId);
 
-                // ซูมเข้าพื้นที่เมื่อโหลดแบบ fallback
                 if (layerConfig.bounds) map.fitBounds(layerConfig.bounds, { padding: 50, duration: 1500 });
               }
             } 
@@ -184,15 +205,16 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
       });
     };
 
-    // เริ่มทำงานครั้งแรกที่ Data มา
     clearLayers();
     renderLayers();
 
-    // ดักจับเวลามีการเปลี่ยน Style ของ Base Map
     const handleStyleData = () => {
       if (!map.getStyle()) return;
       const isMissingSources = dynamicLayers.some(layer => !map.getSource(`ai-source-${layer.id}`));
-      if (isMissingSources) renderLayers();
+      if (isMissingSources) {
+        activeLayerIds.current = [];
+        renderLayers();
+      }
     };
     
     map.on('styledata', handleStyleData);
@@ -203,9 +225,8 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
 
   }, [map, dynamicLayers, apiKeys]); 
 
-
+  // ควบคุมการแสดงผล/ซ่อนเลเยอร์
   useEffect(() => {
-    // เช็คก่อนว่าแผนที่พร้อมไหม
     if (!map || !map.getStyle()) return;
 
     dynamicLayers.forEach(layer => {
@@ -214,7 +235,8 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
         `ai-layer-${layer.id}`, 
         `ai-layer-${layer.id}-fill`, 
         `ai-layer-${layer.id}-line`, 
-        `ai-layer-${layer.id}-point` 
+        `ai-layer-${layer.id}-point`,
+        `ai-layer-${layer.id}-fill-extrusion`
       ];
 
       targetLayerIds.forEach(targetId => {

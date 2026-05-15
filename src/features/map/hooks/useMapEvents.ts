@@ -36,7 +36,8 @@ export const useMapEvents = (
     const targetLayerIds = dynamicLayers.flatMap(layer => [
       `ai-layer-${layer.id}-fill`,
       `ai-layer-${layer.id}-line`,
-      `ai-layer-${layer.id}-point`
+      `ai-layer-${layer.id}-point`,
+      `ai-layer-${layer.id}-fill-extrusion` // <--- เติมลูกพี่ 3D เข้ามาตรงนี้ครับ
     ]);
 
     const handleMapClick = (e: maplibregl.MapMouseEvent) => {

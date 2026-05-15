@@ -39,4 +39,6 @@ export interface DynamicLayerPayload {
   maxzoom?: number;
   tiles?: string[];
   renderStyles?: any[]; 
+  availableStyles?: any[];
+  activeStyleKey?: string;
 }

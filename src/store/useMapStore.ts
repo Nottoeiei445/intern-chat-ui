@@ -31,12 +31,14 @@ interface MapState {
   
   isBaseMapVisible: boolean;
   toggleBaseMap: () => void;
+
+  // เพิ่ม Action สำหรับจัดการการเปลี่ยน Style
+  setActiveStyle: (layerId: string, styleKey: string) => void;
 }
 
 export const useMapStore = create<MapState>((set) => ({
   dynamicLayers: [], 
   setDynamicLayers: (layers) => set({ dynamicLayers: layers }), 
-  // เคลียร์ค่าที่ซ่อนไว้ด้วยเวลาสั่งล้างเลเยอร์ทั้งหมด
   clearLayers: () => set({ dynamicLayers: [], hiddenLayers: [] }), 
 
   apiKeys: {}, 
@@ -59,11 +61,18 @@ export const useMapStore = create<MapState>((set) => ({
     const isHidden = state.hiddenLayers.includes(layerId);
     return {
       hiddenLayers: isHidden 
-        ? state.hiddenLayers.filter(id => id !== layerId) // ถ้าซ่อนอยู่ ให้เอาออก (แสดง)
-        : [...state.hiddenLayers, layerId] // ถ้าแสดงอยู่ ให้เอาไปใส่ลิสต์ซ่อน
+        ? state.hiddenLayers.filter(id => id !== layerId)
+        : [...state.hiddenLayers, layerId] 
     };
   }),
 
   isBaseMapVisible: true,
   toggleBaseMap: () => set((state) => ({ isBaseMapVisible: !state.isBaseMapVisible })),
+
+  // เพิ่มฟังก์ชันสลับ Style ค้นหาเลเยอร์ที่ตรงกับ ID แล้วแก้ค่า activeStyleKey
+  setActiveStyle: (layerId, styleKey) => set((state) => ({
+    dynamicLayers: state.dynamicLayers.map((layer) =>
+      layer.id === layerId ? { ...layer, activeStyleKey: styleKey } : layer
+    )
+  })),
 }));

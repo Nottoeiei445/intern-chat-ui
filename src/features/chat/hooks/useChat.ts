@@ -319,15 +319,22 @@ export function useChat() {
                 continue;
               }
 
-              // Handle Map Events (Style)
-              if (eventType === 'map_style' && data.layers) {
+              // Handle Map Events
+              if (eventType === 'map_style' && (data.availableStyles || data.layers)) {
                 const currentLayers = useMapStore.getState().dynamicLayers; 
                 
                 const updatedLayers = currentLayers.map(layer => {
                   if (layer.layerId === data.layerId || layer.id === data.layerId) {
+                    
+                    const receivedStyles = data.availableStyles || [];
+                    
+                    const baseStyleKey = data.defaultStyle || (receivedStyles.length > 0 ? receivedStyles[0].styleKey : 'default');
+
                     return { 
                       ...layer, 
-                      renderStyles: data.layers 
+                      availableStyles: receivedStyles,
+                      activeStyleKey: layer.activeStyleKey || baseStyleKey,
+                      renderStyles: data.layers || layer.renderStyles 
                     };
                   }
                   return layer;

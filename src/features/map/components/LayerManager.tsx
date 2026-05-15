@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMapStore } from "@/store/useMapStore";
-import { Layers, Eye, EyeOff, Map, ChevronRight } from "lucide-react";
+import { Layers, Eye, EyeOff, Map, ChevronRight, Palette, ChevronDown } from "lucide-react";
 
 export const LayerManager = () => {
   const { 
@@ -10,7 +10,8 @@ export const LayerManager = () => {
     hiddenLayers, 
     toggleLayerVisibility, 
     isBaseMapVisible, 
-    toggleBaseMap 
+    toggleBaseMap,
+    setActiveStyle 
   } = useMapStore();
   
   const [isOpen, setIsOpen] = useState(false);
@@ -84,23 +85,62 @@ export const LayerManager = () => {
               </h3>
               {dynamicLayers.map((layer) => {
                 const isHidden = hiddenLayers.includes(layer.id);
+                const hasMultipleStyles = layer.availableStyles && layer.availableStyles.length > 1;
+
                 return (
-                  <div key={layer.id} className="bg-card border border-border rounded-xl p-3 flex items-center justify-between shadow-sm hover:border-primary/50 transition-colors">
-                    <div className="flex items-center gap-3 overflow-hidden pr-2">
-                      <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
-                      <div className="flex flex-col min-w-0">
-                        <span className="font-bold text-sm truncate">{layer.title || layer.layerId}</span>
-                        <span className="text-[9px] text-muted-foreground uppercase tracking-wider">{layer.type}</span>
+                  <div key={layer.id} className="bg-card border border-border rounded-xl p-3 flex flex-col gap-3 shadow-sm hover:border-primary/50 transition-colors">
+                    
+                    {/* ข้อมูลเลเยอร์ + ปุ่มเปิด/ปิดตา */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3 overflow-hidden pr-2">
+                        <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
+                        <div className="flex flex-col min-w-0">
+                          <span className="font-bold text-sm truncate">{layer.title || layer.layerId}</span>
+                          <span className="text-[9px] text-muted-foreground uppercase tracking-wider">{layer.type}</span>
+                        </div>
                       </div>
+                      <button
+                        onClick={() => toggleLayerVisibility(layer.id)}
+                        className={`p-2 rounded-lg transition-all shrink-0 ${
+                          !isHidden ? "text-primary hover:bg-primary/10" : "text-muted-foreground hover:bg-accent"
+                        }`}
+                      >
+                        {!isHidden ? <Eye size={18} /> : <EyeOff size={18} />}
+                      </button>
                     </div>
-                    <button
-                      onClick={() => toggleLayerVisibility(layer.id)}
-                      className={`p-2 rounded-lg transition-all shrink-0 ${
-                        !isHidden ? "text-primary hover:bg-primary/10" : "text-muted-foreground hover:bg-accent"
-                      }`}
-                    >
-                      {!isHidden ? <Eye size={18} /> : <EyeOff size={18} />}
-                    </button>
+
+                    {hasMultipleStyles && (
+                      <div className="pt-2 border-t border-border/50">
+                        <div className="relative group">
+                          {/* ไอคอนด้านซ้าย */}
+                          <div className="absolute inset-y-0 left-0 flex items-center pl-2.5 pointer-events-none">
+                            <Palette size={14} className="text-muted-foreground group-hover:text-primary transition-colors" />
+                          </div>
+                          
+                          <select 
+                            value={layer.activeStyleKey}
+                            onChange={(e) => setActiveStyle(layer.id, e.target.value)}
+                            className="w-full appearance-none bg-background hover:bg-accent/50 text-xs text-foreground py-2 pl-8 pr-8 rounded-lg border border-border focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary cursor-pointer transition-all shadow-sm"
+                          >
+                            {layer.availableStyles?.map((style) => (
+                              <option 
+                                key={style.styleKey} 
+                                value={style.styleKey}
+                                className="bg-background text-foreground py-1"
+                              >
+                                {style.styleName}
+                              </option>
+                            ))}
+                          </select>
+
+                          {/* ไอคอนลูกศรด้านขวา (ใส่เองแทนของเบราว์เซอร์) */}
+                          <div className="absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none">
+                            <ChevronDown size={14} className="text-muted-foreground group-hover:text-foreground transition-colors" />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
                   </div>
                 );
               })}
