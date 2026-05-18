@@ -5,10 +5,6 @@ export type TimeRange = 1 | 3 | 7 | 30;
 export type HazardType = 'viirs' | 'flood' | 'drought';
 export type MapMode = 'wms' | 'tms' | 'wmts' | 'vector_tile' | 'geojson' | 'vector'| 'coverage_tile'; // vector เผื่อหลังบ้านส่งมาเฉยๆ ไม่บอกว่าเป็น vector_tile หรือ geojson
 
-// ==========================================
-//1. พิมพ์เขียวสำหรับรับข้อมูลดิบจาก Backend (เพื่อนส่งมา)
-// อ้างอิงจาก JSON: {"hazard":"viirs","days":30,"type":"wms","url":"...","layerName":"..."}
-// ==========================================
 export interface StreamLayerData {
   hazard?: HazardType | string;
   days?: TimeRange | number;
@@ -21,10 +17,6 @@ export interface StreamLayerData {
   };
 }
 
-// ==========================================
-//2. พิมพ์เขียวสำหรับข้อมูลที่พร้อมใช้งานใน MapLibre ของเรา
-// (ตัวนี้คือสิ่งที่เราจะโยนเข้า useDynamicLayers ในสเต็ปหลังๆ)
-// ==========================================
 export interface DynamicLayerPayload {
   id: string;              // ไอดีของเลเยอร์ (เอาไว้อ้างอิงตอนลบ/แก้ไข)
   type: MapMode;           // รูปแบบแผนที่
