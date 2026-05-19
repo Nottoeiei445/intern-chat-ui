@@ -32,4 +32,10 @@ export interface ChatThread {
   model?: string;
 }
 
+export interface SuggestionItem {
+  key: string;
+  label: string;
+  promptTemplate: string;
+}
+
 // ? = ตัวแปรนี้จะมีหรือไม่มีก็ได้ ไม่บังคับ

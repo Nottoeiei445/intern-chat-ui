@@ -25,6 +25,7 @@ export const ChatFeature = () => {
   const [currentOffset, setCurrentOffset] = useState(0);
   const isKeyModalOpen = useMapStore(state => state.isKeyModalOpen);
   
+  
   const { 
     chats, 
     activeChatId, 
@@ -41,6 +42,7 @@ export const ChatFeature = () => {
     isFetchingHistory,   
     isGuestExpired,
     setIsGuestExpired,
+    suggestions,
   } = useChat();
   const { 
     models, 
@@ -171,6 +173,7 @@ export const ChatFeature = () => {
           onSendMessage={handleSendMessage} 
           isLoading={isLoading} 
           isGuestExpired={isGuestExpired}
+          suggestions={suggestions}
         />
       </div>
     </div>

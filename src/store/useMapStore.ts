@@ -32,8 +32,13 @@ interface MapState {
   isBaseMapVisible: boolean;
   toggleBaseMap: () => void;
 
-  // เพิ่ม Action สำหรับจัดการการเปลี่ยน Style
   setActiveStyle: (layerId: string, styleKey: string) => void;
+
+  currentConversationApiKey?: string | null;
+  setcurrentConversationApiKey: (key: string | null) => void;
+  sessionKeys: Record<string, string>;
+  setSessionKey: (chatId: string, key: string) => void;
+  clearSessionKeys: () => void;
 }
 
 export const useMapStore = create<MapState>((set) => ({
@@ -75,4 +80,11 @@ export const useMapStore = create<MapState>((set) => ({
       layer.id === layerId ? { ...layer, activeStyleKey: styleKey } : layer
     )
   })),
+  currentConversationApiKey: null,
+  setcurrentConversationApiKey: (key) => set({ currentConversationApiKey: key }),
+  sessionKeys: {},
+  setSessionKey: (chatId, key) => set((state) => ({ 
+    sessionKeys: { ...state.sessionKeys, [chatId]: key } 
+  })),
+  clearSessionKeys: () => set({ sessionKeys: {} }),
 }));

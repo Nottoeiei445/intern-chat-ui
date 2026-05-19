@@ -6,7 +6,7 @@ import { mapService } from '../services/map.service';
 import { useMapStore } from '@/store/useMapStore';
 
 export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: DynamicLayerPayload[]) => {
-  const { apiKeys, hiddenLayers, isBaseMapVisible } = useMapStore();
+  const { apiKeys, hiddenLayers, isBaseMapVisible , currentConversationApiKey} = useMapStore();
   const activeLayerIds = useRef<string[]>([]);
 
   useEffect(() => {
@@ -24,7 +24,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
           if (id.startsWith('ai-source-') && map.getSource(id)) map.removeSource(id);
         });
       } catch (error) {
-        console.warn("MapLibre: แผนที่ถูกทำลายไปแล้ว ข้ามการลบเลเยอร์");
+        console.warn("MapLibre: already removed layer/source, skipping...", error);
       } finally {
         activeLayerIds.current = [];
       }
@@ -38,7 +38,12 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
         try {
           const sourceId = `ai-source-${layerConfig.id}`;
           const layerId = `ai-layer-${layerConfig.id}`;
-          const fullUrl = mapService.buildDynamicUrl(layerConfig, apiKeys);
+          
+          const effectiveApiKeys = currentConversationApiKey 
+            ? { ...apiKeys, vallaris: currentConversationApiKey, gistda: currentConversationApiKey }
+            : apiKeys;
+
+          const fullUrl = mapService.buildDynamicUrl(layerConfig, effectiveApiKeys);
 
           if (!map.getSource(sourceId)) {
             if (layerConfig.type === 'wms' || layerConfig.type === 'tms'|| layerConfig.type === 'wmts' || layerConfig.type === 'coverage_tile') {
@@ -223,7 +228,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
       clearLayers(); 
     };
 
-  }, [map, dynamicLayers, apiKeys]); 
+  }, [map, dynamicLayers, apiKeys, currentConversationApiKey]); 
 
   // ควบคุมการแสดงผล/ซ่อนเลเยอร์
   useEffect(() => {

@@ -1,21 +1,20 @@
 "use client"
 
 import { useState, useRef, ChangeEvent } from "react"
-import { Send, Paperclip, Image as ImageIcon, MapPin, X, Layers } from "lucide-react"
+import { Send, Image as ImageIcon, X, Layers, Sparkles } from "lucide-react"
 import { ApiKeyPopover } from "@/features/auth/components/ApiKeyPopover"
 import { useMapStore } from "@/store/useMapStore";
-import dynamic from "next/dynamic";
-import { useDynamicLayers } from "@/features/map/hooks/useDynamicLayers";
-import { text } from "stream/consumers";
-import { set } from "zod";
+import { SuggestionItem } from "../types";
+
 
 interface Props {
   onSendMessage: (content: string, images: string[]) => void;
   isLoading: boolean;
   isGuestExpired?: boolean;
+  suggestions?: SuggestionItem[]; 
 }
 
-export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: Props) => {
+export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, suggestions = [] }: Props) => {
   const [input, setInput] = useState("")
   const [images, setImages] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -83,20 +82,20 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
 
   const handleMentionInput = (e: ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;
-    setInput(val); // อัปเดตข้อความปกติที่แสดงบนจอ
+    setInput(val); 
 
-    const cursor = e.target.selectionStart; // ตำแหน่งเคอร์เซอร์
-    const textBeforeCursor = val.slice(0, cursor); // ข้อความก่อนเคอร์เซอร์
-    const atIndex = textBeforeCursor.lastIndexOf('@'); // ค้นหา @ ล่าสุดก่อนเคอร์เซอร์
+    const cursor = e.target.selectionStart; 
+    const textBeforeCursor = val.slice(0, cursor); 
+    const atIndex = textBeforeCursor.lastIndexOf('@'); 
 
-    if (atIndex !== -1 && (atIndex === 0 || textBeforeCursor[atIndex - 1] === ' ')) { // ตรวจสอบว่า @ นั้นเป็นจุดเริ่มต้นของคำหรือไม่
-      const query = textBeforeCursor.slice(atIndex + 1); // ข้อความหลัง @
+    if (atIndex !== -1 && (atIndex === 0 || textBeforeCursor[atIndex - 1] === ' ')) { 
+      const query = textBeforeCursor.slice(atIndex + 1); 
 
-      if (!query.includes(' ')) { // ถ้าไม่มีช่องว่างต่อจากพิมพ์ @ แสดงว่าเรายังอยู่ในช่วงพิมพ์ชื่อ layer
-        setIsMentionOpen(true); // เปิด dropdown
-        setMentionQuery(query); // อัปเดต query สำหรับกรองเลเยอร์
-        setMentionStartIdx(atIndex); // บันทึกตำแหน่งเริ่มต้นของ @ เพื่อใช้ในการแทรกชื่อเลเยอร์ภายหลัง
-        setActiveMentionIndex(0); // รีเซ็ตการเลือกใน dropdown
+      if (!query.includes(' ')) { 
+        setIsMentionOpen(true); 
+        setMentionQuery(query); 
+        setMentionStartIdx(atIndex); 
+        setActiveMentionIndex(0); 
         return;
       }
     }
@@ -104,14 +103,13 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
   };
 
   const insertMention = (layer: any) => {
-    const displayName = `@${(layer.title || layer.id).replace(/\s+/g, '_')}`; // สร้างชื่อที่จะแสดงในข้อความ โดยแทนที่ช่องว่างด้วย _ เพื่อป้องกันปัญหาในการแยกคำ
-    const layerId = layer.layerId || layer.id; // ใช้ layerId ที่มาจากข้อมูลเลเยอร์จริงๆ แทนการใช้ชื่อที่แสดง
+    const displayName = `@${(layer.title || layer.id).replace(/\s+/g, '_')}`; 
+    const layerId = layer.layerId || layer.id; 
 
-    // แทรกชื่อเลเยอร์ที่เลือกลงในข้อความ โดยแทนที่ส่วนที่พิมพ์หลัง @ ด้วยชื่อที่แสดง
     const newValue = input.slice(0, mentionStartIdx) + displayName + ' ' + input.slice(textareaRef.current?.selectionStart || mentionStartIdx + mentionQuery.length + 1);
-    setInput(newValue); // อัปเดตข้อความใน textarea
-    setMentionMap(prev => ({ ...prev, [displayName]: layerId })); // บันทึกการแมปชื่อที่แสดงกับ layerId จริง
-    setIsMentionOpen(false); // ปิด dropdown หลังเลือก
+    setInput(newValue); 
+    setMentionMap(prev => ({ ...prev, [displayName]: layerId })); 
+    setIsMentionOpen(false); 
 
     setTimeout(() => {
       textareaRef.current?.focus();
@@ -122,7 +120,6 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
     if ((!input.trim() && images.length === 0) || isLoading || isInputDisabled) return  
     let finalPayload = input;
     Object.entries(mentionMap).forEach(([displayName, layerId]) => {
-      // ใช้ Regex แทนที่ทุกจุดที่พบ Display Name ให้เป็น [layer_id: xxx]
       const regex = new RegExp(displayName, 'g');
       finalPayload = finalPayload.replace(regex, `[layer_id: ${layerId}]`);
     });
@@ -131,8 +128,22 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
     
     setInput("")
     setImages([]) 
-    setMentionMap({}) // ล้างความจำหลังส่ง
+    setMentionMap({}) 
     setIsMentionOpen(false) 
+  };
+
+  const handleSuggestionClick = (suggestion: SuggestionItem) => {
+    if (isLoading || isInputDisabled) return;
+
+    let finalPrompt = suggestion.promptTemplate;
+    finalPrompt = finalPrompt.replace(/\{label\}/g, suggestion.label);
+    finalPrompt = finalPrompt.replace(/\{key\}/g, suggestion.key);
+    onSendMessage(finalPrompt, []); 
+    
+    setInput("");
+    setImages([]);
+    setMentionMap({});
+    setIsMentionOpen(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -193,6 +204,22 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {suggestions && suggestions.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {suggestions.map((suggestion) => (
+              <button
+                key={suggestion.key}
+                onClick={() => handleSuggestionClick(suggestion)}
+                disabled={isLoading || isInputDisabled}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm bg-card hover:bg-muted text-foreground rounded-full border border-border shadow-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed animate-in fade-in slide-in-from-bottom-2"
+              >
+                <Sparkles size={14} className="text-amber-500" />
+                {suggestion.label}
+              </button>
+            ))}
           </div>
         )}
 

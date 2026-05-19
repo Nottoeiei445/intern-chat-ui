@@ -56,6 +56,8 @@ export function useChat() {
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [isGuestExpired, setIsGuestExpired] = useState(false);
 
+  const [suggestions, setSuggestions] = useState<{key: string, label: string, promptTemplate: string}[]>([]);
+
   // --- 5. Initialization Effects ---
   // Init Session
   useEffect(() => {
@@ -134,6 +136,16 @@ export function useChat() {
       setIsFetchingHistory(true); 
       try {
         const responseData = await chatService.getConversationDetail(targetId, 1); 
+        const coversationApiKey = responseData?.xApiKey || null;
+
+        if (coversationApiKey) {
+           const mapStore = useMapStore.getState();
+           mapStore.setSessionKey(targetId, coversationApiKey); 
+           mapStore.setcurrentConversationApiKey(coversationApiKey); 
+        } else {
+           useMapStore.getState().setcurrentConversationApiKey(null);
+        }
+
         const rawMessages = responseData?.data?.messages || responseData?.messages || responseData?.data || (Array.isArray(responseData) ? responseData : []);
         const messages = rawMessages.map(mapBackendMessage);
         
@@ -157,6 +169,21 @@ export function useChat() {
     };
     fetchChatDetail(); 
   }, [activeChatId, paginationConfig, user]);
+
+  useEffect(() => {
+    const mapStore = useMapStore.getState();
+
+    // ถ้ากดเริ่มแชทใหม่ หรือไม่ได้เลือกห้อง ให้เคลียร์กุญแจทิ้ง
+    if (!activeChatId || activeChatId.startsWith('session_')) {
+      mapStore.setcurrentConversationApiKey(null);
+      return;
+    }
+
+    // ถ้าเลือกห้องที่มีการบันทึก API Key ไว้ ให้ตั้งค่านั้น
+    const cachedKey = mapStore.sessionKeys[activeChatId] || null;
+    mapStore.setcurrentConversationApiKey(cachedKey);
+
+  }, [activeChatId]);
 
   // --- 6. Chat Actions ---
 
@@ -189,7 +216,10 @@ export function useChat() {
     }
   };
 
-  const createNewChat = () => setActiveChatId(null); 
+const createNewChat = () => {
+    setActiveChatId(null);
+    useMapStore.getState().clearApiKeys();
+  };
 
   const sendMessage = async (input: string, model: string, images: string[] = [], options?: any) => { 
     if (!input.trim() && images.length === 0 && !options?.isRegenerate) return; 
@@ -218,11 +248,15 @@ export function useChat() {
       } else {
         isNewSession = true; 
         currentId = `session_${Date.now()}`; 
+        const mapStore = useMapStore.getState();
+        mapStore.setcurrentConversationApiKey(null);
+        mapStore.clearApiKeys();
         setChats(prev => [{ id: currentId as string, title: input.slice(0, 30), messages: [userMsg], model, createdAt: Date.now(), updatedAt: Date.now() }, ...prev]); 
         setActiveChatId(currentId); 
       }
     }
 
+    setSuggestions([]);
     setIsLoading(true);
     try {
       const payload = { 
@@ -233,7 +267,10 @@ export function useChat() {
         ...((isNewSession || ephemeral) ? {} : { conversationId: currentId })
       };
 
-      const response = await chatService.sendMessageStream(payload, apiKeys.gistda);
+      const { currentConversationApiKey, apiKeys } = useMapStore.getState();
+      const activeHeaderKey = currentConversationApiKey || apiKeys.gistda;
+
+      const response = await chatService.sendMessageStream(payload, activeHeaderKey);
       let realIdToSwapLater = response.headers.get('X-Conversation-Id') || response.headers.get('conversation_id');
       const assistantMsg: Message = { role: "assistant", content: "" };
 
@@ -281,8 +318,12 @@ export function useChat() {
                   setChats(prev => prev.map(chat => chat.id === oldSessionId ? { ...chat, id: realId } : chat));
                   currentId = realId;
                   setActiveChatId(realId);
-
                   setPaginationConfig(prev => ({ ...prev, [realId]: { page: 1, hasMore: false } }));
+                  const mapStore = useMapStore.getState();
+                  if (mapStore.apiKeys.gistda) {
+                    mapStore.setSessionKey(realId, mapStore.apiKeys.gistda);
+                    mapStore.setcurrentConversationApiKey(mapStore.apiKeys.gistda);
+                  }
                 }
                 if (isNewSession && !realIdToSwapLater && !ephemeral) {
                   realIdToSwapLater = String(realId);
@@ -380,6 +421,26 @@ export function useChat() {
                 continue;
               }
 
+              if (eventType === 'map_control') {
+                const mapStore = useMapStore.getState();
+                
+                if (data.mode === 'all') {
+                  mapStore.clearLayers();
+                } 
+                else if (data.mode === 'selected' && data.layerId) {
+                  const filteredLayers = mapStore.dynamicLayers.filter(
+                    layer => layer.id !== data.layerId && layer.layerId !== data.layerId
+                  );
+                  mapStore.setDynamicLayers(filteredLayers);
+                }
+                continue;
+              }
+
+              if (eventType === 'suggestions' && data.items) {
+                setSuggestions(data.items);
+                continue;
+              }
+
               // Handle Message IDs
               const incomingUserId = data.usermessage_id || data.userMessageId;
               const incomingAssistantId = data.assistantmessage_Id || data.assistantMessageId;
@@ -448,6 +509,11 @@ export function useChat() {
         setPaginationConfig(prev => ({ ...prev, [realIdToSwapLater as string]: { page: 1, hasMore: false } }));
         setChats(prev => prev.map(chat => chat.id === currentId ? { ...chat, id: realIdToSwapLater as string } : chat));
         setActiveChatId(realIdToSwapLater as string);
+        const mapStore = useMapStore.getState();
+        if (mapStore.apiKeys.gistda) {
+          mapStore.setSessionKey(realIdToSwapLater as string, mapStore.apiKeys.gistda);
+          mapStore.setcurrentConversationApiKey(mapStore.apiKeys.gistda);
+        }
       }
     } catch (error) { console.error("Stream failed:", error); } 
     finally { setIsLoading(false); }
@@ -516,6 +582,6 @@ export function useChat() {
     chats, setChats, activeChatId, setActiveChatId, dynamicLayers, setDynamicLayers, 
     isLoading, sendMessage, createNewChat, deleteChat, renameChat, editAndResend,
     ephemeralMessages, fetchNextPage, isFetchingHistory, hasMore: activeChatId ? (paginationConfig[activeChatId]?.hasMore ?? false) : false,
-    isSessionReady, guestId: migrationInfo.guestId, canMigrate: migrationInfo.canMigrate, isGuestExpired, setIsGuestExpired
+    isSessionReady, guestId: migrationInfo.guestId, canMigrate: migrationInfo.canMigrate, isGuestExpired, setIsGuestExpired, suggestions, setSuggestions
   };
 }
