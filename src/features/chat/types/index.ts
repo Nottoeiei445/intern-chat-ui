@@ -14,6 +14,13 @@ export interface Message {
   choices?: ClarityChoice[];
   choiceKey?: string; // เพื่อระบุว่าชุด choices นี้เกี่ยวข้องกับคำถามหรือข้อความไหน (ถ้ามี)
   imageUrl?: string; // สำหรับเก็บ URL ของภาพที่แนบมา (ถ้ามี)
+  pagination?: {         
+    numberReturned: number;
+    numberMatched: number;
+    hasNext: boolean;
+    hasBack: boolean;
+    offset?: number;
+  };
 }
 
 export interface ChatThread {

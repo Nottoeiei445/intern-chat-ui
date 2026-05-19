@@ -1,9 +1,13 @@
 "use client"
 
 import { useState, useRef, ChangeEvent } from "react"
-import { Send, Paperclip, Image as ImageIcon, MapPin, X } from "lucide-react"
+import { Send, Paperclip, Image as ImageIcon, MapPin, X, Layers } from "lucide-react"
 import { ApiKeyPopover } from "@/features/auth/components/ApiKeyPopover"
 import { useMapStore } from "@/store/useMapStore";
+import dynamic from "next/dynamic";
+import { useDynamicLayers } from "@/features/map/hooks/useDynamicLayers";
+import { text } from "stream/consumers";
+import { set } from "zod";
 
 interface Props {
   onSendMessage: (content: string, images: string[]) => void;
@@ -15,12 +19,20 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
   const [input, setInput] = useState("")
   const [images, setImages] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
-  
-  const { isKeyModalOpen } = useMapStore();
-
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const { isKeyModalOpen, dynamicLayers } = useMapStore();
   const isInputDisabled = isGuestExpired || isKeyModalOpen;
+  const [isMentionOpen, setIsMentionOpen] = useState(false)
+  const [mentionQuery, setMentionQuery] = useState("")
+  const [mentionStartIdx, setMentionStartIdx] = useState(-1)
+  const [activeMentionIndex, setActiveMentionIndex] = useState(0)
+  const [mentionMap, setMentionMap] = useState<Record<string, string>>({})
 
-  const fileToBase64 = (file: File): Promise<string> => {
+  const filteredLayers = (dynamicLayers || []).filter(layer =>
+    (layer.title || layer.id || "").toLowerCase().includes(mentionQuery.toLowerCase())
+  );
+
+   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
@@ -69,26 +81,120 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
     setImages(prev => prev.filter((_, i) => i !== index));
   };
 
+  const handleMentionInput = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setInput(val); // อัปเดตข้อความปกติที่แสดงบนจอ
+
+    const cursor = e.target.selectionStart; // ตำแหน่งเคอร์เซอร์
+    const textBeforeCursor = val.slice(0, cursor); // ข้อความก่อนเคอร์เซอร์
+    const atIndex = textBeforeCursor.lastIndexOf('@'); // ค้นหา @ ล่าสุดก่อนเคอร์เซอร์
+
+    if (atIndex !== -1 && (atIndex === 0 || textBeforeCursor[atIndex - 1] === ' ')) { // ตรวจสอบว่า @ นั้นเป็นจุดเริ่มต้นของคำหรือไม่
+      const query = textBeforeCursor.slice(atIndex + 1); // ข้อความหลัง @
+
+      if (!query.includes(' ')) { // ถ้าไม่มีช่องว่างต่อจากพิมพ์ @ แสดงว่าเรายังอยู่ในช่วงพิมพ์ชื่อ layer
+        setIsMentionOpen(true); // เปิด dropdown
+        setMentionQuery(query); // อัปเดต query สำหรับกรองเลเยอร์
+        setMentionStartIdx(atIndex); // บันทึกตำแหน่งเริ่มต้นของ @ เพื่อใช้ในการแทรกชื่อเลเยอร์ภายหลัง
+        setActiveMentionIndex(0); // รีเซ็ตการเลือกใน dropdown
+        return;
+      }
+    }
+    setIsMentionOpen(false);
+  };
+
+  const insertMention = (layer: any) => {
+    const displayName = `@${(layer.title || layer.id).replace(/\s+/g, '_')}`; // สร้างชื่อที่จะแสดงในข้อความ โดยแทนที่ช่องว่างด้วย _ เพื่อป้องกันปัญหาในการแยกคำ
+    const layerId = layer.layerId || layer.id; // ใช้ layerId ที่มาจากข้อมูลเลเยอร์จริงๆ แทนการใช้ชื่อที่แสดง
+
+    // แทรกชื่อเลเยอร์ที่เลือกลงในข้อความ โดยแทนที่ส่วนที่พิมพ์หลัง @ ด้วยชื่อที่แสดง
+    const newValue = input.slice(0, mentionStartIdx) + displayName + ' ' + input.slice(textareaRef.current?.selectionStart || mentionStartIdx + mentionQuery.length + 1);
+    setInput(newValue); // อัปเดตข้อความใน textarea
+    setMentionMap(prev => ({ ...prev, [displayName]: layerId })); // บันทึกการแมปชื่อที่แสดงกับ layerId จริง
+    setIsMentionOpen(false); // ปิด dropdown หลังเลือก
+
+    setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 0);
+  };
+
   const handleSend = () => {
     if ((!input.trim() && images.length === 0) || isLoading || isInputDisabled) return  
-    onSendMessage(input, images) 
+    let finalPayload = input;
+    Object.entries(mentionMap).forEach(([displayName, layerId]) => {
+      // ใช้ Regex แทนที่ทุกจุดที่พบ Display Name ให้เป็น [layer_id: xxx]
+      const regex = new RegExp(displayName, 'g');
+      finalPayload = finalPayload.replace(regex, `[layer_id: ${layerId}]`);
+    });
+
+    onSendMessage(finalPayload, images) 
     
     setInput("")
     setImages([]) 
-  }
+    setMentionMap({}) // ล้างความจำหลังส่ง
+    setIsMentionOpen(false) 
+  };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (isMentionOpen) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setActiveMentionIndex(prev => Math.min(prev + 1, filteredLayers.length - 1));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setActiveMentionIndex(prev => Math.max(prev - 1, 0));
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (filteredLayers[activeMentionIndex]) {
+          insertMention(filteredLayers[activeMentionIndex]);
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        setIsMentionOpen(false);
+        return;
+      }
+    }
+
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
       handleSend()
     }
-  }
+  };
 
   return (
     <div className="p-6 bg-gradient-to-t from-background to-transparent bg-background">
       <div className="max-w-4xl mx-auto relative">
 
         <ApiKeyPopover />
+
+        {isMentionOpen && filteredLayers.length > 0 && (
+          <div className="absolute bottom-[calc(100%+8px)] left-0 w-64 bg-card border border-border rounded-xl shadow-2xl overflow-hidden z-50 animate-in slide-in-from-bottom-2">
+            <div className="p-2 text-xs font-semibold text-muted-foreground bg-muted/30 border-b border-border flex items-center gap-2">
+              <Layers size={14} /> Select a layer
+            </div>
+            <div className="max-h-48 overflow-y-auto custom-scrollbar">
+              {filteredLayers.map((layer, idx) => (
+                <button
+                  key={layer.id}
+                  type="button"
+                  onClick={() => insertMention(layer)}
+                  onMouseEnter={() => setActiveMentionIndex(idx)}
+                  className={`w-full text-left px-3 py-2 text-sm transition-colors flex flex-col ${
+                    idx === activeMentionIndex ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
+                  }`}
+                >
+                  <span className="font-medium truncate">{layer.title || layer.id}</span>
+                  <span className="text-[10px] text-muted-foreground opacity-70 truncate">{layer.id}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <div className={`relative bg-card border rounded-2xl p-2 shadow-2xl transition-all text-foreground overflow-hidden ${
           isInputDisabled ? "border-border/50 opacity-50" : "border-border focus-within:border-primary/50"
@@ -125,6 +231,7 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
           )}
 
           <textarea
+            ref={textareaRef}
             rows={1}
             disabled={isInputDisabled} 
             placeholder={
@@ -136,7 +243,7 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false }: 
               isInputDisabled ? "cursor-not-allowed" : ""
             }`}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={handleMentionInput}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
           />

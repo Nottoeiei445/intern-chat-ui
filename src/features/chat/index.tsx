@@ -16,10 +16,14 @@ import { isGuestTimeUp } from "@/features/auth/utils/guest-timer.util";
 import { useState, useMemo } from "react";  
 import { useRouter } from "next/navigation";
 import { useMapStore } from '@/store/useMapStore';
+import { CHAT_CONFIG } from "./config/chat.config";
 
 export const ChatFeature = () => {
   const { user } = useAuth();
   const router = useRouter();
+    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [currentOffset, setCurrentOffset] = useState(0);
+  const isKeyModalOpen = useMapStore(state => state.isKeyModalOpen);
   
   const { 
     chats, 
@@ -38,16 +42,13 @@ export const ChatFeature = () => {
     isGuestExpired,
     setIsGuestExpired,
   } = useChat();
-
-  const isKeyModalOpen = useMapStore(state => state.isKeyModalOpen);
-
   const { 
     models, 
     selectedModel, 
     setSelectedModel 
   } = useModels();
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
 
   // คำนวณข้อความที่จะแสดงผล
   const messagesToShow = useMemo(() => {
@@ -75,6 +76,24 @@ export const ChatFeature = () => {
       choiceKey: key, // ส่ง key ไปด้วยเพื่อให้รู้ว่าชุด choices นี้เกี่ยวข้องกับคำถามหรือข้อความไหน (ถ้ามี)
       choiceValue: choiceValue // ส่ง value ไปด้วยเผื่อจำเป็นต้องใช้ในอนาคต
     } as any);
+  };
+
+  const handleSendPagination = (direction: 'next' | 'prev', messageId: string, currentOffset: number) => {
+    const limit = CHAT_CONFIG.pagination.pageSize;
+    const newOffset = direction === 'next' ? currentOffset + limit : Math.max(0, currentOffset - limit);
+    
+    setCurrentOffset(newOffset); // ให้หน้าจอจำว่าเลื่อนไปหน้าไหนแล้ว
+
+    sendMessage(
+      direction === 'next' ? "next" : "prev", // ใส่ string ขยะหลอกๆ ไว้
+      selectedModel, 
+      [], 
+      { 
+        isSilentRetry: true, 
+        targetMessageId: messageId, 
+        mapselection: { pagination: { offset: newOffset } } 
+      } as any
+    );
   };
 
   const handleSendMessage = async (val: string, images: string[] = []) => {
@@ -144,6 +163,7 @@ export const ChatFeature = () => {
             onEditMessage={(id, newContent) => editAndResend(id, newContent, selectedModel)}
             onSelectTemplate={(text) => handleSendMessage(text)} 
             onSendChoice={handleSendChoice}
+            onSendPagination={handleSendPagination}
           />
         </div>
 

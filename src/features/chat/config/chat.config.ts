@@ -33,6 +33,10 @@ export const CHAT_CONFIG = {
     enableStreaming: true,      // เผื่ออนาคตเพื่อนทำระบบข้อความไหลๆ
   },
 
+  pagination: {
+    pageSize: 5, // จำนวนข้อความต่อหน้าเวลาดึงประวัติแชท
+  }
+
   
 };
 

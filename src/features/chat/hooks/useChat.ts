@@ -28,6 +28,7 @@ const mapBackendMessage = (msg: any) => {
     content: msg.content || (isMapOptions ? payload?.question : "") || "",
     choices: isMapOptions ? payload?.choices : msg.choices,
     choiceKey: isMapOptions ? payload?.key : msg.choiceKey,
+    pagination: isMapOptions ? (payload?.pagination || msg.metadata?.pagination) : msg.pagination,
     imageUrl: imageUrl, 
   };
 };
@@ -154,7 +155,6 @@ export function useChat() {
         setIsFetchingHistory(false);
       }
     };
-    
     fetchChatDetail(); 
   }, [activeChatId, paginationConfig, user]);
 
@@ -194,7 +194,7 @@ export function useChat() {
   const sendMessage = async (input: string, model: string, images: string[] = [], options?: any) => { 
     if (!input.trim() && images.length === 0 && !options?.isRegenerate) return; 
     
-    const { ephemeral = false, isRegenerate = false, isSilentRetry = false, isClarity = false, editMessageId = null, choiceKey, choiceValue } = options || {};
+    const { ephemeral = false, isRegenerate = false, isSilentRetry = false, isClarity = false, editMessageId = null, choiceKey, choiceValue, mapselection, targetMessageId } = options || {};
     const isChoiceResponse = !!choiceKey;
     
     let currentId = options?.explicitChatId || activeChatId || (!user && storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey) as string) || null;
@@ -227,7 +227,7 @@ export function useChat() {
     try {
       const payload = { 
         message: input, model, ephemeral, is_generate: isRegenerate, is_silent_retry: isSilentRetry, is_clarity: isClarity, 
-        ...(choiceKey && choiceValue && { mapselection: { key: choiceKey, value: choiceValue } }),
+       ...(mapselection ? { mapselection } : (choiceKey && choiceValue ? { mapselection: { key: choiceKey, value: choiceValue } } : {})),
         ...(editMessageId && { edit_message_id: editMessageId }), 
         ...(images.length > 0 && { images }), 
         ...((isNewSession || ephemeral) ? {} : { conversationId: currentId })
@@ -237,8 +237,10 @@ export function useChat() {
       let realIdToSwapLater = response.headers.get('X-Conversation-Id') || response.headers.get('conversation_id');
       const assistantMsg: Message = { role: "assistant", content: "" };
 
-      if (!ephemeral) setChats(prev => prev.map(chat => chat.id === currentId ? { ...chat, messages: [...chat.messages, assistantMsg] } : chat));
-      else setEphemeralMessages(prev => [...prev, assistantMsg]);
+      if (!targetMessageId) {
+        if (!ephemeral) setChats(prev => prev.map(chat => chat.id === currentId ? { ...chat, messages: [...chat.messages, assistantMsg] } : chat));
+        else setEphemeralMessages(prev => [...prev, assistantMsg]);
+      }
       
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
@@ -349,20 +351,31 @@ export function useChat() {
                 const choices = data.choices || data.payload?.choices;
                 const key = data.key || data.payload?.key;
                 const questionText = data.question || data.payload?.question || ""; 
+                const pagination = data.pagination || data.payload?.pagination;
 
+                const reqOffset = mapselection?.pagination?.offset || 0;
                 const updateMsg = (m: Message) => m.role === "assistant" ? { 
                   ...m, 
                   content: questionText || m.content, 
                   choices: choices, 
-                  choiceKey: key 
+                  choiceKey: key,
+                  pagination: pagination ? { ...pagination, offset: reqOffset } : undefined,
                 } : m;
                 
                 if (ephemeral) {
                   setEphemeralMessages(prev => prev.map((m, i) => i === prev.length - 1 ? updateMsg(m) : m));
                 } else {
-                  setChats(prev => prev.map(c => 
-                    c.id === currentId ? { ...c, messages: c.messages.map((m, i) => i === c.messages.length - 1 ? updateMsg(m) : m) } : c
-                  ));
+                  setChats(prev => prev.map(c => {
+                    if (c.id !== currentId) return c;
+                    return {
+                      ...c,
+                      messages: c.messages.map((m,i) => {
+                        const isTarget = targetMessageId ? m.id === targetMessageId : i === c.messages.length - 1;
+                        return isTarget && m.role === "assistant" ? updateMsg(m) : m;
+                      })
+
+                    };
+                  }));
                 }
                 continue;
               }
@@ -405,13 +418,21 @@ export function useChat() {
                 setChats(prev => prev.map(chat => {
                   if (chat.id !== currentId) return chat;
                   const safeMsgs = [...chat.messages];
-                  const lastIdx = safeMsgs.length - 1;
                   
-                  if (lastIdx >= 0 && safeMsgs[lastIdx].role === "assistant") {
-                     safeMsgs[lastIdx] = { ...safeMsgs[lastIdx], content: displayContent || safeMsgs[lastIdx].content }; 
+                  if (targetMessageId) {
+                    const targetIdx = safeMsgs.findIndex(m => m.id === targetMessageId);
+                    if (targetIdx !== -1) {
+                      safeMsgs[targetIdx] = { ...safeMsgs[targetIdx], content: displayContent || safeMsgs[targetIdx].content };
+                    }
                   } else {
-                     safeMsgs.push({ id: `temp_assistant_${Date.now()}`, role: "assistant", content: displayContent });
+                    const lastIdx = safeMsgs.length - 1;
+                    if (lastIdx >= 0 && safeMsgs[lastIdx].role === "assistant") {
+                       safeMsgs[lastIdx] = { ...safeMsgs[lastIdx], content: displayContent || safeMsgs[lastIdx].content }; 
+                    } else {
+                       safeMsgs.push({ id: `temp_assistant_${Date.now()}`, role: "assistant", content: displayContent });
+                    }
                   }
+                  
                   return { ...chat, messages: safeMsgs };
                 }));
               }
@@ -464,6 +485,8 @@ export function useChat() {
       await sendMessage(newContent, model, [], { isRegenerate: true, editMessageId: messageId });
     } finally { setIsLoading(false); }
   };
+
+
 
   // --- 7. Computed Values & Cleanup ---
 

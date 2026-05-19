@@ -5,7 +5,8 @@ import { Sparkles, User, Bot, Copy, Pencil, Lock } from "lucide-react"
 import { Message } from "../types"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { useAuth } from "../../auth/context/AuthContext" 
+import { useAuth } from "../../auth/context/AuthContext"
+import { useEffect } from "react"; 
  
 import {
   Tooltip,
@@ -22,6 +23,7 @@ interface MessageItemProps {
   scrollToBottom: () => void;
   onEditMessage?: (id: string, newContent: string) => void;
   onSendChoice?: (key: string, choiceValue: string) => void;
+  onSendPagination?: (direction: "next" | "prev", messageId: string, currentOffset: number) => void;
   canEdit?: boolean;
   isLatestMessage?: boolean;
 }
@@ -34,12 +36,19 @@ export const MessageItem = ({
   scrollToBottom, 
   onEditMessage,
   onSendChoice,
+  onSendPagination,
   canEdit,
   isLatestMessage
 }: MessageItemProps) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
   const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
+  const offset = msg.pagination?.offset || 0;
+  const numberReturned = msg.pagination?.numberReturned || 0;
+  const numberMatched = msg.pagination?.numberMatched || 0;
+
+  const startItem = offset + 1;          
+  const endItem = offset + numberReturned;
  
   const { user } = useAuth();
   const isGuest = !user; 
@@ -61,6 +70,10 @@ export const MessageItem = ({
       setIsEditing(false);
     }
   };
+
+  useEffect(() => {
+    setSelectedChoice(null);
+  }, [msg.choices, msg.pagination?.offset]);
 
   return (
     <div className={`group flex items-start w-full ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
@@ -256,6 +269,41 @@ export const MessageItem = ({
                       );
                     })}
                   </div>
+                  {msg.pagination && (
+                    <div className="flex items-center justify-between pt-3 mt-1 border-t border-border">
+                      <span className="text-[11px] text-muted-foreground font-medium font-ibm">
+                        Showing {startItem} - {endItem} of {numberMatched}
+                      </span>
+
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <button
+                          disabled={!msg.pagination.hasBack || selectedChoice !== null || !isLatestMessage || isLoading}
+                          onClick={() => {
+                             setSelectedChoice("pagination_clicked"); 
+                             onSendPagination?.("prev", msg.id!, msg.pagination?.offset || 0);
+                          }}
+                          className="p-1.5 rounded-md border border-border bg-background hover:bg-accent hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                          </svg>
+                        </button>
+
+                        <button
+                          disabled={!msg.pagination.hasNext || selectedChoice !== null || !isLatestMessage || isLoading}
+                          onClick={() => {
+                             setSelectedChoice("pagination_clicked"); 
+                             onSendPagination?.("next", msg.id!, msg.pagination?.offset || 0);
+                          }}
+                          className="p-1.5 rounded-md border border-border bg-background hover:bg-accent hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
