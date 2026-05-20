@@ -39,6 +39,11 @@ interface MapState {
   sessionKeys: Record<string, string>;
   setSessionKey: (chatId: string, key: string) => void;
   clearSessionKeys: () => void;
+
+  // 🌟 1. ประกาศ Type สำหรับระบบ Mention ฝากคำสั่ง
+  pendingMention: { text: string; timestamp: number } | null;
+  triggerLayerMention: (layerId: string) => void;
+  clearPendingMention: () => void;
 }
 
 export const useMapStore = create<MapState>((set) => ({
@@ -74,17 +79,26 @@ export const useMapStore = create<MapState>((set) => ({
   isBaseMapVisible: true,
   toggleBaseMap: () => set((state) => ({ isBaseMapVisible: !state.isBaseMapVisible })),
 
-  // เพิ่มฟังก์ชันสลับ Style ค้นหาเลเยอร์ที่ตรงกับ ID แล้วแก้ค่า activeStyleKey
   setActiveStyle: (layerId, styleKey) => set((state) => ({
     dynamicLayers: state.dynamicLayers.map((layer) =>
       layer.id === layerId ? { ...layer, activeStyleKey: styleKey } : layer
     )
   })),
+  
   currentConversationApiKey: null,
   setcurrentConversationApiKey: (key) => set({ currentConversationApiKey: key }),
+  
   sessionKeys: {},
   setSessionKey: (chatId, key) => set((state) => ({ 
     sessionKeys: { ...state.sessionKeys, [chatId]: key } 
   })),
   clearSessionKeys: () => set({ sessionKeys: {} }),
+
+  // 🌟 2. สร้าง Logic สำหรับเก็บคำสั่ง Mention ไว้ที่ส่วนกลาง
+  pendingMention: null,
+  triggerLayerMention: (layerId) => set({ 
+    // ใส่ timestamp ไปด้วย เพื่อให้ React รู้ว่ามันคือคำสั่งใหม่ (เผื่อกรณีกดเลเยอร์เดิมรัวๆ)
+    pendingMention: { text: `[layer_id: ${layerId}]`, timestamp: Date.now() } 
+  }),
+  clearPendingMention: () => set({ pendingMention: null }),
 }));

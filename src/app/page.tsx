@@ -46,11 +46,11 @@ export default function MapPage() {
       {!isChatOpen && (
         <button
           onClick={() => setIsChatOpen(true)}
-          className="absolute top-5 left-5 z-30 p-3.5 bg-card text-foreground rounded-2xl border border-border shadow-2xl hover:bg-accent transition-all active:scale-95 group"
+          className="absolute top-5 left-5 z-30 p-3.5 bg-card text-foreground rounded-2xl border border-border shadow-2xl hover:bg-accent transition-all active:scale-95 group flex items-center justify-center"
         >
-          <div className="flex items-center gap-2">
-            <PanelLeftOpen className="w-6 h-6" />
-            <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-500 text-sm font-bold whitespace-nowrap">
+          <div className="flex items-center gap-0">
+            <PanelLeftOpen className="w-6 h-6 shrink-0" />
+            <span className="max-w-0 overflow-hidden opacity-0 ml-0 group-hover:ml-2.5 group-hover:opacity-100 group-hover:max-w-xs transition-all duration-500 text-sm font-bold whitespace-nowrap">
               Open Analysis
             </span>
           </div>

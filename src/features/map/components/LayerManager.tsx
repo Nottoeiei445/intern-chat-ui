@@ -11,6 +11,7 @@ export const LayerManager = () => {
     toggleLayerVisibility, 
     isBaseMapVisible, 
     toggleBaseMap,
+    triggerLayerMention, // 🌟 1. ดึง Action จาก Store ออกมาใช้
   } = useMapStore();
   
   const [isOpen, setIsOpen] = useState(false);
@@ -20,9 +21,9 @@ export const LayerManager = () => {
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="p-3 bg-card text-foreground rounded-2xl border border-border shadow-2xl hover:bg-accent transition-all active:scale-95 group flex items-center gap-2"
+          className="p-3 bg-card text-foreground rounded-2xl border border-border shadow-2xl hover:bg-accent transition-all active:scale-95 group flex items-center px-4 gap-0 hover:gap-1.5 transition-all duration-300"
         >
-          <Layers className="w-5 h-5 text-primary" />
+          <Layers className="w-5 h-5 text-primary shrink-0" />
           <span className="max-w-0 overflow-hidden group-hover:max-w-xs transition-all duration-500 text-sm font-bold whitespace-nowrap">
             Layers
           </span>
@@ -85,19 +86,28 @@ export const LayerManager = () => {
               {dynamicLayers.map((layer) => {
                 const isHidden = hiddenLayers.includes(layer.id);
                 return (
-                  <div key={layer.id} className="bg-card border border-border rounded-xl p-3 flex flex-col gap-3 shadow-sm hover:border-primary/50 transition-colors">
+                  <div 
+                    key={layer.id} 
+                    // 🌟 2. กดที่กล่องปุ๊บ โยนคำสั่งฝากเข้า Store ทันที
+                    onClick={() => triggerLayerMention(layer.layerId || layer.id)}
+                    className="bg-card border border-border rounded-xl p-3 flex flex-col gap-3 shadow-sm hover:border-primary/50 transition-colors cursor-pointer group"
+                  >
                     
                     {/* ข้อมูลเลเยอร์ + ปุ่มเปิด/ปิดตา */}
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3 overflow-hidden pr-2">
-                        <div className="w-2 h-2 rounded-full bg-primary shrink-0" />
+                        <div className="w-2 h-2 rounded-full bg-primary shrink-0 group-hover:scale-125 transition-transform" />
                         <div className="flex flex-col min-w-0">
-                          <span className="font-bold text-sm truncate">{layer.title || layer.layerId}</span>
+                          <span className="font-bold text-sm truncate group-hover:text-primary transition-colors">{layer.title || layer.layerId}</span>
                           <span className="text-[9px] text-muted-foreground uppercase tracking-wider">{layer.type}</span>
                         </div>
                       </div>
                       <button
-                        onClick={() => toggleLayerVisibility(layer.id)}
+                        // 🌟 3. ดัก onClick ตรงนี้ไม่ให้ทะลุไปหากล่องข้างนอก
+                        onClick={(e) => {
+                          e.stopPropagation(); 
+                          toggleLayerVisibility(layer.id);
+                        }}
                         className={`p-2 rounded-lg transition-all shrink-0 ${
                           !isHidden ? "text-primary hover:bg-primary/10" : "text-muted-foreground hover:bg-accent"
                         }`}

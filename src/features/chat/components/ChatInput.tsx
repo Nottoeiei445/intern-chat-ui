@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, ChangeEvent } from "react"
+import { useState, useRef, ChangeEvent, useEffect } from "react"
 import { Send, Image as ImageIcon, X, Layers, Sparkles } from "lucide-react"
 import { ApiKeyPopover } from "@/features/auth/components/ApiKeyPopover"
 import { useMapStore } from "@/store/useMapStore";
@@ -19,7 +19,9 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
   const [images, setImages] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
-  const { isKeyModalOpen, dynamicLayers } = useMapStore();
+  
+  // 🌟 2. ดึง pendingMention และ clearPendingMention ออกมาจาก Store
+  const { isKeyModalOpen, dynamicLayers, pendingMention, clearPendingMention } = useMapStore();
   const isInputDisabled = isGuestExpired || isKeyModalOpen;
   const [isMentionOpen, setIsMentionOpen] = useState(false)
   const [mentionQuery, setMentionQuery] = useState("")
@@ -31,7 +33,48 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
     (layer.title || layer.id || "").toLowerCase().includes(mentionQuery.toLowerCase())
   );
 
-   const fileToBase64 = (file: File): Promise<string> => {
+  // 🌟 3. พระเอกของเรา: useEffect ดักฟังคำสั่งจาก Store (LayerManager)
+  useEffect(() => {
+    if (pendingMention) {
+      // แงะเอา layerId ออกมาจากคำสั่ง "[layer_id: xxx]"
+      const match = pendingMention.text.match(/\[layer_id:\s*([^\]]+)\]/);
+      const extractedId = match ? match[1].trim() : null;
+
+      if (extractedId) {
+        // ไปค้นหาชื่อเลเยอร์จริงๆ มาโชว์ให้สวยๆ
+        const layer = dynamicLayers.find(l => l.id === extractedId || l.layerId === extractedId);
+        
+        if (layer) {
+          // ถ้าเจอ สร้างชื่อสวยๆ แบบ @ชื่อเลเยอร์
+          const displayName = `@${(layer.title || layer.id).replace(/\s+/g, '_')}`;
+          
+          setInput((prev) => {
+            const space = prev.length > 0 && !prev.endsWith(' ') ? ' ' : '';
+            return prev + space + displayName + ' ';
+          });
+          
+          // บันทึกลง mentionMap เพื่อให้ตอนกด Send มันแปลงกลับเป็น ID ส่งให้หลังบ้าน
+          setMentionMap(prev => ({ ...prev, [displayName]: extractedId }));
+        } else {
+          // กันเหนียว ถ้าหาไม่เจอจริงๆ ก็โยนข้อความดิบๆ ลงไป
+          setInput((prev) => {
+            const space = prev.length > 0 && !prev.endsWith(' ') ? ' ' : '';
+            return prev + space + pendingMention.text + ' ';
+          });
+        }
+      }
+
+      // 🌟 สั่งเคลียร์คำสั่งใน Store ทันที เพื่อให้รับคำสั่งรอบถัดไปได้
+      clearPendingMention();
+
+      // โฟกัสช่องแชท เผื่อย้ายไปพิมพ์ต่อ
+      setTimeout(() => {
+        textareaRef.current?.focus();
+      }, 50);
+    }
+  }, [pendingMention, dynamicLayers, clearPendingMention]);
+
+  const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.readAsDataURL(file);
