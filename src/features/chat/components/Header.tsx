@@ -44,13 +44,6 @@ export const Header = ({ selectedModel, onModelChange, isSidebarOpen, onToggle, 
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground font-ibm">
-          <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-          Ollama Connected
-        </div>
-      </div>
-
     </header>
   );
 };

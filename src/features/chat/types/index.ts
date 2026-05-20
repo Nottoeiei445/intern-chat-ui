@@ -1,8 +1,6 @@
 export interface ClarityChoice {
   label: string;
   value: string;
-  // อนาคตถ้าอยากแนบประเภท Layer หรือ Provider ก็สามารถเพิ่มได้ เช่น:
-  // type?: "layer" | "provider";
 }
 
 export interface Message {
@@ -21,6 +19,7 @@ export interface Message {
     hasBack: boolean;
     offset?: number;
   };
+  metadata?: any;
 }
 
 export interface ChatThread {
@@ -35,6 +34,7 @@ export interface ChatThread {
 export interface SuggestionItem {
   key: string;
   label: string;
+  value?: string;
   promptTemplate: string;
 }
 

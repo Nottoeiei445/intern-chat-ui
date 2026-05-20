@@ -136,8 +136,9 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
     if (isLoading || isInputDisabled) return;
 
     let finalPrompt = suggestion.promptTemplate;
-    finalPrompt = finalPrompt.replace(/\{label\}/g, suggestion.label);
-    finalPrompt = finalPrompt.replace(/\{key\}/g, suggestion.key);
+    if (suggestion.value) {
+      finalPrompt = finalPrompt.replace(/\{value\}/g, suggestion.value);
+    }
     onSendMessage(finalPrompt, []); 
     
     setInput("");
@@ -207,19 +208,24 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
           </div>
         )}
 
-        {suggestions && suggestions.length > 0 && (
+        {suggestions && suggestions.length > 0 && !isMentionOpen && (
           <div className="flex flex-wrap gap-2 mb-3">
-            {suggestions.map((suggestion) => (
-              <button
-                key={suggestion.key}
-                onClick={() => handleSuggestionClick(suggestion)}
-                disabled={isLoading || isInputDisabled}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm bg-card hover:bg-muted text-foreground rounded-full border border-border shadow-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed animate-in fade-in slide-in-from-bottom-2"
-              >
-                <Sparkles size={14} className="text-amber-500" />
-                {suggestion.label}
-              </button>
-            ))}
+            {suggestions.map((suggestion) => {
+              const displayLabel = suggestion.value 
+                ? `${suggestion.label} ${suggestion.value}` 
+                : suggestion.label;
+              return (
+                <button
+                  key={suggestion.key}
+                  onClick={() => handleSuggestionClick(suggestion)}
+                  disabled={isLoading || isInputDisabled}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs sm:text-sm bg-card hover:bg-muted text-foreground rounded-full border border-border shadow-sm transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed animate-in fade-in slide-in-from-bottom-2"
+                >
+                  <Sparkles size={14} className="text-amber-500" />
+                  {displayLabel}
+                </button>
+              );
+            })}
           </div>
         )}
 
@@ -307,9 +313,6 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
           </div>
         </div>
         
-        <p className="text-center text-[9px] text-muted-foreground/50 mt-3 font-bold uppercase tracking-[0.3em]">
-          Ollama v0.20.2 Local Node
-        </p>
       </div>
     </div>
   )

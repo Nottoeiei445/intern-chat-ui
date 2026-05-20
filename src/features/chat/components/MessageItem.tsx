@@ -188,8 +188,8 @@ export const MessageItem = ({
                         src={imgSrc} 
                         alt={`attachment-${imgIdx}`}
                         className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
-                        onLoad={() => { if (!isFetchingHistory) scrollToBottom() }}
-                      />
+                        onLoad={() => { if (!isFetchingHistory && isLatestMessage) scrollToBottom() }}
+     />
                     </div>
                   ))}
                 </div>
@@ -203,7 +203,7 @@ export const MessageItem = ({
                       alt="history-attachment"
                       className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                       loading="lazy"
-                      onLoad={() => { if (!isFetchingHistory) scrollToBottom() }}
+                      onLoad={() => { if (!isFetchingHistory && isLatestMessage) scrollToBottom() }}
                     />
                   </div>
                 </div>

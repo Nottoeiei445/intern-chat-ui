@@ -35,23 +35,25 @@ export const MessageList = ({
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   
+  const contentWrapperRef = useRef<HTMLDivElement>(null)
+  
   const previousScrollHeight = useRef<number>(0)
   const previousScrollTop = useRef<number>(0) 
   
-  const lastMessageRef = useRef<Message | undefined>(undefined)
+  const isUserScrolledUp = useRef(false)
   const isInitialMount = useRef(true)
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  // 🌟 3. เปลี่ยนจาก smooth เป็น instant เพื่อไม่ให้จอกระตุกตอนดึงลง
+  const scrollToBottom = (behavior: ScrollBehavior = "instant") => {
+    messagesEndRef.current?.scrollIntoView({ behavior })
   }
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      isInitialMount.current = false
-    }, 1000) 
+    const timer = setTimeout(() => { isInitialMount.current = false }, 1000) 
     return () => clearTimeout(timer)
   }, [])
 
+  // จัดการดึง Scroll ตอนโหลดประวัติแชทเก่า
   useLayoutEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
@@ -67,28 +69,53 @@ export const MessageList = ({
   }, [messages, isFetchingHistory])
 
   useEffect(() => {
+    const wrapper = contentWrapperRef.current;
+    if (!wrapper) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      if (!isUserScrolledUp.current && !isFetchingHistory) {
+        scrollToBottom("instant"); 
+      }
+    });
+
+    resizeObserver.observe(wrapper);
+    return () => resizeObserver.disconnect();
+  }, [isFetchingHistory]);
+
+  // สั่งดึงจอลงล่างเมื่อมีข้อความใหม่
+  useEffect(() => {
     if (messages.length === 0) return;
     
-    const lastMessage = messages[messages.length - 1];
-
-    if (lastMessageRef.current !== lastMessage && !isFetchingHistory) {
-      setTimeout(() => scrollToBottom(), 50)
+    // รีเซ็ตสถานะ ถือว่าเป็นการโหลดแชทใหม่หรือมี AI กำลังพิมพ์
+    if (isLoading || messages.length <= 2) {
+       isUserScrolledUp.current = false;
     }
-    
-    lastMessageRef.current = lastMessage;
-  }, [messages, isFetchingHistory])
+
+    if (!isUserScrolledUp.current && !isFetchingHistory) {
+      scrollToBottom("smooth");
+    }
+  }, [messages.length, isLoading, isFetchingHistory])
 
   const handleScroll = () => {
     if (!scrollContainerRef.current) return;
     
-    const currentScrollTop = scrollContainerRef.current.scrollTop;
+    const container = scrollContainerRef.current;
+    const currentScrollTop = container.scrollTop;
 
+    // เลื่อนขึ้นสุด ดึงประวัติ
     if (currentScrollTop <= 10) {
       if (isInitialMount.current || isFetchingHistory || !hasMore) return;
-      
-      if (onLoadMore) {
-        onLoadMore();
-      }
+      if (onLoadMore) onLoadMore();
+    }
+
+    // คำนวณระยะห่างจากขอบล่างสุด
+    const distanceFromBottom = container.scrollHeight - currentScrollTop - container.clientHeight;
+    
+    // ถ้าห่างขอบล่างเกิน 50px แปลว่ายูสเซอร์จงใจเลื่อนขึ้นไปอ่านประวัติ (ห้ามดึงจอแย่งยูสเซอร์)
+    if (distanceFromBottom > 50) {
+      isUserScrolledUp.current = true;
+    } else {
+      isUserScrolledUp.current = false;
     }
   }
 
@@ -108,9 +135,10 @@ export const MessageList = ({
       className="flex-1 overflow-y-auto px-6 pt-10 flex flex-col bg-background custom-scrollbar"
     >
       <div className="flex-1 min-h-0" />
-      <div className="flex flex-col w-full pb-4">
+      
+      <div ref={contentWrapperRef} className="flex flex-col w-full pb-4">
+        
         <div className="flex flex-col space-y-10 w-full">
-          
           {isFetchingHistory && (
             <div className="flex justify-center text-primary text-[10px] font-black uppercase tracking-widest my-4 animate-pulse">
               <Sparkles size={14} className="animate-spin mr-2" /> Loading previous messages...
@@ -119,15 +147,12 @@ export const MessageList = ({
 
           {messages.length === 0 && !isFetchingHistory && (
             <div className="flex flex-col items-center justify-center p-4 mt-8">
-              {/* Hero Element */}
               <div className="relative mb-10">
                 <div className="absolute inset-0 bg-primary/20 blur-[100px] rounded-full animate-pulse" />
                 <div className="relative bg-card border border-border p-8 rounded-full shadow-2xl">
                   <MapPin size={48} className="text-primary" />
                 </div>
               </div>
-
-              {/* Header */}
               <div className="text-center mb-8 space-y-2">
                 <h2 className="text-3xl font-black tracking-tighter text-foreground uppercase italic">
                   Geospatial <span className="text-primary">Intelligence</span>
@@ -136,7 +161,6 @@ export const MessageList = ({
                   Start your mapping journey with a single click.
                 </p>
               </div>
-
               <button 
                 onClick={() => onSelectTemplate?.("show all layer style of Vallaris")}  
                 className="group relative flex items-center gap-4 p-4 px-8 bg-card border border-border rounded-full hover:bg-accent hover:border-primary/50 transition-all duration-300 shadow-sm hover:shadow-md active:scale-95"
@@ -147,11 +171,6 @@ export const MessageList = ({
                 <span className="text-foreground font-semibold text-sm tracking-wide group-hover:text-primary transition-colors">
                   Show all layer style of Vallaris
                 </span>
-                <div className="opacity-0 -translate-x-4 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-300 text-primary">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                  </svg>
-                </div>
               </button>
             </div>
           )}
@@ -165,7 +184,7 @@ export const MessageList = ({
               isLatestMessage={index === messages.length - 1} 
               isLoading={isLoading}
               isFetchingHistory={isFetchingHistory ?? false}
-              scrollToBottom={scrollToBottom}
+              scrollToBottom={() => scrollToBottom("smooth")}
               onEditMessage={onEditMessage}
               onSendChoice={onSendChoice}
               onSendPagination={onSendPagination}

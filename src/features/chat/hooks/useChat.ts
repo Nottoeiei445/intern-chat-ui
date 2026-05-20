@@ -33,6 +33,67 @@ const mapBackendMessage = (msg: any) => {
   };
 };
 
+const reconstructMapState = (messages: Message[]) => {
+  let layers: any[] = [];
+  
+  messages.forEach(msg => {
+    const meta = msg.metadata;
+    if (!meta) return;
+
+    if (meta.event === 'layer_catalog' && meta.layer) {
+      const b = meta.layer;
+      const newLayerId = b.layerId || b.styleId || b.basename || b.layerName || `ai-layer-${msg.id}`;
+      
+      const newLayer = {
+        id: newLayerId,
+        type: b.type, 
+        baseUrl: b.url, 
+        layerId: newLayerId,
+        title: b.title, 
+        apiProvider: b.url?.includes('vallaris') ? 'vallaris' : 'gistda',
+        bounds: b.bounds, 
+        minzoom: b.minzoom, 
+        maxzoom: b.maxzoom,
+        ...(meta.mapStyle && {
+          availableStyles: meta.mapStyle.availableStyles || [],
+          activeStyleKey: meta.mapStyle.defaultStyle || meta.mapStyle.styleKey || 'default',
+          renderStyles: meta.mapStyle.layers || []
+        })
+      };
+
+      const existingIdx = layers.findIndex(l => l.id === newLayerId);
+      if (existingIdx > -1) {
+        layers[existingIdx] = { ...layers[existingIdx], ...newLayer }; // อัปเดตตัวเดิม
+      } else {
+        layers.push(newLayer); // เพิ่มตัวใหม่
+      }
+    }
+
+    if (meta.event === 'map_style' && (meta.availableStyles || meta.layers)) {
+      layers = layers.map(layer => {
+        if (layer.layerId === meta.layerId || layer.id === meta.layerId) {
+          return { 
+            ...layer, 
+            availableStyles: meta.availableStyles || layer.availableStyles,
+            activeStyleKey: meta.defaultStyle || layer.activeStyleKey,
+            renderStyles: meta.layers || layer.renderStyles 
+          };
+        }
+        return layer;
+      });
+    }
+    if (meta.event === 'map_control') {
+      if (meta.mode === 'all') {
+        layers = []; 
+      } else if (meta.mode === 'selected' && meta.layerId) {
+        layers = layers.filter(layer => layer.id !== meta.layerId && layer.layerId !== meta.layerId);
+      }
+    }
+  });
+  
+  return layers; 
+};
+
 export function useChat() {
   // 1. Context & Store
   const { user } = useAuth(); 
@@ -59,29 +120,17 @@ export function useChat() {
   const [suggestions, setSuggestions] = useState<{key: string, label: string, promptTemplate: string}[]>([]);
 
   // --- 5. Initialization Effects ---
-  // Init Session
-  useEffect(() => {
-    setIsSessionReady(true);
-  }, []);
+  useEffect(() => { setIsSessionReady(true); }, []);
 
-  // Retry pending chat when API Key arrives
   useEffect(() => {
     if (apiKeys.gistda && pendingChat) {
       const options = { ...pendingChat.options, isSilentRetry: true };
-      if (user && options.explicitChatId?.startsWith('guest_')) {
-        delete options.explicitChatId;
-      }
-      sendMessage(
-        pendingChat.input,
-        pendingChat.model,
-        pendingChat.images,
-        options
-      );
+      if (user && options.explicitChatId?.startsWith('guest_')) delete options.explicitChatId;
+      sendMessage(pendingChat.input, pendingChat.model, pendingChat.images, options);
       clearPendingChat();
     }
   }, [apiKeys.gistda, pendingChat, user]);
 
-  // Fetch all chat histories
   useEffect(() => {
     if (!isSessionReady) return;
 
@@ -117,11 +166,8 @@ export function useChat() {
         if (!user && guestId) setActiveChatId(guestId as string);
         else if (sorted.length > 0 && !activeChatId) setActiveChatId(sorted[0].id);
 
-      } catch (error) {
-        console.error("Failed to fetch histories:", error); 
-      }
+      } catch (error) { console.error("Failed to fetch histories:", error); }
     };
-    
     fetchAllHistories(); 
   }, [isSessionReady, user]);
 
@@ -136,7 +182,7 @@ export function useChat() {
       setIsFetchingHistory(true); 
       try {
         const responseData = await chatService.getConversationDetail(targetId, 1); 
-        const coversationApiKey = responseData?.xApiKey || null;
+        const coversationApiKey = responseData?.ApiKey || responseData?.data?.ApiKey || responseData?.xApiKey || responseData?.data?.xApiKey || null;
 
         if (coversationApiKey) {
            const mapStore = useMapStore.getState();
@@ -148,6 +194,9 @@ export function useChat() {
 
         const rawMessages = responseData?.data?.messages || responseData?.messages || responseData?.data || (Array.isArray(responseData) ? responseData : []);
         const messages = rawMessages.map(mapBackendMessage);
+        
+        const restoredLayers = reconstructMapState(messages);
+        useMapStore.getState().setDynamicLayers(restoredLayers);
         
         setChats(prev => {
           const existingChat = prev.find(chat => chat.id === targetId);
@@ -173,17 +222,25 @@ export function useChat() {
   useEffect(() => {
     const mapStore = useMapStore.getState();
 
-    // ถ้ากดเริ่มแชทใหม่ หรือไม่ได้เลือกห้อง ให้เคลียร์กุญแจทิ้ง
+    // กรณีเริ่มแชทใหม่ หรือไม่ได้เลือกห้อง
     if (!activeChatId || activeChatId.startsWith('session_')) {
       mapStore.setcurrentConversationApiKey(null);
+      mapStore.setDynamicLayers([]); 
+      setSuggestions([]); 
       return;
     }
 
-    // ถ้าเลือกห้องที่มีการบันทึก API Key ไว้ ให้ตั้งค่านั้น
     const cachedKey = mapStore.sessionKeys[activeChatId] || null;
     mapStore.setcurrentConversationApiKey(cachedKey);
 
-  }, [activeChatId]);
+    // จังหวะคลิกสลับห้องแชทเก่า
+    const currentChat = chats.find(c => c.id === activeChatId);
+    if (currentChat && currentChat.messages.length > 0) {
+      const restoredLayers = reconstructMapState(currentChat.messages);
+      mapStore.setDynamicLayers(restoredLayers);
+    }
+    setSuggestions([]); 
+  }, [activeChatId]); 
 
   // --- 6. Chat Actions ---
 
@@ -216,9 +273,10 @@ export function useChat() {
     }
   };
 
-const createNewChat = () => {
+  const createNewChat = () => {
     setActiveChatId(null);
     useMapStore.getState().clearApiKeys();
+    useMapStore.getState().setDynamicLayers([]);
   };
 
   const sendMessage = async (input: string, model: string, images: string[] = [], options?: any) => { 
@@ -343,7 +401,6 @@ const createNewChat = () => {
                 const b = data.layer;
                 const currentLayers = useMapStore.getState().dynamicLayers; 
                 
-                // จัดลำดับความสำคัญของ ID ให้ใช้ layerId เป็นหลัก
                 const newLayerId = b.layerId || b.styleId || b.basename || b.layerName || `ai-layer-${Date.now()}`;
                 
                 if (!currentLayers.some(l => l.id === newLayerId)) {
@@ -351,9 +408,9 @@ const createNewChat = () => {
                     id: newLayerId,
                     type: b.type, 
                     baseUrl: b.url, 
-                    layerId: newLayerId, // ใช้ ID ที่จัดรูปแบบแล้วเพื่อกันพลาด
+                    layerId: newLayerId,
                     title: b.title, 
-                    apiProvider: b.url.includes('vallaris') ? 'vallaris' : 'gistda',
+                    apiProvider: b.url?.includes('vallaris') ? 'vallaris' : 'gistda',
                     bounds: b.bounds, 
                     minzoom: b.minzoom, 
                     maxzoom: b.maxzoom,
@@ -368,9 +425,7 @@ const createNewChat = () => {
                 
                 const updatedLayers = currentLayers.map(layer => {
                   if (layer.layerId === data.layerId || layer.id === data.layerId) {
-                    
                     const receivedStyles = data.availableStyles || [];
-                    
                     const baseStyleKey = data.defaultStyle || (receivedStyles.length > 0 ? receivedStyles[0].styleKey : 'default');
 
                     return { 
@@ -423,7 +478,6 @@ const createNewChat = () => {
 
               if (eventType === 'map_control') {
                 const mapStore = useMapStore.getState();
-                
                 if (data.mode === 'all') {
                   mapStore.clearLayers();
                 } 
@@ -551,10 +605,6 @@ const createNewChat = () => {
       await sendMessage(newContent, model, [], { isRegenerate: true, editMessageId: messageId });
     } finally { setIsLoading(false); }
   };
-
-
-
-  // --- 7. Computed Values & Cleanup ---
 
   const migrationInfo = useMemo(() => {
     const gId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
