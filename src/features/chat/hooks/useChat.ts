@@ -11,6 +11,7 @@ import {
   checkAndCleanupExpiredGuest, 
   startGuestExpiryTimer 
 } from "../../auth/utils/guest-timer.util";
+import { CHAT_CONFIG } from "../config/chat.config";
 
 // --- Helpers ---
 const sortChats = (list: ChatThread[]) => { 
@@ -41,7 +42,7 @@ const reconstructMapState = (messages: Message[]) => {
     if (!meta) return;
 
     // 1. ดักจับการสร้างเลเยอร์
-    if (meta.event === 'layer_catalog' && meta.layer) {
+    if (meta.event === CHAT_CONFIG.mapEvents.layerCatalog && meta.layer) {
       const b = meta.layer;
       const newLayerId = b.layerId || b.styleId || b.basename || b.layerName || `ai-layer-${msg.id}`;
       
@@ -71,7 +72,7 @@ const reconstructMapState = (messages: Message[]) => {
     }
 
     // 2. ดักจับการเปลี่ยนสไตล์
-    if (meta.event === 'map_style' && (meta.availableStyles || meta.layers)) {
+    if (meta.event === CHAT_CONFIG.mapEvents.mapStyle && (meta.availableStyles || meta.layers)) {
       layers = layers.map(layer => {
         if (layer.layerId === meta.layerId || layer.id === meta.layerId) {
           return { 
@@ -85,10 +86,10 @@ const reconstructMapState = (messages: Message[]) => {
       });
     }
 
-    if (meta.event === 'map_clear' && meta.success) {
-      if (meta.mode === 'all') {
+    if (meta.event === CHAT_CONFIG.mapEvents.mapClear && meta.success) {
+      if (meta.mode === CHAT_CONFIG.mapClearModes.all) {
         layers = []; 
-      } else if (meta.mode === 'selected' && meta.layerIds) {
+      } else if (meta.mode === CHAT_CONFIG.mapClearModes.selected && meta.layerIds) {
 
         layers = layers.filter(layer => !meta.layerIds.includes(layer.id) && !meta.layerIds.includes(layer.layerId));
       }
@@ -346,7 +347,7 @@ export function useChat() {
       let accumulatedContent = "";
       let buffer = "";
       
-      let currentEvent = "message"; 
+      let currentEvent = CHAT_CONFIG.mapEvents.messageUpdate; 
 
       if (reader) {
         while (true) {
@@ -393,7 +394,7 @@ export function useChat() {
               }
 
               // Handle Missing API Key
-              if (data.code === 'missing_x_api_key' || data.needsApiKey) {
+              if (data.code === CHAT_CONFIG.mapEvents.missingApiKey || data.needsApiKey) {
                 setPendingChat({ input, model, images, options: { ...options, explicitChatId: currentId } });
                 openKeyModal(); 
                 setChats(prev => prev.map(chat => chat.id === currentId ? { ...chat, messages: chat.messages.filter(m => m.role !== "assistant" || m.content !== "") } : chat));
@@ -401,7 +402,7 @@ export function useChat() {
               }
 
               // Handle Map Events (Catalog)
-              if (eventType === 'layer_catalog' && data.layer) {
+              if (eventType === CHAT_CONFIG.mapEvents.layerCatalog && data.layer) {
                 const b = data.layer;
                 const currentLayers = useMapStore.getState().dynamicLayers; 
                 
@@ -424,7 +425,7 @@ export function useChat() {
               }
 
               // Handle Map Events
-              if (eventType === 'map_style' && (data.availableStyles || data.layers)) {
+              if (eventType === CHAT_CONFIG.mapEvents.mapStyle && (data.availableStyles || data.layers)) {
                 const currentLayers = useMapStore.getState().dynamicLayers; 
                 
                 const updatedLayers = currentLayers.map(layer => {
@@ -447,7 +448,7 @@ export function useChat() {
               }
 
               // Handle Map Options
-              if (eventType === 'map_options' || data.needInfo || data.choices) {
+              if (eventType === CHAT_CONFIG.mapEvents.mapOptions || data.needInfo || data.choices) {
                 const choices = data.choices || data.payload?.choices;
                 const key = data.key || data.payload?.key;
                 const questionText = data.question || data.payload?.question || ""; 
@@ -480,12 +481,12 @@ export function useChat() {
                 continue;
               }
 
-              if (eventType === 'map_clear') {
+              if (eventType === CHAT_CONFIG.mapEvents.mapClear) {
                 const mapStore = useMapStore.getState();
-                if (data.mode === 'all') {
+                if (data.mode === CHAT_CONFIG.mapClearModes.all) {
                   mapStore.clearLayers();
                 } 
-                else if (data.mode === 'selected' && data.layerIds) {
+                else if (data.mode === CHAT_CONFIG.mapClearModes.selected && data.layerIds) {
                   const filteredLayers = mapStore.dynamicLayers.filter(
                     layer => !data.layerIds.includes(layer.id) && !data.layerIds.includes(layer.layerId)
                   );
@@ -494,7 +495,7 @@ export function useChat() {
                 continue;
               }
 
-              if (eventType === 'suggestions' && data.items) {
+              if (eventType === CHAT_CONFIG.mapEvents.suggestions && data.items) {
                 setSuggestions(data.items);
                 continue;
               }

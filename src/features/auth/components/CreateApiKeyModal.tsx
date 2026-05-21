@@ -10,7 +10,7 @@ interface Props {
   onSuccess: (data: CreateApiKeyDTO) => Promise<any>;
 }
 
-type ProviderType = "VALLARIS" | "GISTDA";
+type ProviderType = "VALLARIS" | "GISTDA"| "VALLARIS&DRAGONFLY";
 
 export const CreateApiKeyModal = ({ isOpen, onClose, onSuccess }: Props) => {
   const [name, setName] = useState("");
@@ -85,7 +85,7 @@ export const CreateApiKeyModal = ({ isOpen, onClose, onSuccess }: Props) => {
               {/* Dropdown Menu */}
               {isDropdownOpen && (
                 <div className="absolute top-[calc(100%+8px)] left-0 w-full bg-popover border border-border rounded-2xl p-1.5 shadow-xl z-50 animate-in fade-in slide-in-from-top-2">
-                  {(["VALLARIS", "GISTDA"] as ProviderType[]).map((type) => (
+                  {(["VALLARIS", "GISTDA", "VALLARIS&DRAGONFLY"] as ProviderType[]).map((type) => (
                     <button
                       key={type}
                       type="button"

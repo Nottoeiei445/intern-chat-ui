@@ -1,11 +1,16 @@
 "use client"
 
 import { useState, useRef, ChangeEvent, useEffect } from "react"
-import { Send, Image as ImageIcon, X, Layers, Sparkles } from "lucide-react"
+import { Send, Image as ImageIcon, X, Sparkles } from "lucide-react"
 import { ApiKeyPopover } from "@/features/auth/components/ApiKeyPopover"
 import { useMapStore } from "@/store/useMapStore";
 import { SuggestionItem } from "../types";
 
+// 1. นำเข้าพวกพ้องของ Tiptap
+import { useEditor, EditorContent } from '@tiptap/react'
+import StarterKit from '@tiptap/starter-kit'
+import Mention from '@tiptap/extension-mention'
+import { suggestion } from './suggestion'
 
 interface Props {
   onSendMessage: (content: string, images: string[]) => void;
@@ -15,65 +20,126 @@ interface Props {
 }
 
 export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, suggestions = [] }: Props) => {
-  const [input, setInput] = useState("")
   const [images, setImages] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
   
-  // 🌟 2. ดึง pendingMention และ clearPendingMention ออกมาจาก Store
   const { isKeyModalOpen, dynamicLayers, pendingMention, clearPendingMention } = useMapStore();
   const isInputDisabled = isGuestExpired || isKeyModalOpen;
-  const [isMentionOpen, setIsMentionOpen] = useState(false)
-  const [mentionQuery, setMentionQuery] = useState("")
-  const [mentionStartIdx, setMentionStartIdx] = useState(-1)
-  const [activeMentionIndex, setActiveMentionIndex] = useState(0)
-  const [mentionMap, setMentionMap] = useState<Record<string, string>>({})
+  const [isEditorEmpty, setIsEditorEmpty] = useState(true);
 
-  const filteredLayers = (dynamicLayers || []).filter(layer =>
-    (layer.title || layer.id || "").toLowerCase().includes(mentionQuery.toLowerCase())
-  );
+  const editor = useEditor({
+  extensions: [
+    StarterKit.configure({
+      paragraph: { HTMLAttributes: { class: 'leading-relaxed text-sm text-foreground' } },
+    }),
+    Mention.configure({
+      HTMLAttributes: {
+        class: 'bg-primary/10 text-primary font-bold px-1.5 py-0.5 rounded-md mx-0.5 inline-block border border-primary/20 select-all cursor-pointer hover:bg-primary/20 transition-colors',
+      },
+      suggestion,
+      // 2: เอาเครื่องหมาย @ ออกจากตัวป้าย Chip
+      renderLabel({ node }) {
+        return `${node.attrs.label ?? node.attrs.id}`;
+      },
+    }),
+  ],
+  editorProps: {
+    attributes: {
+      class: 'w-full bg-transparent p-3 pr-14 text-sm leading-relaxed focus:outline-none min-h-[44px] max-h-[180px] overflow-y-auto custom-scrollbar text-foreground break-words outline-none',
+    },
+    handleKeyDown: (view, event) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
 
-  // 🌟 3. พระเอกของเรา: useEffect ดักฟังคำสั่งจาก Store (LayerManager)
+        const isMentionOpen = document.getElementById('mention-popup');
+        if (isMentionOpen) {
+          return false; 
+        }
+        event.preventDefault();
+        handleSend();
+        return true;
+      }
+      return false;
+    }
+  },
+  // จุดที่แก้บั๊ก 1: บังคับให้ React รู้ตัวเวลาพิมพ์ เพื่อซ่อน/โชว์ Placeholder ทันที
+  onCreate: ({ editor }) => {
+    setIsEditorEmpty(editor.isEmpty);
+  },
+  onUpdate: ({ editor }) => {
+    setIsEditorEmpty(editor.isEmpty);
+  },
+})
+
+  // 3. ล็อคสถานะเปิด/ปิดการพิมพ์ของ Editor ตามสิทธิ์โมดอลคีย์
   useEffect(() => {
-    if (pendingMention) {
-      // แงะเอา layerId ออกมาจากคำสั่ง "[layer_id: xxx]"
+    if (editor) {
+      editor.setEditable(!isInputDisabled);
+    }
+  }, [isInputDisabled, editor]);
+
+  // 4. ฟังก์ชันแกะโครงสร้าง Object ของ Tiptap กลับไปเป็น String รูปแบบ [layer_id: xxx] เพื่อส่งให้ API
+  const getSerializedContent = () => {
+    if (!editor) return "";
+    const json = editor.getJSON();
+    
+    const parseNode = (node: any): string => {
+      if (node.type === 'text') {
+        return node.text || '';
+      }
+      if (node.type === 'mention') {
+        return `[layer_id: ${node.attrs.id}]`;
+      }
+      let text = '';
+      if (node.content) {
+        node.content.forEach((child: any) => {
+          text += parseNode(child);
+        });
+      }
+      if (node.type === 'paragraph') {
+        return text + '\n';
+      }
+      return text;
+    };
+
+    return parseNode(json).trim();
+  };
+
+  useEffect(() => {
+    if (pendingMention && editor) {
       const match = pendingMention.text.match(/\[layer_id:\s*([^\]]+)\]/);
       const extractedId = match ? match[1].trim() : null;
 
       if (extractedId) {
-        // ไปค้นหาชื่อเลเยอร์จริงๆ มาโชว์ให้สวยๆ
         const layer = dynamicLayers.find(l => l.id === extractedId || l.layerId === extractedId);
         
         if (layer) {
-          // ถ้าเจอ สร้างชื่อสวยๆ แบบ @ชื่อเลเยอร์
-          const displayName = `@${(layer.title || layer.id).replace(/\s+/g, '_')}`;
-          
-          setInput((prev) => {
-            const space = prev.length > 0 && !prev.endsWith(' ') ? ' ' : '';
-            return prev + space + displayName + ' ';
-          });
-          
-          // บันทึกลง mentionMap เพื่อให้ตอนกด Send มันแปลงกลับเป็น ID ส่งให้หลังบ้าน
-          setMentionMap(prev => ({ ...prev, [displayName]: extractedId }));
+          // ยัดตัวแปร Mention ใส่เข้า Editor โดยตรง นิ่งๆ ชัวร์ 100% ลบก็หายทั้งย้อน
+          editor.commands.insertContent([
+            {
+              type: 'mention',
+              attrs: {
+                id: extractedId,
+                label: (layer.title || layer.id).replace(/\s+/g, '_')
+              }
+            },
+            {
+              type: 'text',
+              text: ' '
+            }
+          ]);
+          setIsEditorEmpty(false);
         } else {
-          // กันเหนียว ถ้าหาไม่เจอจริงๆ ก็โยนข้อความดิบๆ ลงไป
-          setInput((prev) => {
-            const space = prev.length > 0 && !prev.endsWith(' ') ? ' ' : '';
-            return prev + space + pendingMention.text + ' ';
-          });
+          editor.commands.insertContent(pendingMention.text + ' ');
+          setIsEditorEmpty(false);
         }
       }
 
-      // 🌟 สั่งเคลียร์คำสั่งใน Store ทันที เพื่อให้รับคำสั่งรอบถัดไปได้
       clearPendingMention();
-
-      // โฟกัสช่องแชท เผื่อย้ายไปพิมพ์ต่อ
-      setTimeout(() => {
-        textareaRef.current?.focus();
-      }, 50);
+      setTimeout(() => editor.commands.focus('end'), 10);
     }
-  }, [pendingMention, dynamicLayers, clearPendingMention]);
+  }, [pendingMention, dynamicLayers, clearPendingMention, editor]);
 
+  // --- ระบบจัดการรูปภาพภาพ ---
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -107,7 +173,6 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
         const file = items[i].getAsFile();
         if (file) {
           if (images.length + newImages.length >= 5) break;
-
           const b64 = await fileToBase64(file);
           newImages.push(b64);
         }
@@ -123,129 +188,45 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
     setImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleMentionInput = (e: ChangeEvent<HTMLTextAreaElement>) => {
-    const val = e.target.value;
-    setInput(val); 
-
-    const cursor = e.target.selectionStart; 
-    const textBeforeCursor = val.slice(0, cursor); 
-    const atIndex = textBeforeCursor.lastIndexOf('@'); 
-
-    if (atIndex !== -1 && (atIndex === 0 || textBeforeCursor[atIndex - 1] === ' ')) { 
-      const query = textBeforeCursor.slice(atIndex + 1); 
-
-      if (!query.includes(' ')) { 
-        setIsMentionOpen(true); 
-        setMentionQuery(query); 
-        setMentionStartIdx(atIndex); 
-        setActiveMentionIndex(0); 
-        return;
-      }
-    }
-    setIsMentionOpen(false);
-  };
-
-  const insertMention = (layer: any) => {
-    const displayName = `@${(layer.title || layer.id).replace(/\s+/g, '_')}`; 
-    const layerId = layer.layerId || layer.id; 
-
-    const newValue = input.slice(0, mentionStartIdx) + displayName + ' ' + input.slice(textareaRef.current?.selectionStart || mentionStartIdx + mentionQuery.length + 1);
-    setInput(newValue); 
-    setMentionMap(prev => ({ ...prev, [displayName]: layerId })); 
-    setIsMentionOpen(false); 
-
-    setTimeout(() => {
-      textareaRef.current?.focus();
-    }, 0);
-  };
-
+  // 6. แก้ไขฟังก์ชันการส่งแชทให้ดึงข้อมูลผ่านชุดคลี่คำสั่งอนุกรม JSON
   const handleSend = () => {
-    if ((!input.trim() && images.length === 0) || isLoading || isInputDisabled) return  
-    let finalPayload = input;
-    Object.entries(mentionMap).forEach(([displayName, layerId]) => {
-      const regex = new RegExp(displayName, 'g');
-      finalPayload = finalPayload.replace(regex, `[layer_id: ${layerId}]`);
-    });
+    if (!editor || isLoading || isInputDisabled) return;
 
-    onSendMessage(finalPayload, images) 
+    const finalPayload = getSerializedContent();
+    if (!finalPayload && images.length === 0) return;
+
+    onSendMessage(finalPayload, images);
     
-    setInput("")
-    setImages([]) 
-    setMentionMap({}) 
-    setIsMentionOpen(false) 
+    // ล้างเนื้อหาใน Editor ทิ้งให้พร้อมรันข้อความต่อไป
+    editor.commands.clearContent();
+    setImages([]);
+    setIsEditorEmpty(true);
   };
 
-const handleSuggestionClick = (suggestion: SuggestionItem) => {
-  if (isLoading || isInputDisabled) return;
+  // 7. ปรับปรุงไกด์นำทางลบลวดลายเลเยอร์ 
+  const handleSuggestionClick = (suggestion: SuggestionItem) => {
+    if (isLoading || isInputDisabled || !editor) return;
 
-  const isGuidedClear = suggestion.promptTemplate?.toLowerCase().includes("clear layerid");
+    const isGuidedClear = suggestion.key === "clear_layer";
 
-  if (isGuidedClear) {
-    const textToSet = "clear layer: @";
-    setInput(textToSet);
+    if (isGuidedClear) {
+      const textToSet = `${suggestion.promptTemplate || "Clear map layer "}@`;
+      editor.commands.setContent(textToSet);
+      setIsEditorEmpty(false); 
+      setTimeout(() => {
+        editor.commands.focus('end');
+      }, 10);
+      return; 
+    }
 
-    // 2. สั่งกางกล่อง Dropdown ของระบบ Mention 
-    setIsMentionOpen(true);
-    setMentionQuery(""); // เคลียร์ query เป็นว่างเปล่า เพื่อพ่นรายชื่อ Layer ทั้งหมดออกมาโชว์
-    
-    // ตั้งตำแหน่งจุดเริ่มแกะคำให้อยู่ตรงเครื่องหมาย @ 
-    const atIndex = textToSet.indexOf("@");
-    setMentionStartIdx(atIndex); 
-    setActiveMentionIndex(0);
-
-    setTimeout(() => {
-      if (textareaRef.current) {
-        textareaRef.current.focus();
-        textareaRef.current.selectionStart = textToSet.length;
-        textareaRef.current.selectionEnd = textToSet.length;
-      }
-    }, 50);
-
-    return; 
-  }
-
-  let finalPrompt = suggestion.promptTemplate;
+    let finalPrompt = suggestion.promptTemplate || "";
   if (suggestion.value) {
     finalPrompt = finalPrompt.replace(/\{value\}/g, suggestion.value);
   }
-  onSendMessage(finalPrompt, []); 
   
-  setInput("");
+  onSendMessage(finalPrompt, []); 
   setImages([]);
-  setMentionMap({});
-  setIsMentionOpen(false);
 };
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (isMentionOpen) {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setActiveMentionIndex(prev => Math.min(prev + 1, filteredLayers.length - 1));
-        return;
-      }
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setActiveMentionIndex(prev => Math.max(prev - 1, 0));
-        return;
-      }
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        if (filteredLayers[activeMentionIndex]) {
-          insertMention(filteredLayers[activeMentionIndex]);
-        }
-        return;
-      }
-      if (e.key === 'Escape') {
-        setIsMentionOpen(false);
-        return;
-      }
-    }
-
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault()
-      handleSend()
-    }
-  };
 
   return (
     <div className="p-6 bg-gradient-to-t from-background to-transparent bg-background">
@@ -253,31 +234,9 @@ const handleSuggestionClick = (suggestion: SuggestionItem) => {
 
         <ApiKeyPopover />
 
-        {isMentionOpen && filteredLayers.length > 0 && (
-          <div className="absolute bottom-[calc(100%+8px)] left-0 w-64 bg-card border border-border rounded-xl shadow-2xl overflow-hidden z-50 animate-in slide-in-from-bottom-2">
-            <div className="p-2 text-xs font-semibold text-muted-foreground bg-muted/30 border-b border-border flex items-center gap-2">
-              <Layers size={14} /> Select a layer
-            </div>
-            <div className="max-h-48 overflow-y-auto custom-scrollbar">
-              {filteredLayers.map((layer, idx) => (
-                <button
-                  key={layer.id}
-                  type="button"
-                  onClick={() => insertMention(layer)}
-                  onMouseEnter={() => setActiveMentionIndex(idx)}
-                  className={`w-full text-left px-3 py-2 text-sm transition-colors flex flex-col ${
-                    idx === activeMentionIndex ? "bg-primary/10 text-primary" : "text-foreground hover:bg-muted"
-                  }`}
-                >
-                  <span className="font-medium truncate">{layer.title || layer.id}</span>
-                  <span className="text-[10px] text-muted-foreground opacity-70 truncate">{layer.id}</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+        {/* กล่องเมนูเลเยอร์เก่าถูกถอดถอนออกไปแล้ว เพราะระบบลอยตัวออโต้ด้วย tippy.js เรียบร้อย สะอาดมาก! */}
 
-        {suggestions && suggestions.length > 0 && !isMentionOpen && (
+        {suggestions && suggestions.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-3">
             {suggestions.map((suggestion) => {
               const displayLabel = suggestion.value 
@@ -332,23 +291,20 @@ const handleSuggestionClick = (suggestion: SuggestionItem) => {
             </div>
           )}
 
-          <textarea
-            ref={textareaRef}
-            rows={1}
-            disabled={isInputDisabled} 
-            placeholder={
-              isKeyModalOpen ? "Please provide API Key above..." :
-              isGuestExpired ? "Session expired. Please refresh..." : 
-              "Ask about GIS, maps, or layers..." 
-            }
-            className={`w-full bg-transparent p-3 pr-14 text-sm leading-relaxed focus:outline-none resize-none placeholder:text-muted-foreground text-foreground ${
-              isInputDisabled ? "cursor-not-allowed" : ""
-            }`}
-            value={input}
-            onChange={handleMentionInput}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-          />
+          {/* สวมใส่ Tiptap แทนคูหาพิมพ์ข้อความเดิม */}
+          <div className="relative w-full" onPaste={handlePaste}>
+            {/* ตัวควบคุม Placeholder จำลองไร้ความหน่วงภายนอก */}
+            {isEditorEmpty && (
+              <div className="absolute top-3 left-3 text-sm text-muted-foreground pointer-events-none select-none z-10">
+                {isKeyModalOpen ? "Please provide API Key above..." :
+                 isGuestExpired ? "Session expired. Please refresh..." : 
+                 "Ask about GIS, maps, or layers..."}
+              </div>
+            )}
+            
+            {/* ขับขานพ่น Editor ของ Tiptap ลงสู่สมรภูมิแชท */}
+            <EditorContent editor={editor} />
+          </div>
           
           <div className="flex items-center justify-between px-2 pb-1">
             <div className="flex gap-1">
@@ -372,11 +328,11 @@ const handleSuggestionClick = (suggestion: SuggestionItem) => {
             </div>
             
             <button 
-              type="button"
-              onClick={handleSend}
-              disabled={isLoading || isInputDisabled || (!input.trim() && images.length === 0)} 
-              className="bg-primary hover:bg-primary/90 text-primary-foreground p-2 rounded-xl transition-all disabled:opacity-20 disabled:cursor-not-allowed"
-            >
+                  type="button"
+                  onClick={handleSend}
+                  disabled={isLoading || isInputDisabled || (isEditorEmpty && images.length === 0)} 
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground p-2 rounded-xl transition-all disabled:opacity-20 disabled:cursor-not-allowed"
+                >
               <Send size={18} />
             </button>
           </div>

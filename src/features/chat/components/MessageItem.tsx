@@ -1,12 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { Sparkles, User, Bot, Copy, Pencil, Lock } from "lucide-react"
+import { Sparkles, User, Bot, Copy, Pencil, Lock, Layers } from "lucide-react"
 import { Message } from "../types"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { useAuth } from "../../auth/context/AuthContext"
 import { useEffect } from "react"; 
+import { useMapStore } from "@/store/useMapStore"; 
  
 import {
   Tooltip,
@@ -51,10 +52,12 @@ export const MessageItem = ({
   const endItem = offset + numberReturned;
  
   const { user } = useAuth();
+  // 🌟 2. ดึงเอาชุดกระดานเลเยอร์มาคอย Map หาชื่อจริง
+  const { dynamicLayers } = useMapStore(); 
   const isGuest = !user; 
 
   const handleEditClick = () => {
-    if (isGuest) return; // ดักไว้เผื่อเหนียว
+    if (isGuest) return; 
     setEditValue(msg.content);
     setIsEditing(true);
   };
@@ -74,6 +77,49 @@ export const MessageItem = ({
   useEffect(() => {
     setSelectedChoice(null);
   }, [msg.choices, msg.pagination?.offset]);
+
+  // 3. ฟังก์ชันแปลงข้อความดิบ [layer_id: xxx] ให้กลายเป็นป้าย Chip
+  const renderFormattedContent = (content: string) => {
+    if (!content.includes("[layer_id:")) {
+      return content;
+    }
+
+    const regex = /\[layer_id:\s*([^\]]+)\]/g;
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = regex.exec(content)) !== null) {
+      const matchIndex = match.index;
+      const layerId = match[1].trim();
+
+      if (matchIndex > lastIndex) {
+        parts.push(content.slice(lastIndex, matchIndex));
+      }
+
+      const layer = dynamicLayers.find((l) => l.id === layerId || l.layerId === layerId);
+      const displayName = layer ? (layer.title || layer.id) : layerId;
+
+      parts.push(
+        <span
+          key={`${layerId}-${matchIndex}`}
+          className="bg-current/15 border border-current/20 font-semibold px-1.5 py-0.5 rounded-md mx-0.5 inline-block align-baseline select-all text-sm"
+          style={{ 
+            color: msg.role === "user" ? "inherit" : "var(--primary)" 
+          }}
+        >
+          {displayName}
+        </span>
+      );
+
+      lastIndex = regex.lastIndex;
+
+    }
+    if (lastIndex < content.length) {
+      parts.push(content.slice(lastIndex));
+    }
+    return parts;
+  };
 
   return (
     <div className={`group flex items-start w-full ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
@@ -161,7 +207,6 @@ export const MessageItem = ({
                       Cancel
                     </Button>
                     
-                    {/* Layer 2: ปุ่ม Submit */}
                     <Button
                       size="sm"
                       disabled={editValue === msg.content || !editValue.trim() || isLoading}
@@ -175,7 +220,8 @@ export const MessageItem = ({
               ) : (
                 msg.content && (
                   <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                    {msg.content}
+                    {/* 🌟 4. เรียกใช้งานฟังก์ชันแปลงป้าย Chip ตรงนี้เลยครับเฮีย */}
+                    {renderFormattedContent(msg.content)}
                   </p>
                 )
               )}
@@ -189,7 +235,7 @@ export const MessageItem = ({
                         alt={`attachment-${imgIdx}`}
                         className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
                         onLoad={() => { if (!isFetchingHistory && isLatestMessage) scrollToBottom() }}
-     />
+                     />
                     </div>
                   ))}
                 </div>
@@ -226,23 +272,22 @@ export const MessageItem = ({
                       return (
                         <button
                           key={idx}
-                          disabled={!isChoiceClickable} // ป้องกันการกดซ้ำ
+                          disabled={!isChoiceClickable} 
                           onClick={() => {
-                            setSelectedChoice(choice.value); // บันทึกว่าเลือกปุ่มนี้
-                            onSendChoice?.(msg.choiceKey || "", choice.value); // ส่งค่าไปให้ AI
+                            setSelectedChoice(choice.value); 
+                            onSendChoice?.(msg.choiceKey || "", choice.value); 
                           }}
                           className={`group relative flex items-center justify-between w-full px-4 py-3 bg-background border rounded-xl transition-all duration-300 text-left overflow-hidden shadow-sm ${
                             isSelected
-                              ? "border-primary bg-primary/10 ring-1 ring-primary/50" //สีตอนถูกเลือก (เด่นสุด ขอบสี Primary)
+                              ? "border-primary bg-primary/10 ring-1 ring-primary/50" 
                               : !isChoiceClickable 
-                                ? "border-transparent opacity-50 cursor-not-allowed bg-muted/50 grayscale" //สีตอนโดนบล็อก (ปุ่มที่ไม่ได้ถูกเลือก)
-                                : "border-border hover:bg-accent hover:border-primary/50 active:scale-[0.98] hover:shadow-md" // สีปกติ
+                                ? "border-transparent opacity-50 cursor-not-allowed bg-muted/50 grayscale" 
+                                : "border-border hover:bg-accent hover:border-primary/50 active:scale-[0.98] hover:shadow-md" 
                           }`}
                         >
-                          {/* Text Content */}
                           <span className={`text-sm font-medium z-10 transition-colors ${
                             isSelected 
-                              ? 'text-primary font-bold' // ข้อความสี Primary
+                              ? 'text-primary font-bold' 
                               : !isChoiceClickable 
                                 ? 'text-muted-foreground' 
                                 : 'text-foreground group-hover:text-primary'

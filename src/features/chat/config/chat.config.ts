@@ -35,8 +35,22 @@ export const CHAT_CONFIG = {
 
   pagination: {
     pageSize: 5, // จำนวนข้อความต่อหน้าเวลาดึงประวัติแชท
-  }
+  },
 
+  mapEvents: {
+    layerCatalog: 'layer_catalog',
+    mapStyle: 'map_style',
+    mapClear: 'map_clear',
+    mapOptions: 'map_options',
+    suggestions: 'suggestions',
+    messageUpdate: 'message',
+    missingApiKey: 'missing_api_key',
+  },
+
+  mapClearModes: {
+    all: 'all',
+    selected: 'selected',
+  },
   
 };
 
