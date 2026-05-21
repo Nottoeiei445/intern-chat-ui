@@ -175,20 +175,46 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
     setIsMentionOpen(false) 
   };
 
-  const handleSuggestionClick = (suggestion: SuggestionItem) => {
-    if (isLoading || isInputDisabled) return;
+const handleSuggestionClick = (suggestion: SuggestionItem) => {
+  if (isLoading || isInputDisabled) return;
 
-    let finalPrompt = suggestion.promptTemplate;
-    if (suggestion.value) {
-      finalPrompt = finalPrompt.replace(/\{value\}/g, suggestion.value);
-    }
-    onSendMessage(finalPrompt, []); 
+  const isGuidedClear = suggestion.promptTemplate?.toLowerCase().includes("clear layerid");
+
+  if (isGuidedClear) {
+    const textToSet = "clear layer: @";
+    setInput(textToSet);
+
+    // 2. สั่งกางกล่อง Dropdown ของระบบ Mention 
+    setIsMentionOpen(true);
+    setMentionQuery(""); // เคลียร์ query เป็นว่างเปล่า เพื่อพ่นรายชื่อ Layer ทั้งหมดออกมาโชว์
     
-    setInput("");
-    setImages([]);
-    setMentionMap({});
-    setIsMentionOpen(false);
-  };
+    // ตั้งตำแหน่งจุดเริ่มแกะคำให้อยู่ตรงเครื่องหมาย @ 
+    const atIndex = textToSet.indexOf("@");
+    setMentionStartIdx(atIndex); 
+    setActiveMentionIndex(0);
+
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+        textareaRef.current.selectionStart = textToSet.length;
+        textareaRef.current.selectionEnd = textToSet.length;
+      }
+    }, 50);
+
+    return; 
+  }
+
+  let finalPrompt = suggestion.promptTemplate;
+  if (suggestion.value) {
+    finalPrompt = finalPrompt.replace(/\{value\}/g, suggestion.value);
+  }
+  onSendMessage(finalPrompt, []); 
+  
+  setInput("");
+  setImages([]);
+  setMentionMap({});
+  setIsMentionOpen(false);
+};
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (isMentionOpen) {

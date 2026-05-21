@@ -17,7 +17,7 @@ export default function MapPage() {
         <MapDashboard />
       </div>
 
-      {/* แถบแชท (Sidebar ฝั่งซ้าย) */}
+      {/* แถบแชท Sidebar ฝั่งซ้าย */}
       <div
         className={`
           absolute top-0 left-0 h-full z-20 transition-all duration-300 ease-in-out

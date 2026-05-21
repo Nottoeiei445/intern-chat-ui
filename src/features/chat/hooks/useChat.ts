@@ -40,6 +40,7 @@ const reconstructMapState = (messages: Message[]) => {
     const meta = msg.metadata;
     if (!meta) return;
 
+    // 1. ดักจับการสร้างเลเยอร์
     if (meta.event === 'layer_catalog' && meta.layer) {
       const b = meta.layer;
       const newLayerId = b.layerId || b.styleId || b.basename || b.layerName || `ai-layer-${msg.id}`;
@@ -63,12 +64,13 @@ const reconstructMapState = (messages: Message[]) => {
 
       const existingIdx = layers.findIndex(l => l.id === newLayerId);
       if (existingIdx > -1) {
-        layers[existingIdx] = { ...layers[existingIdx], ...newLayer }; // อัปเดตตัวเดิม
+        layers[existingIdx] = { ...layers[existingIdx], ...newLayer }; 
       } else {
-        layers.push(newLayer); // เพิ่มตัวใหม่
+        layers.push(newLayer); 
       }
     }
 
+    // 2. ดักจับการเปลี่ยนสไตล์
     if (meta.event === 'map_style' && (meta.availableStyles || meta.layers)) {
       layers = layers.map(layer => {
         if (layer.layerId === meta.layerId || layer.id === meta.layerId) {
@@ -82,11 +84,13 @@ const reconstructMapState = (messages: Message[]) => {
         return layer;
       });
     }
-    if (meta.event === 'map_control') {
+
+    if (meta.event === 'map_clear' && meta.success) {
       if (meta.mode === 'all') {
         layers = []; 
-      } else if (meta.mode === 'selected' && meta.layerId) {
-        layers = layers.filter(layer => layer.id !== meta.layerId && layer.layerId !== meta.layerId);
+      } else if (meta.mode === 'selected' && meta.layerIds) {
+
+        layers = layers.filter(layer => !meta.layerIds.includes(layer.id) && !meta.layerIds.includes(layer.layerId));
       }
     }
   });
@@ -476,14 +480,14 @@ export function useChat() {
                 continue;
               }
 
-              if (eventType === 'map_control') {
+              if (eventType === 'map_clear') {
                 const mapStore = useMapStore.getState();
                 if (data.mode === 'all') {
                   mapStore.clearLayers();
                 } 
-                else if (data.mode === 'selected' && data.layerId) {
+                else if (data.mode === 'selected' && data.layerIds) {
                   const filteredLayers = mapStore.dynamicLayers.filter(
-                    layer => layer.id !== data.layerId && layer.layerId !== data.layerId
+                    layer => !data.layerIds.includes(layer.id) && !data.layerIds.includes(layer.layerId)
                   );
                   mapStore.setDynamicLayers(filteredLayers);
                 }
