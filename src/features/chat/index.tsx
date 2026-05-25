@@ -13,7 +13,7 @@ import { AUTH_CONFIG } from "../auth/config/auth.config";
 import { storage } from "../../lib/storage";
 import { authService } from "../auth/services/auth.service";
 import { isGuestTimeUp } from "@/features/auth/utils/guest-timer.util";
-import { useState, useMemo } from "react";  
+import { useState, useMemo, useEffect } from "react";  
 import { useRouter } from "next/navigation";
 import { useMapStore } from '@/store/useMapStore';
 import { CHAT_CONFIG } from "./config/chat.config";
@@ -60,6 +60,12 @@ export const ChatFeature = () => {
     }
     return ephemeralMessages;
   }, [activeChatId, chats, ephemeralMessages]);
+
+  const isModelLocked = useMemo(() => {
+    if (!activeChatId || activeChatId.startsWith('guest_')) return false; // ถ้าเป็น guest หรือยังไม่มี chat ให้ไม่ล็อค
+    const currentChat = chats.find(c => c.id === activeChatId);
+    return !!currentChat?.model; // ถ้า chat มี model อยู่แล้ว ให้ล็อคไม่ให้เปลี่ยน
+  }, [activeChatId, chats]);
 
   const handleCreateNew = () => {
     if (!user) return router.push("/login");
@@ -131,6 +137,15 @@ export const ChatFeature = () => {
     }
   };
 
+  useEffect(() => {
+    if (activeChatId) {
+      const currentChat = chats.find(c => c.id === activeChatId);
+      if (currentChat?.model && currentChat.model !== selectedModel) {
+        setSelectedModel(currentChat.model);
+      }
+    }
+  }, [activeChatId, chats, selectedModel, setSelectedModel]);
+
   return (
     <div className="flex h-screen bg-[#050505] text-slate-200 overflow-hidden font-ibm">
       
@@ -153,6 +168,7 @@ export const ChatFeature = () => {
           selectedModel={selectedModel} 
           onModelChange={setSelectedModel} 
           models={models}
+          isModelDisabled={isModelLocked}
         />
         
         <div className="flex-1 flex flex-col overflow-hidden min-h-0"> 

@@ -6,7 +6,7 @@ import { ApiKeyPopover } from "@/features/auth/components/ApiKeyPopover"
 import { useMapStore } from "@/store/useMapStore";
 import { SuggestionItem } from "../types";
 
-// 1. นำเข้าพวกพ้องของ Tiptap
+// 1. นำเข้าและตั้งค่า Tiptap Editor พร้อม Extension สำหรับระบบ Mention ที่จะใช้แปลงข้อความพิเศษเป็นป้าย Chip
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Mention from '@tiptap/extension-mention'
@@ -16,7 +16,7 @@ interface Props {
   onSendMessage: (content: string, images: string[]) => void;
   isLoading: boolean;
   isGuestExpired?: boolean;
-  suggestions?: SuggestionItem[]; 
+  suggestions?: SuggestionItem[];
 }
 
 export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, suggestions = [] }: Props) => {
@@ -37,7 +37,7 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
         class: 'bg-primary/10 text-primary font-bold px-1.5 py-0.5 rounded-md mx-0.5 inline-block border border-primary/20 select-all cursor-pointer hover:bg-primary/20 transition-colors',
       },
       suggestion,
-      // 2: เอาเครื่องหมาย @ ออกจากตัวป้าย Chip
+      // ฟังก์ชันนี้จะถูกเรียกเมื่อ Tiptap ต้องการแปลง Node ของ Mention เป็นข้อความที่สามารถแสดงใน Editor ได้ โดยจะดึงค่า label หรือ id มาแสดงแทน
       renderLabel({ node }) {
         return `${node.attrs.label ?? node.attrs.id}`;
       },
@@ -61,7 +61,7 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
       return false;
     }
   },
-  // จุดที่แก้บั๊ก 1: บังคับให้ React รู้ตัวเวลาพิมพ์ เพื่อซ่อน/โชว์ Placeholder ทันที
+  // ตั้งค่าฟังก์ชันเพื่อตรวจสอบว่า Editor ว่างเปล่าหรือไม่ เพื่อแสดง/ซ่อน Placeholder
   onCreate: ({ editor }) => {
     setIsEditorEmpty(editor.isEmpty);
   },
@@ -70,14 +70,14 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
   },
 })
 
-  // 3. ล็อคสถานะเปิด/ปิดการพิมพ์ของ Editor ตามสิทธิ์โมดอลคีย์
+  // 2. ปรับสถานะความสามารถในการแก้ไขของ Editor ตามสถานะของ Modal และ Session
   useEffect(() => {
     if (editor) {
       editor.setEditable(!isInputDisabled);
     }
   }, [isInputDisabled, editor]);
 
-  // 4. ฟังก์ชันแกะโครงสร้าง Object ของ Tiptap กลับไปเป็น String รูปแบบ [layer_id: xxx] เพื่อส่งให้ API
+  // ฟังก์ชันแปลงโครงสร้าง Editor กลับเป็นข้อความดิบที่ API รู้จัก โดยจะตรวจจับรูปแบบพิเศษของ Mention แล้วแปลงเป็น xxx
   const getSerializedContent = () => {
     if (!editor) return "";
     const json = editor.getJSON();
@@ -87,7 +87,7 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
         return node.text || '';
       }
       if (node.type === 'mention') {
-        return `[layer_id: ${node.attrs.id}]`;
+        return node.attrs.id;
       }
       let text = '';
       if (node.content) {
@@ -113,7 +113,6 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
         const layer = dynamicLayers.find(l => l.id === extractedId || l.layerId === extractedId);
         
         if (layer) {
-          // ยัดตัวแปร Mention ใส่เข้า Editor โดยตรง นิ่งๆ ชัวร์ 100% ลบก็หายทั้งย้อน
           editor.commands.insertContent([
             {
               type: 'mention',
@@ -188,12 +187,12 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
     setImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  // 6. แก้ไขฟังก์ชันการส่งแชทให้ดึงข้อมูลผ่านชุดคลี่คำสั่งอนุกรม JSON
+  // ฟังก์ชันจัดการเมื่อคลิกที่ปุ่มส่งข้อความ หรือกด Enter โดยจะตรวจสอบว่ามีข้อความหรือรูปภาพหรือไม่ก่อนส่ง และจะล้างเนื้อหาใน Editor พร้อมรีเซ็ตสถานะหลังส่ง
   const handleSend = () => {
     if (!editor || isLoading || isInputDisabled) return;
 
-    const finalPayload = getSerializedContent();
-    if (!finalPayload && images.length === 0) return;
+    const finalPayload = getSerializedContent(); // แปลงเนื้อหาใน Editor เป็นข้อความดิบที่ API รู้จัก
+    if (!finalPayload && images.length === 0) return; // ห้ามส่งถ้าไม่มีข้อความและไม่มีรูปภาพ
 
     onSendMessage(finalPayload, images);
     
@@ -203,7 +202,7 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
     setIsEditorEmpty(true);
   };
 
-  // 7. ปรับปรุงไกด์นำทางลบลวดลายเลเยอร์ 
+  // ฟังก์ชันจัดการเมื่อคลิกที่ปุ่มคำแนะนำ (Suggestion) โดยจะตรวจสอบประเภทของคำแนะนำและดำเนินการตามนั้น เช่น ถ้าเป็นคำสั่งเคลียร์เลเยอร์ก็จะตั้งค่าเนื้อหาใน Editor เป็นข้อความที่มีเครื่องหมาย @ พร้อมกับชื่อเลเยอร์เพื่อให้ระบบ Mention แปลงเป็นป้าย Chip ทันที
   const handleSuggestionClick = (suggestion: SuggestionItem) => {
     if (isLoading || isInputDisabled || !editor) return;
 
@@ -234,7 +233,7 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
 
         <ApiKeyPopover />
 
-        {/* กล่องเมนูเลเยอร์เก่าถูกถอดถอนออกไปแล้ว เพราะระบบลอยตัวออโต้ด้วย tippy.js เรียบร้อย สะอาดมาก! */}
+        {/* Suggestion Buttons */}
 
         {suggestions && suggestions.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-3">
@@ -291,9 +290,9 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
             </div>
           )}
 
-          {/* สวมใส่ Tiptap แทนคูหาพิมพ์ข้อความเดิม */}
+          {/* Editor Container */}
           <div className="relative w-full" onPaste={handlePaste}>
-            {/* ตัวควบคุม Placeholder จำลองไร้ความหน่วงภายนอก */}
+            {/* Placeholder */}
             {isEditorEmpty && (
               <div className="absolute top-3 left-3 text-sm text-muted-foreground pointer-events-none select-none z-10">
                 {isKeyModalOpen ? "Please provide API Key above..." :
@@ -302,7 +301,7 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
               </div>
             )}
             
-            {/* ขับขานพ่น Editor ของ Tiptap ลงสู่สมรภูมิแชท */}
+            {/* Editor Content */}
             <EditorContent editor={editor} />
           </div>
           

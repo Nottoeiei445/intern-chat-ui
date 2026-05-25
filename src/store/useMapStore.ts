@@ -94,7 +94,7 @@ export const useMapStore = create<MapState>((set) => ({
   })),
   clearSessionKeys: () => set({ sessionKeys: {} }),
 
-  // 🌟 2. สร้าง Logic สำหรับเก็บคำสั่ง Mention ไว้ที่ส่วนกลาง
+  // 2. สร้าง Logic สำหรับเก็บคำสั่ง Mention ไว้ที่ส่วนกลาง
   pendingMention: null,
   triggerLayerMention: (layerId) => set({ 
     // ใส่ timestamp ไปด้วย เพื่อให้ React รู้ว่ามันคือคำสั่งใหม่ (เผื่อกรณีกดเลเยอร์เดิมรัวๆ)

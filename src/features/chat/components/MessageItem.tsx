@@ -78,46 +78,58 @@ export const MessageItem = ({
     setSelectedChoice(null);
   }, [msg.choices, msg.pagination?.offset]);
 
-  // 3. ฟังก์ชันแปลงข้อความดิบ [layer_id: xxx] ให้กลายเป็นป้าย Chip
+  // 3. ฟังก์ชันแปลงข้อความดิบ xxx ให้กลายเป็นป้าย Chip
   const renderFormattedContent = (content: string) => {
-    if (!content.includes("[layer_id:")) {
+    const regex = /\b[0-9a-fA-F]{24}\b/g;
+
+    if (!regex.test(content)) {
       return content;
     }
 
-    const regex = /\[layer_id:\s*([^\]]+)\]/g;
+    // รีเซ็ตตำแหน่งคีย์พอยเตอร์ของ Regex หลังจากกด .test ข้างบน
+    regex.lastIndex = 0;
+
     const parts: React.ReactNode[] = [];
     let lastIndex = 0;
     let match;
 
     while ((match = regex.exec(content)) !== null) {
       const matchIndex = match.index;
-      const layerId = match[1].trim();
+      const layerId = match[0]; // ดึงรหัสไอดี 24 หลักออกมาตรง ๆ
 
       if (matchIndex > lastIndex) {
         parts.push(content.slice(lastIndex, matchIndex));
       }
 
+      // ค้นหาความมีตัวตนของเลเยอร์ใน Zustand Store
       const layer = dynamicLayers.find((l) => l.id === layerId || l.layerId === layerId);
-      const displayName = layer ? (layer.title || layer.id) : layerId;
 
-      parts.push(
-        <span
-          key={`${layerId}-${matchIndex}`}
-          className="bg-current/15 border border-current/20 font-semibold px-1.5 py-0.5 rounded-md mx-0.5 inline-block align-baseline select-all text-sm"
-          style={{ 
-            color: msg.role === "user" ? "inherit" : "var(--primary)" 
-          }}
-        >
-          {displayName}
-        </span>
-      );
+      // ถ้าเจอเลเยอร์ใน Store ให้แสดงเป็นป้าย Chip พร้อมชื่อที่อ่านง่าย ถ้าไม่เจอให้แสดงเป็นข้อความดิบตามเดิม
+      if (layer) {
+        const displayName = layer.title || layer.id;
+        parts.push(
+          <span
+            key={`${layerId}-${matchIndex}`}
+            className="bg-current/15 border border-current/20 font-semibold px-1.5 py-0.5 rounded-md mx-0.5 inline-block align-baseline select-all text-sm"
+            style={{ 
+              color: msg.role === "user" ? "inherit" : "var(--primary)" 
+            }}
+          >
+            {displayName}
+          </span>
+        );
+      } else {
+        // ถ้าไม่เจอใน Store (อาจเป็น ID ของระบบอื่น) ให้พ่นเป็นตัวหนังสือดิบตามเดิม จอจะได้ไม่เพี้ยน
+        parts.push(layerId);
+      }
 
       lastIndex = regex.lastIndex;
-
     }
+
     if (lastIndex < content.length) {
       parts.push(content.slice(lastIndex));
     }
+
     return parts;
   };
 

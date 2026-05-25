@@ -1,33 +1,33 @@
-import { ReactRenderer } from '@tiptap/react';
-import tippy, { Instance as TippyInstance } from 'tippy.js';
+import { ReactRenderer } from '@tiptap/react'; // แปลง react component เป็น tiptap suggestion component (HTML DOM ธรรมดา)
+import tippy, { Instance as TippyInstance } from 'tippy.js'; // ไลบรารีสำหรับสร้าง tooltip ที่จะใช้แสดง suggestion popup
 import { MentionList } from '@/../src/features/chat/components/MentionList';
 import { useMapStore } from '@/store/useMapStore';
 
-export const suggestion = {
+export const suggestion = { // ทำให้เป็น object ที่มีฟังก์ชัน items และ render
     items: ({ query }: { query: string }) => {
-        const dynamicLayers = useMapStore.getState().dynamicLayers || [];
+        const dynamicLayers = useMapStore.getState().dynamicLayers || []; // ดึงข้อมูล dynamicLayers จาก Zustand store โดยตรง เพราะฟังก์ชันนี้จะถูกเรียกใน context ที่ไม่ใช่ React component จึงไม่สามารถใช้ hook ได้
 
-        return dynamicLayers
-            .filter(layer => (layer.title || layer.id || "").toLowerCase().includes(query.toLowerCase()))
+        return dynamicLayers // กรอง dynamicLayers ตาม query และจำกัดผลลัพธ์ไว้ที่ 5 รายการ
+            .filter(layer => (layer.title || layer.id || "").toLowerCase().includes(query.toLowerCase())) // กรองชั้นข้อมูลที่มีชื่อหรือ id ตรงกับ query โดยไม่สนใจตัวพิมพ์ใหญ่เล็ก
             .slice(0, 5);
-        },
+    },
 
-    render: () => {
-        let component: ReactRenderer;
+    render: () => { // ฟังก์ชัน render จะถูกเรียกเมื่อมีการแสดงผล suggestion และจะสร้าง ReactRenderer และ tippy instance เพื่อแสดง popup
+        let component: ReactRenderer; 
         let popup: TippyInstance[];
 
-        return {
-            onStart: (props: any) => {
-                component = new ReactRenderer(MentionList, {
+        return { // props คือข้อมูลที่ tiptap ส่งมาให้ มี props.item และช้อมูลตำแหน่งจอ
+            onStart: (props: any) => { // ฟังก์ชัน onStart จะถูกเรียกเมื่อเริ่มแสดง suggestion โดยจะสร้าง ReactRenderer และ tippy instance เพื่อแสดง popup
+                component = new ReactRenderer(MentionList, { // สร้าง ReactRenderer โดยใช้ MentionList เป็น component และส่ง props และ editor ให้กับมัน
                     props,
                     editor: props.editor,
                 })
 
-                if (!props.clientRect) {
+                if (!props.clientRect) { // ถ้าไม่มี พิกัด ให้ return ออกไปเลย เพราะไม่สามารถแสดง popup ได้
                     return
                 }
 
-                popup = tippy('body', {
+                popup = tippy('body', { //สั่งสร้างกล่อง Popup ด้วย tippy โดยกำหนดให้แสดงที่ตำแหน่งของ props.clientRect ซึ่ง tiptap จะส่งมาให้ตอนเรียก onStart
                     getReferenceClientRect: props.clientRect,
                     appendTo: () => document.body,
                     content: component.element,

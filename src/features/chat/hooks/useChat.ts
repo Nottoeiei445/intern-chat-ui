@@ -197,6 +197,8 @@ export function useChat() {
            useMapStore.getState().setcurrentConversationApiKey(null);
         }
 
+        const fetchedModel = responseData?.model || responseData?.data?.model || null;
+
         const rawMessages = responseData?.data?.messages || responseData?.messages || responseData?.data || (Array.isArray(responseData) ? responseData : []);
         const messages = rawMessages.map(mapBackendMessage);
         
@@ -209,10 +211,26 @@ export function useChat() {
 
           const chatExists = prev.some(chat => chat.id === targetId);
           if (!chatExists && targetId === guestId) {
-            return [{ id: targetId, title: "Guest Session", messages, createdAt: Date.now(), updatedAt: Date.now() }, ...prev];
+            return [{ 
+              id: targetId, 
+              title: "Guest Session", 
+              messages, 
+              createdAt: Date.now(), 
+              updatedAt: Date.now(),
+              // ยัด Model ใส่ลงไปในแชทห้องใหม่ของ Guest
+              ...(fetchedModel && { model: fetchedModel }) 
+            }, ...prev];
           }
-          return prev.map(chat => chat.id === targetId ? { ...chat, messages } : chat);
+          return prev.map(chat => chat.id === targetId ? { 
+            ...chat, 
+            messages,
+            ...(fetchedModel && { model: fetchedModel }) // ถ้าหลังบ้านส่งมา ค่อยอัปเดตทับเข้าไป
+          } : chat);
         });
+
+        if (fetchedModel) {
+          // เช่น setSelectedModel(fetchedModel) หรือตามฟังก์ชันที่เฮียใช้เก็บสถานะโมเดลปัจจุบัน
+        }
 
         setPaginationConfig(prev => ({ ...prev, [targetId]: { page: 1, hasMore: messages.length >= 5 } }));
       } catch (error) {
@@ -285,6 +303,7 @@ export function useChat() {
   };
 
   const sendMessage = async (input: string, model: string, images: string[] = [], options?: any) => { 
+
     if (!input.trim() && images.length === 0 && !options?.isRegenerate) return; 
     
     const { ephemeral = false, isRegenerate = false, isSilentRetry = false, isClarity = false, editMessageId = null, choiceKey, choiceValue, mapselection, targetMessageId } = options || {};
@@ -297,6 +316,9 @@ export function useChat() {
     }
     let isNewSession = false; 
 
+    const existingChat = chats.find(c => c.id === currentId);
+    const effectiveModel = existingChat?.model || model;
+
     // Update Local UI Immediately
     if (!isRegenerate && !isSilentRetry) {
       const userMsg: Message = { role: "user", content: input, ...(images.length > 0 && { images }) }; 
@@ -304,7 +326,7 @@ export function useChat() {
       else if (currentId && !currentId.startsWith('session_')) { 
         setChats(prev => {
           const exists = prev.some(c => c.id === currentId);
-          if (!exists) return [{ id: currentId as string, title: input.slice(0, 30) || "Guest Session", messages: [userMsg], model, createdAt: Date.now(), updatedAt: Date.now() }, ...prev];
+          if (!exists) return [{ id: currentId as string, title: input.slice(0, 30) || "Guest Session", messages: [userMsg], model: effectiveModel, createdAt: Date.now(), updatedAt: Date.now() }, ...prev];
           return sortChats(prev.map(chat => chat.id === currentId ? { ...chat, messages: [...chat.messages, userMsg], updatedAt: Date.now() } : chat));
         });
         setActiveChatId(currentId);
@@ -314,7 +336,7 @@ export function useChat() {
         const mapStore = useMapStore.getState();
         mapStore.setcurrentConversationApiKey(null);
         mapStore.clearApiKeys();
-        setChats(prev => [{ id: currentId as string, title: input.slice(0, 30), messages: [userMsg], model, createdAt: Date.now(), updatedAt: Date.now() }, ...prev]); 
+        setChats(prev => [{ id: currentId as string, title: input.slice(0, 30), messages: [userMsg], model: effectiveModel, createdAt: Date.now(), updatedAt: Date.now() }, ...prev]); 
         setActiveChatId(currentId); 
       }
     }
@@ -323,7 +345,7 @@ export function useChat() {
     setIsLoading(true);
     try {
       const payload = { 
-        message: input, model, ephemeral, is_generate: isRegenerate, is_silent_retry: isSilentRetry, is_clarity: isClarity, 
+        message: input, model: effectiveModel, ephemeral, is_generate: isRegenerate, is_silent_retry: isSilentRetry, is_clarity: isClarity, 
        ...(mapselection ? { mapselection } : (choiceKey && choiceValue ? { mapselection: { key: choiceKey, value: choiceValue } } : {})),
         ...(editMessageId && { edit_message_id: editMessageId }), 
         ...(images.length > 0 && { images }), 
@@ -374,7 +396,7 @@ export function useChat() {
 
               // Handle Conversation ID Swapping
               const realId = data.conversationId || data.conversation_id || data.chat_id || data.chatId;
-              
+             
               if (realId) {
                 if (currentId?.startsWith('session_')) {
                   const oldSessionId = currentId;
@@ -392,6 +414,16 @@ export function useChat() {
                   realIdToSwapLater = String(realId);
                 }
               }
+
+              const streamModel = data.model || data.modelName || data.model_name || data.model_id;
+                if (streamModel && eventType !== 'vision') {
+                  setChats(prev => prev.map(chat => 
+                    chat.id === currentId 
+                      ? { ...chat, model: streamModel } 
+                      : chat
+                  ));
+                }
+
 
               // Handle Missing API Key
               if (data.code === CHAT_CONFIG.mapEvents.missingApiKey || data.needsApiKey) {
