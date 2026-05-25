@@ -1,17 +1,19 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { ApiKey, CreateApiKeyDTO } from "../types";
+import { ApiKey, CreateApiKey } from "../types"; 
 import { apiKeyService } from "../services/apiKey.service";
 import { useAuth } from "@/features/auth"; 
 
 export const useApiKeys = () => {
   const { user } = useAuth();
+  
   const [keys, setKeys] = useState<ApiKey[]>([]);
+  // 🌟 2. ใช้ CreateApiKey เป็น Type ของตัวเลือก Host ที่จะส่งไปให้ UI
+  const [hosts, setHosts] = useState<CreateApiKey[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const fetchKeys = useCallback(async () => {
-    // 🌟 3. ถ้าไม่มี user (เป็น Guest) ให้หยุดทำงานเลย ไม่ต้องยิง API
+  const fetchInitialData = useCallback(async () => {
     if (!user) {
       setIsLoading(false);
       return;
@@ -19,24 +21,29 @@ export const useApiKeys = () => {
 
     setIsLoading(true);
     try {
-      const response = await apiKeyService.getKeys();
+      // 🌟 3. ยิง Promise.all ควบ 2 เส้นพร้อมกัน
+      const [keysResponse, hostsResponse] = await Promise.all([
+        apiKeyService.getKeys(),
+        apiKeyService.getKeyHosts()
+      ]);
       
-      const actualKeys = response?.data || []; 
+      setKeys(keysResponse?.data || []);
+      setHosts(hostsResponse?.data || []); 
       
-      setKeys(actualKeys);
     } catch (error) {
-      console.error("Failed to fetch API keys:", error);
+      console.error("Failed to fetch API data:", error);
       setKeys([]);
+      setHosts([]);
     } finally {
       setIsLoading(false);
     }
   }, [user]); 
   
   useEffect(() => {
-    fetchKeys();
-  }, [fetchKeys]);
+    fetchInitialData();
+  }, [fetchInitialData]);
 
-  const addKey = async (data: CreateApiKeyDTO) => {
+  const addKey = async (data: any) => {
     try {
       const response = await apiKeyService.createKey(data);
       const newKey = response?.data || (response as unknown as ApiKey);
@@ -49,7 +56,7 @@ export const useApiKeys = () => {
     }
   };
 
-  const updateKey = async (id: string, data: Partial<CreateApiKeyDTO>) => {
+  const updateKey = async (id: string, data: any) => {
     try {
       const response = await apiKeyService.updateKey(id, data);
       const updatedKey = response?.data || (response as unknown as ApiKey);
@@ -78,10 +85,11 @@ export const useApiKeys = () => {
 
   return {
     keys,
+    hosts,
     isLoading,
     addKey,
     updateKey,
     deleteKey,
-    refetch: fetchKeys,
+    refetch: fetchInitialData,
   };
 };

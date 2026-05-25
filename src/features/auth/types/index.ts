@@ -42,10 +42,12 @@ export interface ApiKey {
   maskedKey: string;    
   isActive: boolean;
   createdAt: string;
+  hostId: string | null;
 }
 
 // สำหรับตอนสร้างคีย์ใหม่
-export interface CreateApiKeyDTO {
+export interface CreateApiKey {
+  id: string;
   provider: string;
-  keyName: string;
+  hostname: string;
 }

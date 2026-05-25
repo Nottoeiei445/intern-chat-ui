@@ -10,6 +10,7 @@ import { SuggestionItem } from "../types";
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Mention from '@tiptap/extension-mention'
+import { useApiKeys } from "@/features/auth/hooks/useApiKeys";
 import { suggestion } from './suggestion'
 
 interface Props {
@@ -23,9 +24,13 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
   const [images, setImages] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   
-  const { isKeyModalOpen, dynamicLayers, pendingMention, clearPendingMention } = useMapStore();
+  const { isKeyModalOpen, dynamicLayers, pendingMention, clearPendingMention, currentConversationApiKey } = useMapStore();
   const isInputDisabled = isGuestExpired || isKeyModalOpen;
   const [isEditorEmpty, setIsEditorEmpty] = useState(true);
+  const { keys, hosts } = useApiKeys();
+  const activeKeyObj = keys.find(k => k.id === currentConversationApiKey || k.maskedKey === currentConversationApiKey);
+  const currentHost = hosts.find((h) => h.id === activeKeyObj?.hostId);
+  const activeHostName = currentHost ? currentHost.hostname : null;
 
   const editor = useEditor({
   extensions: [
@@ -234,7 +239,6 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
         <ApiKeyPopover />
 
         {/* Suggestion Buttons */}
-
         {suggestions && suggestions.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-3">
             {suggestions.map((suggestion) => {
@@ -264,26 +268,16 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
             <div className="flex flex-wrap gap-3 p-3 mb-2 border-b border-border bg-muted/30">
               {images.map((src, idx) => (
                 <div key={idx} className="relative group w-16 h-16">
-                  <img 
-                    src={src} 
-                    className="w-full h-full object-cover rounded-xl border border-border shadow-md transition-all group-hover:brightness-75" 
-                    alt="preview" 
-                  />
-                  
+                  <img src={src} className="w-full h-full object-cover rounded-xl border border-border shadow-md transition-all group-hover:brightness-75" alt="preview" />
                   <button 
                     type="button"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      removeImage(idx);
-                    }}
+                    onClick={(e) => { e.preventDefault(); removeImage(idx); }}
                     disabled={isInputDisabled} 
-                    className="absolute -top-2 -right-2 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-full p-1 
-                               shadow-xl z-20 transition-all scale-100 group-hover:scale-110 active:scale-90 disabled:opacity-50"
+                    className="absolute -top-2 -right-2 bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded-full p-1 shadow-xl z-20 transition-all scale-100 group-hover:scale-110 active:scale-90 disabled:opacity-50"
                     title="Remove image"
                   >
                     <X size={12} strokeWidth={3} />
                   </button>
-
                   <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 rounded-xl pointer-events-none transition-opacity" />
                 </div>
               ))}
@@ -292,30 +286,21 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
 
           {/* Editor Container */}
           <div className="relative w-full" onPaste={handlePaste}>
-            {/* Placeholder */}
             {isEditorEmpty && (
               <div className="absolute top-3 left-3 text-sm text-muted-foreground pointer-events-none select-none z-10">
                 {isKeyModalOpen ? "Please provide API Key above..." :
                  isGuestExpired ? "Session expired. Please refresh..." : 
+                 activeHostName ? `Ask about GIS, maps, or layers on [${activeHostName.toUpperCase()}]...` :
                  "Ask about GIS, maps, or layers..."}
               </div>
             )}
             
-            {/* Editor Content */}
             <EditorContent editor={editor} />
           </div>
           
           <div className="flex items-center justify-between px-2 pb-1">
             <div className="flex gap-1">
-              <input 
-                type="file" 
-                ref={fileInputRef} 
-                className="hidden" 
-                multiple 
-                accept="image/*" 
-                onChange={handleFileChange}
-                disabled={isInputDisabled}
-              />
+              <input type="file" ref={fileInputRef} className="hidden" multiple accept="image/*" onChange={handleFileChange} disabled={isInputDisabled} />
               <button 
                 type="button"
                 onClick={() => !isInputDisabled && fileInputRef.current?.click()} 
@@ -327,11 +312,11 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
             </div>
             
             <button 
-                  type="button"
-                  onClick={handleSend}
-                  disabled={isLoading || isInputDisabled || (isEditorEmpty && images.length === 0)} 
-                  className="bg-primary hover:bg-primary/90 text-primary-foreground p-2 rounded-xl transition-all disabled:opacity-20 disabled:cursor-not-allowed"
-                >
+              type="button"
+              onClick={handleSend}
+              disabled={isLoading || isInputDisabled || (isEditorEmpty && images.length === 0)} 
+              className="bg-primary hover:bg-primary/90 text-primary-foreground p-2 rounded-xl transition-all disabled:opacity-20 disabled:cursor-not-allowed"
+            >
               <Send size={18} />
             </button>
           </div>

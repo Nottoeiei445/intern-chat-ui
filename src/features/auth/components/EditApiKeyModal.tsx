@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Info, ChevronDown, Check, Loader2 } from "lucide-react";
+import { Info, Loader2 } from "lucide-react";
 import { ApiKey } from "../types";
 
 interface Props {
@@ -91,39 +91,7 @@ export const EditApiKeyModal = ({ isOpen, onClose, apiKey, onSuccess }: Props) =
             </button>
           </div>
 
-          <div className="flex items-center justify-between relative z-10">
-            <div className="flex items-center gap-1.5 text-muted-foreground">
-              <span className="text-sm">Restriction Type</span>
-              <Info size={14} className="cursor-help" />
-            </div>
-            
-            <div className="relative w-[180px]">
-              <button
-                type="button"
-                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="w-full flex items-center justify-between bg-background border border-border rounded-xl px-4 py-2.5 text-foreground text-sm focus:border-primary transition-all"
-              >
-                <span>{restriction}</span>
-                <ChevronDown size={18} className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
 
-              {isDropdownOpen && (
-                <div className="absolute top-[calc(100%+8px)] right-0 w-full bg-popover border border-border rounded-2xl p-1.5 shadow-xl z-50 animate-in fade-in slide-in-from-top-2">
-                  {(["None", "HTTP Referer", "IP Address"] as RestrictionType[]).map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => { setRestriction(type); setIsDropdownOpen(false); }}
-                      className="w-full flex items-center justify-between px-3 py-2.5 text-sm text-foreground hover:bg-accent rounded-xl transition-colors"
-                    >
-                      {type}
-                      {restriction === type && <Check size={14} className="text-primary" />}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
 
           <p className="text-sm text-muted-foreground leading-relaxed pt-2">
             This API Key can set up service access. To prevent reliance on unnecessary services this can be set at{" "}

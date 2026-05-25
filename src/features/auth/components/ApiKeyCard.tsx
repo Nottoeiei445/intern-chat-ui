@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { ApiKey } from "../types";
+import { ApiKey, CreateApiKey } from "../types";
 import { Eye, MoreVertical, CheckCircle2, Pencil, Trash2, XCircle } from "lucide-react";
 
 interface Props {
@@ -9,9 +9,10 @@ interface Props {
   onDelete: (id: string) => void;
   onEdit: (key: ApiKey) => void;
   onView: (id: string) => void;
+  hosts: CreateApiKey[];
 }
 
-export const ApiKeyCard = ({ apiKey, onDelete, onEdit, onView }: Props) => {
+export const ApiKeyCard = ({ apiKey, onDelete, onEdit, onView, hosts = [] }: Props) => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -26,8 +27,18 @@ export const ApiKeyCard = ({ apiKey, onDelete, onEdit, onView }: Props) => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const rawDate = apiKey.createdAt || (apiKey as any).created_at;
+  const formattedDate = rawDate 
+    ? new Date(rawDate).toLocaleDateString('en-GB', {
+        day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+      })
+    : '-';
+
+  const currentHost = hosts.find((h) => h.id === apiKey.hostId);
+  const displayHostName = currentHost ? currentHost.hostname : "All Hosts";
+
   return (
-    <div className={`bg-card rounded-[20px] p-5 w-full transition-all shadow-md relative ${
+    <div className={`bg-card rounded-[20px] p-5 w-full transition-all shadow-md relative border ${
       apiKey.isActive ? "border-border hover:border-primary/50" : "border-destructive/30 opacity-70"
     }`}>
       
@@ -44,6 +55,7 @@ export const ApiKeyCard = ({ apiKey, onDelete, onEdit, onView }: Props) => {
         
         <div className="relative" ref={menuRef}>
           <button 
+            type="button"
             onClick={() => setIsMenuOpen(!isMenuOpen)}
             className={`p-1.5 rounded-lg transition-all ${isMenuOpen ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:text-foreground hover:bg-accent'}`}
           >
@@ -53,7 +65,8 @@ export const ApiKeyCard = ({ apiKey, onDelete, onEdit, onView }: Props) => {
           {isMenuOpen && (
             <div className="absolute right-0 mt-2 w-36 bg-popover rounded-xl shadow-xl py-1.5 z-50 animate-in fade-in zoom-in-95 duration-200 border border-border">
               <button 
-                onClick={() => { setIsMenuOpen(false); onEdit(apiKey); }}
+                type="button"
+                onClick={() => { setIsMenuOpen(false); setTimeout(() => onEdit(apiKey), 100); }}
                 className="w-full flex items-center gap-3 px-3 py-2 text-sm text-popover-foreground hover:bg-accent transition-colors"
               >
                 <Pencil size={16} className="text-muted-foreground" />
@@ -61,7 +74,8 @@ export const ApiKeyCard = ({ apiKey, onDelete, onEdit, onView }: Props) => {
               </button>
               
               <button 
-                onClick={() => { setIsMenuOpen(false); onDelete(apiKey.id); }}
+                type="button"
+                onClick={() => { setIsMenuOpen(false); setTimeout(() => onDelete(apiKey.id), 100); }}
                 className="w-full flex items-center gap-3 px-3 py-2 text-sm text-destructive hover:bg-destructive/10 transition-colors"
               >
                 <Trash2 size={16} className="text-destructive" />
@@ -82,6 +96,7 @@ export const ApiKeyCard = ({ apiKey, onDelete, onEdit, onView }: Props) => {
         
         <div className="flex items-center gap-3 shrink-0 px-1">
           <button 
+            type="button"
             onClick={() => onView(apiKey.id)} 
             className="text-muted-foreground hover:text-foreground transition-all active:scale-90" 
             title="View Full API Key"
@@ -94,23 +109,21 @@ export const ApiKeyCard = ({ apiKey, onDelete, onEdit, onView }: Props) => {
       {/* Details Section */}
       <div className="space-y-3 text-xs">
         <div className="flex justify-between items-center">
-          <span className="text-muted-foreground">Provider</span>
-          <span className="text-foreground font-medium px-2 py-0.5 bg-background rounded-md border border-border">
-            {apiKey.provider || "Unknown"}
+          <span className="text-muted-foreground">Host</span>
+          <span className="text-foreground font-bold px-2 py-0.5 bg-background rounded-md border border-border uppercase tracking-wider text-[10px]">
+            {displayHostName}
           </span>
         </div>
         
         <div className="flex justify-between items-center">
           <span className="text-muted-foreground">Status</span>
-          <span className={apiKey.isActive ? "text-primary" : "text-muted-foreground"}>
+          <span className={apiKey.isActive ? "text-emerald-500 font-medium" : "text-muted-foreground"}>
             {apiKey.isActive ? "Active" : "Inactive"}
           </span>
         </div>
         
         <div className="pt-3 border-t border-border text-muted-foreground text-[11px] tracking-wide">
-          Created: {new Date(apiKey.createdAt).toLocaleDateString('en-GB', {
-            day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
-          })}
+          Created: {formattedDate} 
         </div>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import { apiClient } from '@/lib/api-client';
-import { ApiKey, CreateApiKeyDTO } from '../types';
+import { ApiKey, CreateApiKey } from '../types';
 import { AUTH_CONFIG } from '../config/auth.config';
 
 export const apiKeyService = {
@@ -12,13 +12,13 @@ export const apiKeyService = {
   /**
    * สร้าง API Key ใหม่
    */
-  createKey: (data: CreateApiKeyDTO) => 
+  createKey: (data: CreateApiKey) => 
     apiClient.post<{ data: ApiKey }>(AUTH_CONFIG.endpoints.apiKeys, data),
 
   /**
    * แก้ไขข้อมูลคีย์ (เช่น เปลี่ยนชื่อ)
    */
-  updateKey: (id: string, data: Partial<CreateApiKeyDTO>) => 
+  updateKey: (id: string, data: Partial<CreateApiKey>) => 
     apiClient.put<{ data: ApiKey }>(AUTH_CONFIG.endpoints.apiKeyDetail(id), data),
 
   /**
@@ -36,4 +36,6 @@ export const apiKeyService = {
   verifyKey: (key: string) => 
     apiClient.post<{ isValid: boolean }>(AUTH_CONFIG.endpoints.verifyKey, { key }),
   */
+  getKeyHosts: () =>
+    apiClient.get<{ data: CreateApiKey[] }>(AUTH_CONFIG.endpoints.apiKeyHosts),
 };

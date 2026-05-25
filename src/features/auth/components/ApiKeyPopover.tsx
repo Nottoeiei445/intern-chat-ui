@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useMapStore } from "@/store/useMapStore"; 
-import { KeyRound, ShieldAlert, ArrowRight, X, ChevronDown, ChevronUp, Loader2, Lock } from "lucide-react"; // 🌟 ดึง Lock เข้ามาใช้
+import { KeyRound, ShieldAlert, ArrowRight, X, ChevronDown, ChevronUp, Loader2, Lock } from "lucide-react"; 
 import { useApiKeys } from "@/features/auth/hooks/useApiKeys"; 
 import { apiKeyService } from "@/features/auth/services/apiKey.service"; 
 import { useAuth } from "@/features/auth";
@@ -12,12 +12,12 @@ export const ApiKeyPopover = () => {
   const { setApiKey, isKeyModalOpen, closeKeyModal } = useMapStore();
   
   const [selectedKeyId, setSelectedKeyId] = useState(""); 
-  
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isFetchingKey, setIsFetchingKey] = useState(false); 
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const { keys } = useApiKeys();
+  // 🌟 1. ดึง hosts ออกมาใช้งานคู่กับ keys
+  const { keys, hosts } = useApiKeys();
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -38,9 +38,7 @@ export const ApiKeyPopover = () => {
   };
 
   const handleSave = async () => {
-    if (!user) return; 
-
-    if (selectedKeyId.trim() === "") return;
+    if (!user || selectedKeyId.trim() === "") return; 
     
     setIsFetchingKey(true);
     try {
@@ -63,14 +61,12 @@ export const ApiKeyPopover = () => {
   };
 
   const selectedKeyObj = Array.isArray(keys) ? keys.find(k => k.id === selectedKeyId) : null;
-  
   const isSubmitDisabled = !user || !selectedKeyId;
 
   return (
     <div className="absolute bottom-[calc(100%+12px)] left-0 w-full z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
       
       <div className="relative">
-        
         <button 
           onClick={(e) => {
             e.preventDefault();
@@ -111,28 +107,33 @@ export const ApiKeyPopover = () => {
                         {Array.isArray(keys) && keys.length === 0 ? (
                            <div className="p-3 text-center text-xs text-muted-foreground">No API Keys found</div>
                         ) : (
-                          Array.isArray(keys) && keys.map((item) => (
-                            <button
-                              key={item.id}
-                              onClick={() => {
-                                setSelectedKeyId(item.id);
-                                setIsDropdownOpen(false);
-                              }}
-                              className={`w-full text-left px-3 py-2 rounded-lg flex flex-col gap-1 transition-colors ${
-                                selectedKeyId === item.id ? "bg-primary/10 text-primary" : "hover:bg-accent text-foreground"
-                              }`}
-                            >
-                              <div className="flex items-center justify-between">
-                                <span className="font-semibold text-sm">{item.keyName}</span>
-                                <span className="text-[9px] opacity-70 border border-border px-1.5 rounded-md uppercase tracking-wider bg-background">
-                                  {item.provider || 'VALLARIS'}
+                          Array.isArray(keys) && keys.map((item) => {
+                            const matchedHost = hosts.find(h => h.id === item.hostId);
+                            const displayHostName = matchedHost ? matchedHost.hostname : "All Hosts";
+
+                            return (
+                              <button
+                                key={item.id}
+                                onClick={() => {
+                                  setSelectedKeyId(item.id);
+                                  setIsDropdownOpen(false);
+                                }}
+                                className={`w-full text-left px-3 py-2 rounded-lg flex flex-col gap-1 transition-colors ${
+                                  selectedKeyId === item.id ? "bg-primary/10 text-primary" : "hover:bg-accent text-foreground"
+                                }`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <span className="font-semibold text-sm">{item.keyName}</span>
+                                  <span className="text-[9px] opacity-70 border border-border px-1.5 rounded-md uppercase tracking-wider bg-background">
+                                    {displayHostName}
+                                  </span>
+                                </div>
+                                <span className="text-[11px] text-muted-foreground font-mono truncate">
+                                  {formatMaskedKey(item.maskedKey)}
                                 </span>
-                              </div>
-                              <span className="text-[11px] text-muted-foreground font-mono truncate">
-                                {formatMaskedKey(item.maskedKey)}
-                              </span>
-                            </button>
-                          ))
+                              </button>
+                            );
+                          })
                         )}
                       </div>
                     </div>
@@ -175,7 +176,6 @@ export const ApiKeyPopover = () => {
                     <ChevronDown size={16} className="text-muted-foreground/40" />
                   </div>
 
-                  {/* Tooltip สไตล์เนียนๆ กลืนไปกับแอป */}
                   <div className="absolute -top-11 left-1/2 -translate-x-1/2 bg-popover border border-border text-foreground text-xs font-medium px-3 py-2 rounded-lg opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none whitespace-nowrap z-50 shadow-xl flex items-center gap-2">
                     <Lock size={12} className="text-muted-foreground" />
                     Please log in to access this feature
@@ -184,7 +184,6 @@ export const ApiKeyPopover = () => {
               )}
             </div>
 
-            {/* ปุ่ม Save */}
             <div className="relative group h-14" title={!user ? "Login Required" : ""}>
               <button
                 onClick={handleSave}

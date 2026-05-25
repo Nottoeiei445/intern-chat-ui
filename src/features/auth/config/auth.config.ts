@@ -34,6 +34,7 @@ export const AUTH_CONFIG = {
     guestMode: "/auth/guests",       // POST: สร้าง Guest session
     apiKeys: "/management/api-keys",        // GET/POST/DELETE: จัดการ API Keys
     apiKeyDetail: (id: string) => `/management/api-keys/${id}`, // GET/DELETE: รายละเอียด API Key เฉพาะตัว
+    apiKeyHosts: "/management/hosts", // GET: ดึงรายชื่อ Host ที่อนุญาตสำหรับ API Key
     //verifyKey: "/auth/api-keys/verify", // POST: ตรวจสอบ API Key (สำหรับการใช้งาน API)
   },
 
