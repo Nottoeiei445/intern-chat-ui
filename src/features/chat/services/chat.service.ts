@@ -4,8 +4,16 @@ import { CHAT_CONFIG } from '../config/chat.config';
 
 export const chatService = {
   // 1. ดึงประวัติแชททั้งหมด
-  getHistories: (userId?: string) => {
-    return apiClient.get<any>(`${CHAT_CONFIG.endpoints.history}`, { userId });
+  getHistories: (options?: { page?: number, limit?: number }, userId?: string) => {
+    let url = `${CHAT_CONFIG.endpoints.history}`;
+    const queryParams = [];
+    if (options?.page) queryParams.push(`page=${options.page}`);
+    if (options?.limit) queryParams.push(`limit=${options.limit}`);
+    if (userId) queryParams.push(`userId=${userId}`);
+    if (queryParams.length > 0) {
+      url += `?${queryParams.join('&')}`;
+    }
+    return apiClient.get<any>(url);
   },
 
   // 2. ดึงรายละเอียดข้อความในแชทนั้นๆ
@@ -15,6 +23,15 @@ export const chatService = {
       
     return apiClient.get<any>(url);
   },
+
+  getConversationLayers: (conversationId: string) => {
+    return apiClient.get<any>(`${CHAT_CONFIG.endpoints.conversation}/${conversationId}/map-layers`);
+  },
+
+  updateLayersOrder: (conversationId: string, layerIds: string[]) => {
+    return apiClient.patch<any>(`${CHAT_CONFIG.endpoints.conversation}/${conversationId}/map-layers`, { layerIds });
+  },
+
   // 3. ส่งข้อความใหม่ (แบบไม่ไหล)
   sendMessageStream: (payload: { 
     message: string; 

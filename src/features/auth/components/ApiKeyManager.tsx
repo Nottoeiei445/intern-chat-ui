@@ -8,7 +8,6 @@ import { CreateApiKeyModal } from "./CreateApiKeyModal";
 import { EditApiKeyModal } from "./EditApiKeyModal"; 
 import { useApiKeys } from "../hooks/useApiKeys";
 import { ViewApiKeyModal } from './ViewApiKeyModal';
-import { AuthWidget } from "./AuthWidget";
 import { DeleteApiKeyModal } from "./DeleteApiKeyModal";
 import { useToast } from "@/components/ui/Toast"; 
 
@@ -47,8 +46,6 @@ export const ApiKeyManager = () => {
 
   return (
     <div className="flex flex-col gap-2 text-foreground min-h-screen">
-      <AuthWidget />
-
       {/* --- Header Section --- */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>

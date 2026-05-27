@@ -44,6 +44,9 @@ interface MapState {
   pendingMention: { text: string; timestamp: number } | null;
   triggerLayerMention: (layerId: string) => void;
   clearPendingMention: () => void;
+
+  activeChatId: string | null;
+  setActiveChatId: (id: string | null) => void;
 }
 
 export const useMapStore = create<MapState>((set) => ({
@@ -97,8 +100,10 @@ export const useMapStore = create<MapState>((set) => ({
   // 2. สร้าง Logic สำหรับเก็บคำสั่ง Mention ไว้ที่ส่วนกลาง
   pendingMention: null,
   triggerLayerMention: (layerId) => set({ 
-    // ใส่ timestamp ไปด้วย เพื่อให้ React รู้ว่ามันคือคำสั่งใหม่ (เผื่อกรณีกดเลเยอร์เดิมรัวๆ)
+    // ใส่ timestamp ไปด้วย (เผื่อกรณีกดเลเยอร์เดิมรัวๆ)
     pendingMention: { text: `[layer_id: ${layerId}]`, timestamp: Date.now() } 
   }),
   clearPendingMention: () => set({ pendingMention: null }),
+  activeChatId: null,
+  setActiveChatId: (id) => set({ activeChatId: id }),
 }));

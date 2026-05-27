@@ -39,6 +39,11 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
           const sourceId = `ai-source-${layerConfig.id}`;
           const layerId = `ai-layer-${layerConfig.id}`;
           
+          const isVallarisLayer = layerConfig.apiProvider === 'vallaris' || layerConfig.baseUrl.includes('vallaris');
+          if (isVallarisLayer && !currentConversationApiKey && !apiKeys.vallaris) {
+            return; 
+          }
+
           const effectiveApiKeys = currentConversationApiKey 
             ? { ...apiKeys, vallaris: currentConversationApiKey, gistda: currentConversationApiKey }
             : apiKeys;

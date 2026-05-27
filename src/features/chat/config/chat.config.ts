@@ -13,10 +13,10 @@ export const CHAT_CONFIG = {
 
   endpoints: {
     chat: "/chat",
-    history: "/chat/conversations",
-    conversation: "/chat/conversations",
+    history: "/chat/conversations", // ดึงประวัติแชท
+    conversation: "/chat/conversations", // ดึงข้อมูลแชทเฉพาะ conversationId
     message: "/chat/messages",
-    models: "/chat/models",  
+    models: "/chat/models",   // ดึงรายชื่อโมเดลที่ใช้ได้
   },
 
   // Chat Validation & Settings

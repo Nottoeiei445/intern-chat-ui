@@ -94,7 +94,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         // ถ้าเป็นคนใหม่เอี่ยมอ่องเลย ให้ "ดีดตัวออก (return)" ทันที ห้ามไปยิง API Refresh เด็ดขาด!
         if (!storedUser && !isGuest) {
-          console.log("[AuthContext] Clean slate detected. Skipping refresh API.");
           setIsInitialized(true);
           return;
         }
@@ -110,7 +109,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
                         storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
         
         if (isGuest) {
-          console.log("[AuthContext] Guest initial refresh failed, keeping existing state to let UI timeout trigger.");
         } else {
           clearAuthState(); 
         }
@@ -148,7 +146,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           
           if (isGuest) {
             // ปล่อยผ่านไปเงียบๆ ให้ useChat.ts ของหน้าแชทโชว์ Pop-up เอาเอง
-            console.log("Guest token expired, letting UI handle it...");
             return; 
           }
 
@@ -193,7 +190,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         setUser(response.data.user);
 
         if (guestIdFromCookie) {
-          console.log("[MIGRATE] Silent migration success for:", guestIdFromCookie);
           
           // ล้างคุกกี้แขกทิ้ง เพราะตอนนี้เขากลายเป็น Member เต็มตัวแล้ว
           storage.removeCookie(AUTH_CONFIG.session.guestIdStorageKey);

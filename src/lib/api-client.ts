@@ -110,6 +110,10 @@ export const apiClient = {
       body, 
       ...options
     }),
+
+  patch: <T>(path: string, body?: any) =>
+    request<T>('PATCH', path, { body }),
+
 };
 
 export default apiClient;

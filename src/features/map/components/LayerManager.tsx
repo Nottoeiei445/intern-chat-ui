@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useMapStore } from "@/store/useMapStore";
+import { chatService } from "@/features/chat/services/chat.service"; 
 import { Layers, Eye, EyeOff, Map, ChevronRight, GripVertical } from "lucide-react";
 
 // นำเข้าเครื่องมือจาก dnd-kit
@@ -24,14 +25,13 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
 
-// สร้าง Component ย่อยสำหรับแต่ละกล่องเลเยอร์เพื่อให้รองรับการลาก
+// สร้าง Component ย่อยสำหรับแต่ละกล่องเลเยอร์เพื่อให้รองรับการลาก (โครงสร้างเดิมคงไว้ปกติ)
 const SortableLayerItem = ({ layer, isHidden, onToggleVisibility, onClickMentions }: any) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: layer.id });
 
   const style = {
-    transform: CSS.Transform.toString(transform), // แปลงค่าการเคลื่อนที่ที่ dnd-kit ให้มาเป็นรูปแบบ CSS transform
+    transform: CSS.Transform.toString(transform),
     transition,
-    // ทำให้กล่องที่กำลังถูกลากลอยขึ้นมาและโปร่งแสงนิดหน่อย
     zIndex: isDragging ? 50 : "auto",
     opacity: isDragging ? 0.8 : 1,
   };
@@ -47,12 +47,11 @@ const SortableLayerItem = ({ layer, isHidden, onToggleVisibility, onClickMention
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3 overflow-hidden pr-2">
-          {/* ปุ่มจับสำหรับลาก */}
           <div
             {...attributes}
             {...listeners}
             className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground p-1 -ml-2 rounded-md hover:bg-accent transition-colors"
-            onClick={(e) => e.stopPropagation()} // ดักไม่ให้ทะลุไปคลิกโดนกรอบนอก
+            onClick={(e) => e.stopPropagation()}
           >
             <GripVertical size={16} />
           </div>
@@ -68,8 +67,8 @@ const SortableLayerItem = ({ layer, isHidden, onToggleVisibility, onClickMention
         </div>
         <button
           onClick={(e) => {
-            e.stopPropagation(); // ดักไม่ให้ทะลุไปคลิกโดนกรอบนอก
-            onToggleVisibility(layer.id); // สั่งให้สลับสถานะการมองเห็นของเลเยอร์นี้
+            e.stopPropagation();
+            onToggleVisibility(layer.id);
           }}
           className={`p-2 rounded-lg transition-all shrink-0 ${
             !isHidden ? "text-primary hover:bg-primary/10" : "text-muted-foreground hover:bg-accent"
@@ -84,6 +83,7 @@ const SortableLayerItem = ({ layer, isHidden, onToggleVisibility, onClickMention
 
 
 // Component หลัก LayerManager
+// ปรับตรงนี้ให้รับ activeChatId ผ่าน Props เพื่อใช้ระบุตัวตนของห้องแชทครับเฮีย
 export const LayerManager = () => {
   const {
     dynamicLayers,
@@ -93,27 +93,54 @@ export const LayerManager = () => {
     isBaseMapVisible,
     toggleBaseMap,
     triggerLayerMention,
+    activeChatId,
   } = useMapStore();
 
   const [isOpen, setIsOpen] = useState(false);
 
   // ตั้งค่าเซนเซอร์การลาก 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), // ลากเมาส์ไป 5px ถึงจะเริ่มจับ ถนอมการคลิกพลาด
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }) // รองรับการลากด้วยคีย์บอร์ด
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  // ฟังก์ชันจัดการตอนปล่อยเมาส์ (สลับตำแหน่งใน Zustand Array)
-  const handleDragEnd = (event: DragEndEvent) => {
+  // ฟังก์ชันจัดการตอนปล่อยเมาส์ 
+  const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
 
-    if (over && active.id !== over.id) {
-      const oldIndex = dynamicLayers.findIndex((l) => l.id === active.id);
-      const newIndex = dynamicLayers.findIndex((l) => l.id === over.id);
+    // 1. เช็กความเรียบร้อยก่อน
+    if (!over) return;
+    if (active.id === over.id) {
+        console.log("Ignored: Same position");
+        return;
+    }
 
-      // สลับตำแหน่งใน Array โดยใช้ arrayMove จาก dnd-kit และอัปเดต Zustand Store
-      const reorderedLayers = arrayMove(dynamicLayers, oldIndex, newIndex);
-      setDynamicLayers(reorderedLayers);
+    // 2. จัดการหน้าบ้าน (UI)
+    const oldIndex = dynamicLayers.findIndex((l) => l.id === active.id);
+    const newIndex = dynamicLayers.findIndex((l) => l.id === over.id);
+    const reorderedLayers = arrayMove(dynamicLayers, oldIndex, newIndex);
+    setDynamicLayers(reorderedLayers);
+
+    // 3. เตรียมส่งหลังบ้าน (API Sync)
+    const currentActiveChatId = useMapStore.getState().activeChatId; 
+    
+    console.log("Attempting API Sync:", { 
+        currentActiveChatId, 
+        isSession: currentActiveChatId?.startsWith("session_") 
+    });
+
+    if (currentActiveChatId && !currentActiveChatId.startsWith("session_")) {
+        try {
+            const orderedIds = reorderedLayers.map((layer) => layer.id);
+            console.log("Sending to API:", orderedIds); // ดูว่าส่งอะไรไป
+
+            await chatService.updateLayersOrder(currentActiveChatId, orderedIds);
+            console.log("Sync success!");
+        } catch (error) {
+            console.error("Sync failed! Error details:", error);
+        }
+    } else {
+        console.warn("Sync skipped: No valid activeChatId or it is a session.");
     }
   };
 
@@ -182,7 +209,6 @@ export const LayerManager = () => {
                 AI Layers ({dynamicLayers.length})
               </h3>
 
-              {/* ยัดระบบ DND คลุมกล่อง Layer List ไว้ */}
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis, restrictToParentElement]}>
                 <SortableContext items={dynamicLayers.map(l => l.id)} strategy={verticalListSortingStrategy}>
                   {dynamicLayers.map((layer) => (

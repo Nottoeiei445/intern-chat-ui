@@ -7,6 +7,14 @@ import { useRouter } from "next/navigation";
 import { AUTH_CONFIG } from "@/features/auth";
 import { LogIn, LogOut, KeyRound, User as UserIcon, Sun, Moon } from "lucide-react";
 import { useTheme } from "next-themes";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
 
 const getInitials = (name?: string) => {
   if (!name) return "?";
@@ -36,86 +44,65 @@ export const AuthWidget = () => {
   return (
     <div className="flex items-center bg-background/80 backdrop-blur-md border border-border p-1.5 rounded-full shadow-lg">
       {user ? (
-        <div className="relative" ref={menuRef}>
-          <button
-            onClick={() => setMenuOpen((s) => !s)}
-            className="flex items-center gap-3 px-2 py-1 rounded-full hover:bg-accent transition-all group"
-          >
-            <div className="flex flex-col items-end pr-1 hidden sm:flex">
-              <span className="text-xs font-bold text-foreground transition">
-                {user.username || user.email?.split('@')[0]}
-              </span>
-            </div>
-            <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-inner border border-blue-400/30">
-              {getInitials(user.username || user.email)}
-            </div>
-          </button>
-
-          {menuOpen && (
-            <div className="absolute right-0 mt-3 w-48 bg-popover border border-border rounded-xl shadow-xl p-1.5 overflow-hidden animate-in fade-in slide-in-from-top-2 z-50">
-              
-              <div className="px-3 py-2 border-b border-border mb-1">
-                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold">Account Settings</p>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="flex items-center gap-3 px-2 py-1 rounded-full hover:bg-accent transition-all">
+              <div className="flex flex-col items-end pr-1 hidden sm:flex">
+                <span className="text-xs font-bold text-foreground">
+                  {user.username || user.email?.split('@')[0]}
+                </span>
               </div>
+              <div className="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center text-white font-bold text-sm border border-blue-400/30">
+                {getInitials(user.username || user.email)}
+              </div>
+            </button>
+          </DropdownMenuTrigger>
 
-              {canManageKeys && (
-                <button
-                  onClick={() => {
-                    setMenuOpen(false);
-                    router.push("/setting/keys");
-                  }}
-                  className="w-full flex items-center gap-3 px-3 py-2 text-sm text-foreground hover:bg-accent rounded-lg transition-colors"
-                >
-                  <KeyRound size={14} className="text-blue-400" />
-                  Manage API Keys
-                </button>
+          <DropdownMenuContent align="end" className="w-48 rounded-xl shadow-xl z-[100]">
+            <DropdownMenuLabel className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              Account Settings
+            </DropdownMenuLabel>
+
+            {canManageKeys && (
+              <DropdownMenuItem onClick={() => router.push("/setting/keys")}>
+                <KeyRound size={14} className="mr-2 text-blue-400" />
+                Manage API Keys
+              </DropdownMenuItem>
+            )}
+
+            <DropdownMenuItem>
+              <UserIcon size={14} className="mr-2" />
+              Profile
+            </DropdownMenuItem>
+
+            <DropdownMenuItem onClick={() => setTheme(theme === "dark" ? "light" : "dark")}>
+              {theme === "dark" ? (
+                <Sun size={14} className="mr-2 text-yellow-400" />
+              ) : (
+                <Moon size={14} className="mr-2 text-slate-600" />
               )}
+              {theme === "dark" ? "Light Mode" : "Dark Mode"}
+            </DropdownMenuItem>
 
-              <button
-                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-foreground hover:bg-accent rounded-lg transition-colors"
-              >
-                <UserIcon size={14} />
-                Profile
-              </button>
+            <DropdownMenuSeparator />
 
-              <button
-                onClick={() => {
-                  setTheme(theme === "dark" ? "light" : "dark");
-                }}
-                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-foreground hover:bg-accent rounded-lg transition-colors"
-              >
-                {theme === "dark" ? (
-                  <Sun size={14} className="text-yellow-400" />
-                ) : (
-                  <Moon size={14} className="text-slate-600" />
-                )}
-                <span>{theme === "dark" ? "Light Mode" : "Dark Mode"}</span>
-              </button>
-
-              <div className="h-[1px] bg-border my-1" />
-
-              <button
-                onClick={async () => {
-                  setMenuOpen(false);
-                  await logout();
-                  router.push(AUTH_CONFIG.redirect.afterLogoutUrl);
-                }}
-                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-red-500 hover:bg-destructive/10 hover:text-destructive rounded-lg transition-colors"
-              >
-                <LogOut size={14} />
-                Logout
-              </button>
-            </div>
-          )}
-        </div>
+            <DropdownMenuItem 
+              className="text-red-500 focus:text-red-600" 
+              onClick={async () => await logout()}
+            >
+              <LogOut size={14} className="mr-2" />
+              Logout
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       ) : (
-        <button 
-          onClick={() => router.push(AUTH_CONFIG.redirect.unauthorizedUrl)}
-          className="flex items-center gap-2 bg-primary text-primary-foreground hover:bg-primary/90 px-5 py-2 rounded-full text-sm transition-all"
+        <Button 
+          onClick={() => router.push(AUTH_CONFIG.redirect.unauthorizedUrl)} 
+          className="rounded-full px-5"
         >
-          <LogIn size={16} />
-          <span>Login</span>
-        </button>
+          <LogIn size={16} className="mr-2" />
+          Login
+        </Button>
       )}
     </div>
   );

@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react";
-import { Menu, MessageSquarePlus, Settings, MessageSquare, Trash2, Pencil, Check, X, Lock, Sparkles } from "lucide-react";
+import { useState, useEffect, useRef } from "react"; 
+import { Menu, MessageSquarePlus, Settings, MessageSquare, Trash2, Pencil, Check, X, Lock, Sparkles, Loader2 } from "lucide-react"; // 🌟 เพิ่ม Loader2 สำหรับอนิเมชันหมุนๆ
 import { ChatThread } from "../types";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../auth/context/AuthContext";
+import { useInView } from "react-intersection-observer"; 
 
 import {
   Tooltip,
@@ -31,6 +32,9 @@ interface SidebarProps {
   onDelete: (id: string) => void;
   onRename: (id: string, newTitle: string) => void;
   isKeyModalOpen?: boolean;
+  fetchNextSidebarPage?: () => void;
+  isFetchingSidebar?: boolean;
+  sidebarHasMore?: boolean;
 }
 
 export const Sidebar = ({ 
@@ -42,7 +46,10 @@ export const Sidebar = ({
   onNew, 
   onDelete,
   onRename,
-  isKeyModalOpen
+  isKeyModalOpen,
+  fetchNextSidebarPage,
+  isFetchingSidebar,
+  sidebarHasMore
 }: SidebarProps) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [tempTitle, setTempTitle] = useState("");
@@ -50,11 +57,29 @@ export const Sidebar = ({
   
   const router = useRouter();
   const { user } = useAuth();
-  const isGuest = !user; // ตัวแปรเช็คความหล่อ
+  const isGuest = !user;
+
+  // 🌟 2. เรียกใช้งานตัวตรวจจับพิกัดล่างสุดของสกรอลล์
+  const { ref, inView } = useInView({
+    threshold: 0, // ส่องเห็นแค่ติ่งเดียวที่ปลายหน้าจอก็ให้ลอจิกเริ่มทำงานทันที
+  });
+  const isInitialMount = useRef(true);
+
+  useEffect(() => {
+    if (
+      inView && 
+      sidebarHasMore && 
+      !isFetchingSidebar && 
+      fetchNextSidebarPage && 
+      chats.length > 0 // เพิ่มเงื่อนไขให้แน่ใจว่ามีแชทในลิสต์แล้วเท่านั้นถึงจะดึงหน้าเก่าเพิ่ม (ป้องกันการดึงซ้ำตอนแรกที่ยังไม่มีแชทเลย)
+    ) {
+      fetchNextSidebarPage();
+    }
+  }, [inView, sidebarHasMore, isFetchingSidebar, fetchNextSidebarPage, chats.length]);
 
   const handleStartEdit = (e: React.MouseEvent, chat: ChatThread) => {
     e.stopPropagation();
-    if (isGuest) return; // ถ้าเป็น Guest ไม่ต้องทำอะไร (โดน Tooltip ดักไว้แล้ว)
+    if (isGuest) return; 
     setEditingId(chat.id);
     setTempTitle(chat.title || "");
   };
@@ -83,24 +108,20 @@ export const Sidebar = ({
   };
 
   const handleSelect = (chatId: string | null) => {
-  if (isGuest) {
-    if (chatId === activeId) return; 
-    
-    setShowGuestModal(true);
-    return;
-  }
-  onSelect(chatId);
-};
+    if (isGuest) {
+      if (chatId === activeId) return; 
+      setShowGuestModal(true);
+      return;
+    }
+    onSelect(chatId);
+  };
 
   const handleDelete = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
-    if (isGuest) return; // ดักไว้เผื่อทะลุ Tooltip
+    if (isGuest) return; 
     onDelete(id);
   };
 
-  // ----------------------------------------------------------------------
-  // Render
-  // ----------------------------------------------------------------------
   return (
     <TooltipProvider delayDuration={200}>
       <aside 
@@ -246,6 +267,18 @@ export const Sidebar = ({
               </div>
             </div>
           ))}
+
+          {/* 🌟 4. กล่องตรวจสัญญาณล่องหน (Sentinel) แปะดักไว้ใต้รายการลูปแชททั้งหมด */}
+          {sidebarHasMore && (
+            <div ref={ref} className="py-3 flex items-center justify-center text-muted-foreground font-ibm text-xs gap-2">
+              {isFetchingSidebar && (
+                <>
+                  <Loader2 size={14} className="animate-spin text-primary" />
+                  <span>Loading older chats...</span>
+                </>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="p-3 border-t border-sidebar-border shrink-0">

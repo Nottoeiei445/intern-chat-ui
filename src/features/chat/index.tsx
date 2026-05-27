@@ -43,6 +43,9 @@ export const ChatFeature = () => {
     isGuestExpired,
     setIsGuestExpired,
     suggestions,
+    fetchNextSidebarPage,
+    isFetchingSidebar,
+    sidebarHasMore
   } = useChat();
   const { 
     models, 
@@ -109,7 +112,6 @@ export const ChatFeature = () => {
       const hasStartTime = localStorage.getItem(AUTH_CONFIG.session.guestStartTimeStorageKey);
       
       if (hasStartTime) {
-        console.warn("[Gatekeeper] Session expired. Blocking outgoing message.");
         setIsGuestExpired(true); 
         storage.removeCookie(AUTH_CONFIG.session.accessTokenStorageKey);
         
@@ -159,6 +161,9 @@ export const ChatFeature = () => {
         onNew={handleCreateNew} 
         onDelete={deleteChat}
         isKeyModalOpen={isKeyModalOpen} 
+        fetchNextSidebarPage={fetchNextSidebarPage}
+        isFetchingSidebar={isFetchingSidebar}
+        sidebarHasMore={sidebarHasMore}
       />
       
       <div className="flex-1 flex flex-col relative min-w-0 h-screen">
