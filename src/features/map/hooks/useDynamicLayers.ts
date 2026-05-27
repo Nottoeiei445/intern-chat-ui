@@ -12,25 +12,6 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
   useEffect(() => {
     if (!map) return;
 
-    // ฟังก์ชันล้างเลเยอร์
-    const clearLayers = () => {
-      if (!map) return; 
-      try {
-        if (!map.getStyle || !map.getStyle()) return;
-        activeLayerIds.current.forEach(id => {
-          if (id.startsWith('ai-layer-') && map.getLayer(id)) map.removeLayer(id);
-        });
-        activeLayerIds.current.forEach(id => {
-          if (id.startsWith('ai-source-') && map.getSource(id)) map.removeSource(id);
-        });
-      } catch (error) {
-        console.warn("MapLibre: already removed layer/source, skipping...", error);
-      } finally {
-        activeLayerIds.current = [];
-      }
-    };
-
-    // ฟังก์ชันสร้างและวาดเลเยอร์
     const renderLayers = () => {
       if (!map.getStyle()) return; 
 
@@ -50,6 +31,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
 
           const fullUrl = mapService.buildDynamicUrl(layerConfig, effectiveApiKeys);
 
+          // แอด Source เฉพาะตอนที่มันยังไม่มีอยู่บนแผนที่จริง
           if (!map.getSource(sourceId)) {
             if (layerConfig.type === 'wms' || layerConfig.type === 'tms'|| layerConfig.type === 'wmts' || layerConfig.type === 'coverage_tile') {
               const titleSize = layerConfig.type === 'wmts' ? 512 : 256;
@@ -71,6 +53,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
             if (!activeLayerIds.current.includes(sourceId)) activeLayerIds.current.push(sourceId);
           }
 
+          // แอด Layer ปกติ 
           if (!map.getLayer(layerId) && !map.getLayer(`${layerId}-fill`)) {
             if (layerConfig.type === 'wms' || layerConfig.type === 'tms' || layerConfig.type === 'wmts' || layerConfig.type === 'coverage_tile') {
               map.addLayer({
@@ -83,29 +66,21 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
             } 
             else if (layerConfig.type === 'vector' || layerConfig.type === 'vector_tile') {
               const sourceLayerId = layerConfig.layerId || 'default';
-              
-              // เช็คว่ามีสไตล์ที่พร้อมใช้งานหรือไม่
               const hasAvailableStyles = layerConfig.availableStyles && layerConfig.availableStyles.length > 0;
               const hasAiStyle = hasAvailableStyles || (layerConfig.renderStyles && layerConfig.renderStyles.length > 0);
-              
               const currentStyleKey = layerConfig.activeStyleKey || 'default';
               const appliedFlag = `${layerId}-ai-applied-${currentStyleKey}`;
 
-              // กรณีมีสไตล์จาก AI และยังไม่ได้วาดสไตล์ "ตัวปัจจุบัน" ลงไป
               if (hasAiStyle && !activeLayerIds.current.includes(appliedFlag)) {
-                
-                // ลบสไตล์เดิมทุกรูปแบบทิ้งก่อนวาดใหม่
                 ['fill', 'line', 'point', 'fill-extrusion'].forEach(suffix => {
                   const fId = `${layerId}-${suffix}`;
                   if (map.getLayer(fId)) map.removeLayer(fId);
                 });
 
-                // ค้นหาสไตล์ที่ตรงกับ Dropdown ที่เลือก
                 let stylesToRender: any[] = [];
                 if (hasAvailableStyles) {
                   const selected = layerConfig.availableStyles?.find(s => s.styleKey === currentStyleKey) 
                                    || layerConfig.availableStyles?.[0];
-                  
                   if (selected) {
                     stylesToRender = Array.isArray(selected.layers) ? selected.layers 
                                    : Array.isArray(selected.renderConfig) ? selected.renderConfig 
@@ -115,7 +90,6 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
                   stylesToRender = layerConfig.renderStyles || [];
                 }
 
-                // วาดเลเยอร์ใหม่
                 stylesToRender.forEach((styleObj: any) => {
                   let suffix = 'fill';
                   if (styleObj.type === 'line' || styleObj.layerType === 'line') suffix = 'line';
@@ -131,23 +105,16 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
                       source: sourceId,
                       'source-layer': sourceLayerId
                     };
-
-                    if (styleObj.paint && Object.keys(styleObj.paint).length > 0) {
-                      layerParams.paint = styleObj.paint;
-                    }
-                    if (styleObj.layout && Object.keys(styleObj.layout).length > 0) {
-                      layerParams.layout = styleObj.layout;
-                    }
+                    if (styleObj.paint && Object.keys(styleObj.paint).length > 0) layerParams.paint = styleObj.paint;
+                    if (styleObj.layout && Object.keys(styleObj.layout).length > 0) layerParams.layout = styleObj.layout;
 
                     map.addLayer(layerParams);
                     if (!activeLayerIds.current.includes(aiLayerId)) activeLayerIds.current.push(aiLayerId);
                   }
                 });
 
-                // บันทึกธงว่าวาดสไตล์นี้เสร็จแล้ว
                 activeLayerIds.current.push(appliedFlag);
               } 
-              // กรณีข้อมูลสตรีมแรก ยังไม่มีสไตล์ 
               else if (!hasAiStyle && !map.getLayer(`${layerId}-fill`)) {
                 const fillLayerId = `${layerId}-fill`;
                 map.addLayer({
@@ -183,7 +150,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
                   source: sourceId,
                   'source-layer': sourceLayerId,
                   filter: ['==', ['geometry-type'], 'Point'],
-                  "paint": {
+                  paint: {
                     "heatmap-weight": 1,
                     "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 0, 1, 9, 3],
                     "heatmap-color": ["interpolate", ["linear"], ["heatmap-density"], 0, "rgba(255,255,255,0)", 0.2, "rgb(254,204,92)", 0.5, "rgb(240,59,32)", 1, "rgb(189,0,38)"],
@@ -215,27 +182,74 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
       });
     };
 
-    clearLayers();
+    const reorderMapLayers = () => {
+      if (!map.getStyle()) return;
+      for (let i = dynamicLayers.length - 1; i >= 0; i--) {
+        const layerConfig = dynamicLayers[i];
+        const layerId = `ai-layer-${layerConfig.id}`;
+        
+        const targetLayerIds = [
+          layerId,
+          `${layerId}-fill`,
+          `${layerId}-line`,
+          `${layerId}-point`,
+          `${layerId}-fill-extrusion`
+        ];
+
+        targetLayerIds.forEach(targetId => {
+          if (map.getLayer(targetId)) {
+            map.moveLayer(targetId); // ขยับชั้นเลเยอร์ขึ้นมาบนสุดของ Stack ณ วินาทีนั้น
+          }
+        });
+      }
+    };
+
+    // Garbage Collection 
+    const currentConfigIds = dynamicLayers.map(l => l.id);
+
+    // หาไอดีที่จะต้องถูกลบในรอบนี้ออกมาก่อน
+    const idsToRemove = activeLayerIds.current.filter(id => {
+      const configId = id.replace('ai-layer-', '').replace('ai-source-', '').split('-')[0];
+      return configId && !currentConfigIds.includes(configId);
+    });
+
+    // ลบ LAYER ออกจากแผนที่ให้หมดก่อนเสมอ เพื่อปลดล็อก Source
+    idsToRemove.forEach(id => {
+      if (id.startsWith('ai-layer-') && map.getLayer(id)) {
+        map.removeLayer(id);
+      }
+    });
+
+    // พอ Layer ปลิวหมดแล้ว ค่อยตามลบ SOURCE ตามหลังได้อย่างปลอดภัย
+    idsToRemove.forEach(id => {
+      if (id.startsWith('ai-source-') && map.getSource(id)) {
+        map.removeSource(id);
+      }
+    });
+
+    // อัปเดตลบไอดีเหล่านั้นออกจากกล่องความจำ useRef
+    activeLayerIds.current = activeLayerIds.current.filter(id => !idsToRemove.includes(id));
+
     renderLayers();
+    reorderMapLayers();
 
     const handleStyleData = () => {
       if (!map.getStyle()) return;
       const isMissingSources = dynamicLayers.some(layer => !map.getSource(`ai-source-${layer.id}`));
       if (isMissingSources) {
-        activeLayerIds.current = [];
         renderLayers();
+        reorderMapLayers();
       }
     };
     
     map.on('styledata', handleStyleData);
     return () => {
       map.off('styledata', handleStyleData);
-      clearLayers(); 
     };
 
   }, [map, dynamicLayers, apiKeys, currentConversationApiKey]); 
 
-  // ควบคุมการแสดงผล/ซ่อนเลเยอร์
+  // ควบคุมการแสดงผล/ซ่อนเลเยอร์ 
   useEffect(() => {
     if (!map || !map.getStyle()) return;
 
