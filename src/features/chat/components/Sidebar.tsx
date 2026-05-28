@@ -71,12 +71,18 @@ export const Sidebar = ({
       sidebarHasMore && 
       !isFetchingSidebar && 
       fetchNextSidebarPage && 
-      chats.length > 0 // เพิ่มเงื่อนไขให้แน่ใจว่ามีแชทในลิสต์แล้วเท่านั้นถึงจะดึงหน้าเก่าเพิ่ม (ป้องกันการดึงซ้ำตอนแรกที่ยังไม่มีแชทเลย)
+      chats.length > 0
     ) {
+      if (isInitialMount.current) {
+        return;
+      }
       fetchNextSidebarPage();
+    } 
+    else if (!inView && chats.length > 0) {
+      isInitialMount.current = false;
     }
   }, [inView, sidebarHasMore, isFetchingSidebar, fetchNextSidebarPage, chats.length]);
-
+  
   const handleStartEdit = (e: React.MouseEvent, chat: ChatThread) => {
     e.stopPropagation();
     if (isGuest) return; 
