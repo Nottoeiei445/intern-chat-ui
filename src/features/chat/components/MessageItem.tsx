@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Sparkles, User, Bot, Copy, Pencil, Lock, Layers } from "lucide-react"
+import { Sparkles, User, Bot, Copy, Pencil, Lock, Search } from "lucide-react"
 import { Message } from "../types"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
@@ -25,6 +25,7 @@ interface MessageItemProps {
   onEditMessage?: (id: string, newContent: string) => void;
   onSendChoice?: (key: string, choiceValue: string) => void;
   onSendPagination?: (direction: "next" | "prev", messageId: string, currentOffset: number) => void;
+  onSendSearch?: (messageId: string, searchQuery: string) => void;
   canEdit?: boolean;
   isLatestMessage?: boolean;
 }
@@ -38,6 +39,7 @@ export const MessageItem = ({
   onEditMessage,
   onSendChoice,
   onSendPagination,
+  onSendSearch,
   canEdit,
   isLatestMessage
 }: MessageItemProps) => {
@@ -195,7 +197,7 @@ export const MessageItem = ({
           msg.role === "user" ? "bg-primary text-primary-foreground rounded-tr-none shadow-xl" : "bg-muted border border-border text-foreground rounded-tl-none"
         }`}>
           <div className="flex gap-4">
-            <div className="opacitye-60 mt-1">
+            <div className="opacity-60 mt-1">
               {msg.role === "user" ? <User size={20}/> : <Bot size={20}/>}
             </div>
             <div className="flex-1 space-y-4 min-w-0">
@@ -232,7 +234,6 @@ export const MessageItem = ({
               ) : (
                 msg.content && (
                   <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
-                    {/* 🌟 4. เรียกใช้งานฟังก์ชันแปลงป้าย Chip ตรงนี้เลยครับเฮีย */}
                     {renderFormattedContent(msg.content)}
                   </p>
                 )
@@ -274,6 +275,27 @@ export const MessageItem = ({
                     <Sparkles size={13} className="text-primary" />
                     Please select an option
                   </span>
+
+                  {msg.choiceKey === "layerId" && (
+                    <div className="relative w-full mb-1">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-muted-foreground/60">
+                        <Search size={15} />
+                      </span>
+                      <input
+                        type="text"
+                        placeholder={`Search within ${numberMatched.toLocaleString()} layers`}
+                        disabled={!isLatestMessage || isLoading || selectedChoice !== null}
+                        className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm bg-background border border-border rounded-xl outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all font-ibm placeholder:text-muted-foreground/50 text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && e.currentTarget.value.trim() && msg.id && onSendSearch) {
+                            e.preventDefault();
+                            setSelectedChoice("pagination_clicked"); // เปิด Loading หลอกๆ เพื่อล็อกปุ่มกันกดเบิ้ล
+                            onSendSearch(msg.id, e.currentTarget.value.trim());
+                          }
+                        }}
+                      />
+                    </div>
+                  )}
                   
                   <div className="flex flex-col gap-2 w-full">
                     {msg.choices.map((choice, idx) => {

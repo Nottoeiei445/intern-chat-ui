@@ -212,7 +212,8 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
     if (isLoading || isInputDisabled || !editor) return;
 
     const isGuidedClear = suggestion.key === "clear_layer";
-
+    const isGuidedAttribute = suggestion.key === "style_by_attribute";
+    const isGuidedAttributeValue = suggestion.key === "style_attribute_value";
     if (isGuidedClear) {
       const textToSet = `${suggestion.promptTemplate || "Clear map layer "}@`;
       editor.commands.setContent(textToSet);
@@ -221,6 +222,33 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
         editor.commands.focus('end');
       }, 10);
       return; 
+    }
+    if (isGuidedAttribute) {
+      let textToSet = suggestion.promptTemplate || "Style the current map by attribute  ";
+      
+      textToSet = textToSet.replace(/\{value\}/g, "").trim() + " "; 
+      
+      editor.commands.setContent(textToSet);
+      setIsEditorEmpty(false);
+      setTimeout(() => {
+        editor.commands.focus('end'); // โฟกัสเคอร์เซอร์ไปที่ท้ายประโยคพร้อมให้พิมพ์ต่อ
+      }, 10);
+      return;
+    }
+    if (isGuidedAttributeValue) {
+      let textToSet = suggestion.promptTemplate || "Change attribute value {value} color to ";
+
+      textToSet = textToSet.replace(/\{value\}/g, "[value]");
+
+      textToSet = textToSet.trim() + " [color]"; 
+
+      editor.commands.setContent(textToSet);
+      setIsEditorEmpty(false);
+      
+      setTimeout(() => {
+        editor.commands.focus('end'); 
+      }, 10);
+      return;
     }
 
     let finalPrompt = suggestion.promptTemplate || "";

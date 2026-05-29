@@ -15,6 +15,7 @@ interface Props {
   onSelectTemplate?: (text: string) => void; 
   onSendChoice?: (key: string, choiceValue: string) => void;
   onSendPagination?: (direction: 'next' | 'prev', messageId: string, currentOffset: number) => void;
+  onSendSearch?: (messageId: string, searchQuery: string) => void;
   canEdit?: boolean;
   isLastUserMessage?: boolean;
 }
@@ -29,6 +30,7 @@ export const MessageList = ({
   onSelectTemplate,
   onSendChoice,
   onSendPagination,
+  onSendSearch,
   canEdit,
   isLastUserMessage
 }: Props) => {
@@ -188,6 +190,7 @@ export const MessageList = ({
               onEditMessage={onEditMessage}
               onSendChoice={onSendChoice}
               onSendPagination={onSendPagination}
+              onSendSearch={onSendSearch}
             />
           ))}
           

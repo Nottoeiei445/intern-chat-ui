@@ -1,14 +1,14 @@
 "use client"
 
-import { useState, useEffect, useCallback, useMemo } from "react"; 
-import { ChatThread, Message } from "../types";
+import { useState, useEffect, useMemo } from "react"; 
+import { ChatThread } from "../types";
 import { useAuth } from "../../auth/context/AuthContext";
 import { chatService } from "../services/chat.service"; 
 import { AUTH_CONFIG } from "@/features/auth/config/auth.config";
 import { storage } from "@/lib/storage";
 import { useMapStore } from '@/store/useMapStore';
 import { checkAndCleanupExpiredGuest, startGuestExpiryTimer } from "../../auth/utils/guest-timer.util";
-import { CHAT_CONFIG } from "../config/chat.config";
+import { useChatStream } from "./useChatStream"; //
 
 // --- Helpers ---
 const sortChats = (list: ChatThread[]) => { 
@@ -31,7 +31,6 @@ const mapBackendMessage = (msg: any) => {
   };
 };
 
-// 🌟 เพิ่มฟังก์ชันแปลง Layer จาก API เส้นใหม่ไว้ด้านบน (มีระบบประกอบ URL ป้องกัน undefined เหมือนเดิม)
 const mapBackendLayers = (backendLayers: any[]): any[] => {
   if (!Array.isArray(backendLayers)) return [];
 
@@ -75,11 +74,9 @@ export function useChat() {
     dynamicLayers, setDynamicLayers 
   } = useMapStore();
 
-  // 2. Main Chat State
+  // 2. Main Chat State (สเตทโฮสต์หลักคงไว้)
   const [chats, setChats] = useState<ChatThread[]>([]); 
   const [activeChatId, setActiveChatId] = useState<string | null>(null); 
-  const [isLoading, setIsLoading] = useState(false); 
-  const [ephemeralMessages, setEphemeralMessages] = useState<Message[]>([]); 
 
   // 3. History & Pagination State
   const [isFetchingHistory, setIsFetchingHistory] = useState(false);
@@ -91,7 +88,24 @@ export function useChat() {
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [isGuestExpired, setIsGuestExpired] = useState(false);
 
-  const [suggestions, setSuggestions] = useState<{key: string, label: string, promptTemplate: string}[]>([]);
+  const {
+    sendMessage,
+    isLoading,
+    suggestions,
+    setSuggestions,
+    setIsLoading,
+    ephemeralMessages,
+  } = useChatStream({
+    chats,
+    setChats,
+    activeChatId,
+    setActiveChatId,
+    setDynamicLayers,
+    setPaginationConfig,
+    openKeyModal,
+    setPendingChat,
+    user
+  });
 
   // --- 5. Initialization Effects ---
   useEffect(() => { setIsSessionReady(true); }, []);
@@ -148,7 +162,8 @@ export function useChat() {
         setIsFetchingSidebar(false);
       }
     };
-    fetchAllHistories(); 
+    const token = storage.getCookie(AUTH_CONFIG.session.accessTokenStorageKey);
+    if (token) fetchAllHistories(); 
   }, [isSessionReady, user]);
 
   // Fetch specific chat detail
@@ -173,11 +188,9 @@ export function useChat() {
         }
 
         const fetchedModel = responseData?.model || responseData?.data?.model || null;
-
         const rawMessages = responseData?.data?.messages || responseData?.messages || responseData?.data || (Array.isArray(responseData) ? responseData : []);
         const messages = rawMessages.map(mapBackendMessage);
         
-        // 🎯 [แก้ไขจุดเปลี่ยน Flow ดึงแผนที่]: ยิงดึงเลเยอร์ด้วยระบบระบุตัวตนด้วย targetId (Conversation ID) แบบไม่ขวางทางเดินข้อความ (Non-blocking)
         chatService.getConversationLayers(targetId)
           .then(layersResponse => {
             let rawLayers = layersResponse?.layers || layersResponse?.data?.layers || layersResponse?.data || layersResponse || [];
@@ -188,7 +201,6 @@ export function useChat() {
             useMapStore.getState().setDynamicLayers([]);
           });
         
-        // ลอจิกจัดการเรนเดอร์สเตทข้อความแชทเดิมของเฮียแบบเป๊ะๆ ทำงานต่อทันทีไม่มีรอนาน
         setChats(prev => {
           const existingChat = prev.find(chat => chat.id === targetId);
           if (existingChat?.messages.length && existingChat.messages[existingChat.messages.length - 1].role === "user") return prev;
@@ -211,10 +223,6 @@ export function useChat() {
           } : chat);
         });
 
-        if (fetchedModel) {
-          // สเตทเก็บสถานะโมเดลปัจจุบันคงเดิม
-        }
-
         setPaginationConfig(prev => ({ ...prev, [targetId]: { page: 1, hasMore: messages.length >= 5 } }));
       } catch (error) {
         console.error("Failed to load messages:", error);
@@ -223,28 +231,24 @@ export function useChat() {
       }
     };
     fetchChatDetail(); 
-  }, [activeChatId, paginationConfig, user]);
+  }, [activeChatId, user]); 
 
   // จังหวะผู้ใช้กดเปลี่ยนคลิกสลับห้องแชทเก่าไปมา
   useEffect(() => {
     const mapStore = useMapStore.getState();
     
-    // บรรทัดตรวจสอบขั้นตอนที่ 1: ดูว่า useChat มันตรวจจับจังหวะการเปลี่ยนห้องแชทเจอไหม
-
     if (!activeChatId || activeChatId.startsWith('session_')) {
       mapStore.setcurrentConversationApiKey(null);
       mapStore.setDynamicLayers([]); 
-      mapStore.setActiveChatId(null); // เคลียร์สเตทใน Store
+      mapStore.setActiveChatId(null); 
       setSuggestions([]); 
       return;
     }
 
     const cachedKey = mapStore.sessionKeys[activeChatId] || null;
     mapStore.setcurrentConversationApiKey(cachedKey);
+    mapStore.setActiveChatId(activeChatId); 
 
-    mapStore.setActiveChatId(activeChatId); // <--- เติมคำสั่งนี้เข้าไปตรงนี้ครับเฮีย!
-
-    // ดึงจาก API เส้นใหม่ระบุด้วย activeChatId
     chatService.getConversationLayers(activeChatId)
       .then(layersResponse => {
         let rawLayers = layersResponse?.layers || layersResponse?.data?.layers || layersResponse?.data || layersResponse || [];
@@ -256,19 +260,15 @@ export function useChat() {
       });
 
     setSuggestions([]); 
-  }, [activeChatId]);
+  }, [activeChatId, setSuggestions]);
 
   // --- 6. Chat Actions ---
-
   const fetchNextPage = async () => {
     const guestId = storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey);
     const targetId = !user && guestId ? (guestId as string) : activeChatId;
     if (!targetId || targetId.startsWith('session_')) return;
 
-    // ดึง Config ออกมาตรงๆ ไม่ใช้ Fallback ห้วนๆ แล้ว
     const config = paginationConfig[targetId];
-    
-    // 🛡️ เกราะป้องกันสูงสุด: ถ้า config ห้องนี้ยังไม่มี (เพราะหน้า 1 กำลังโหลด) หรือไม่มีหน้าให้ไปต่อ หรือกำลังทำงานอยู่ ให้ดีดออกทันที!
     if (!config || !config.hasMore || isFetchingHistory) return;
 
     setIsFetchingHistory(true);
@@ -332,314 +332,6 @@ export function useChat() {
     setActiveChatId(null);
     useMapStore.getState().clearApiKeys();
     useMapStore.getState().setDynamicLayers([]);
-  };
-
-  const sendMessage = async (input: string, model: string, images: string[] = [], options?: any) => { 
-
-    if (!input.trim() && images.length === 0 && !options?.isRegenerate) return; 
-    
-    const { ephemeral = false, isRegenerate = false, isSilentRetry = false, isClarity = false, editMessageId = null, choiceKey, choiceValue, mapselection, targetMessageId } = options || {};
-    const isChoiceResponse = !!choiceKey;
-    
-    let currentId = options?.explicitChatId || activeChatId || (!user && storage.getCookie(AUTH_CONFIG.session.guestIdStorageKey) as string) || null;
-    if (user && typeof currentId === 'string' && currentId.startsWith('guest_')) {
-      currentId = null; 
-      if (options) delete options.explicitChatId;
-    }
-    let isNewSession = false; 
-
-    const existingChat = chats.find(c => c.id === currentId);
-    const effectiveModel = existingChat?.model || model;
-
-    // Update Local UI Immediately
-    if (!isRegenerate && !isSilentRetry) {
-      const userMsg: Message = { role: "user", content: input, ...(images.length > 0 && { images }) }; 
-      if (ephemeral) setEphemeralMessages(prev => [...prev, userMsg]); 
-      else if (currentId && !currentId.startsWith('session_')) { 
-        setChats(prev => {
-          const exists = prev.some(c => c.id === currentId);
-          if (!exists) return [{ id: currentId as string, title: input.slice(0, 30) || "Guest Session", messages: [userMsg], model: effectiveModel, createdAt: Date.now(), updatedAt: Date.now() }, ...prev];
-          return sortChats(prev.map(chat => chat.id === currentId ? { ...chat, messages: [...chat.messages, userMsg], updatedAt: Date.now() } : chat));
-        });
-        setActiveChatId(currentId);
-      } else {
-        isNewSession = true; 
-        currentId = `session_${Date.now()}`; 
-        const mapStore = useMapStore.getState();
-        mapStore.setcurrentConversationApiKey(null);
-        mapStore.clearApiKeys();
-        setChats(prev => [{ id: currentId as string, title: input.slice(0, 30), messages: [userMsg], model: effectiveModel, createdAt: Date.now(), updatedAt: Date.now() }, ...prev]); 
-        setActiveChatId(currentId); 
-      }
-    }
-
-    setSuggestions([]);
-    setIsLoading(true);
-    try {
-      const payload = { 
-        message: input, model: effectiveModel, ephemeral, is_generate: isRegenerate, is_silent_retry: isSilentRetry, is_clarity: isClarity, 
-       ...(mapselection ? { mapselection } : (choiceKey && choiceValue ? { mapselection: { key: choiceKey, value: choiceValue } } : {})),
-        ...(editMessageId && { edit_message_id: editMessageId }), 
-        ...(images.length > 0 && { images }), 
-        ...((isNewSession || ephemeral) ? {} : { conversationId: currentId })
-      };
-
-      const { currentConversationApiKey, apiKeys } = useMapStore.getState();
-      const activeHeaderKey = currentConversationApiKey || apiKeys.gistda;
-
-      const response = await chatService.sendMessageStream(payload, activeHeaderKey);
-      let realIdToSwapLater = response.headers.get('X-Conversation-Id') || response.headers.get('conversation_id');
-      const assistantMsg: Message = { role: "assistant", content: "" };
-
-      if (!targetMessageId) {
-        if (!ephemeral) setChats(prev => prev.map(chat => chat.id === currentId ? { ...chat, messages: [...chat.messages, assistantMsg] } : chat));
-        else setEphemeralMessages(prev => [...prev, assistantMsg]);
-      }
-      
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let accumulatedContent = "";
-      let buffer = "";
-      
-      let currentEvent = CHAT_CONFIG.mapEvents.messageUpdate; 
-
-      if (reader) {
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n');
-          buffer = lines.pop() || "";
-
-          for (const line of lines) {
-            if (line.startsWith('event: ')) {
-              currentEvent = line.replace('event: ', '').trim();
-              continue;
-            }
-
-            if (!line.startsWith('data: ')) continue;
-            try {
-              const jsonStr = line.replace('data: ', '').trim();
-              if (!jsonStr || jsonStr === '[DONE]') continue;
-              const data = JSON.parse(jsonStr);
-
-              const eventType = data.event || currentEvent;
-
-              // Handle Conversation ID Swapping
-              const realId = data.conversationId || data.conversation_id || data.chat_id || data.chatId;
-             
-              if (realId) {
-                if (currentId?.startsWith('session_')) {
-                  const oldSessionId = currentId;
-                  setChats(prev => prev.map(chat => chat.id === oldSessionId ? { ...chat, id: realId } : chat));
-                  currentId = realId;
-                  setActiveChatId(realId);
-                  setPaginationConfig(prev => ({ ...prev, [realId]: { page: 1, hasMore: false } }));
-                  const mapStore = useMapStore.getState();
-                  if (mapStore.apiKeys.gistda) {
-                    mapStore.setSessionKey(realId, mapStore.apiKeys.gistda);
-                    mapStore.setcurrentConversationApiKey(mapStore.apiKeys.gistda);
-                  }
-                }
-                if (isNewSession && !realIdToSwapLater && !ephemeral) {
-                  realIdToSwapLater = String(realId);
-                }
-              }
-
-              const streamModel = data.model || data.modelName || data.model_name || data.model_id;
-                if (streamModel && eventType !== 'vision') {
-                  setChats(prev => prev.map(chat => 
-                    chat.id === currentId 
-                      ? { ...chat, model: streamModel } 
-                      : chat
-                  ));
-                }
-
-
-              // Handle Missing API Key
-              if (data.code === CHAT_CONFIG.mapEvents.missingApiKey || data.needsApiKey) {
-                setPendingChat({ input, model, images, options: { ...options, explicitChatId: currentId } });
-                openKeyModal(); 
-                setChats(prev => prev.map(chat => chat.id === currentId ? { ...chat, messages: chat.messages.filter(m => m.role !== "assistant" || m.content !== "") } : chat));
-                reader.cancel(); return; 
-              }
-
-              // Handle Map Events (Catalog)
-              if (eventType === CHAT_CONFIG.mapEvents.layerCatalog && data.layer) {
-                const b = data.layer;
-                const currentLayers = useMapStore.getState().dynamicLayers; 
-                
-                const newLayerId = b.layerId || b.styleId || b.basename || b.layerName || `ai-layer-${Date.now()}`;
-                
-                if (!currentLayers.some(l => l.id === newLayerId)) {
-                  setDynamicLayers([...currentLayers, {
-                    id: newLayerId,
-                    type: b.type, 
-                    baseUrl: b.url, 
-                    layerId: newLayerId,
-                    title: b.title, 
-                    apiProvider: b.url?.includes('vallaris') ? 'vallaris' : 'gistda',
-                    bounds: b.bounds, 
-                    minzoom: b.minzoom, 
-                    maxzoom: b.maxzoom,
-                  }]);
-                }
-                continue;
-              }
-
-              // Handle Map Events
-              if (eventType === CHAT_CONFIG.mapEvents.mapStyle && (data.availableStyles || data.layers)) {
-                const currentLayers = useMapStore.getState().dynamicLayers; 
-                
-                const updatedLayers = currentLayers.map(layer => {
-                  if (layer.layerId === data.layerId || layer.id === data.layerId) {
-                    const receivedStyles = data.availableStyles || [];
-                    const baseStyleKey = data.defaultStyle || (receivedStyles.length > 0 ? receivedStyles[0].styleKey : 'default');
-
-                    return { 
-                      ...layer, 
-                      availableStyles: receivedStyles,
-                      activeStyleKey: layer.activeStyleKey || baseStyleKey,
-                      renderStyles: data.layers || layer.renderStyles 
-                    };
-                  }
-                  return layer;
-                });
-                
-                setDynamicLayers(updatedLayers);
-                continue;
-              }
-
-              // Handle Map Options
-              if (eventType === CHAT_CONFIG.mapEvents.mapOptions || data.needInfo || data.choices) {
-                const choices = data.choices || data.payload?.choices;
-                const key = data.key || data.payload?.key;
-                const questionText = data.question || data.payload?.question || ""; 
-                const pagination = data.pagination || data.payload?.pagination;
-
-                const reqOffset = mapselection?.pagination?.offset || 0;
-                const updateMsg = (m: Message) => m.role === "assistant" ? { 
-                  ...m, 
-                  content: questionText || m.content, 
-                  choices: choices, 
-                  choiceKey: key,
-                  pagination: pagination ? { ...pagination, offset: reqOffset } : undefined,
-                } : m;
-                
-                if (ephemeral) {
-                  setEphemeralMessages(prev => prev.map((m, i) => i === prev.length - 1 ? updateMsg(m) : m));
-                } else {
-                  setChats(prev => prev.map(c => {
-                    if (c.id !== currentId) return c;
-                    return {
-                      ...c,
-                      messages: c.messages.map((m,i) => {
-                        const isTarget = targetMessageId ? m.id === targetMessageId : i === c.messages.length - 1;
-                        return isTarget && m.role === "assistant" ? updateMsg(m) : m;
-                      })
-
-                    };
-                  }));
-                }
-                continue;
-              }
-
-              if (eventType === CHAT_CONFIG.mapEvents.mapClear) {
-                const mapStore = useMapStore.getState();
-                if (data.mode === CHAT_CONFIG.mapClearModes.all) {
-                  mapStore.clearLayers();
-                } 
-                else if (data.mode === CHAT_CONFIG.mapClearModes.selected && data.layerIds) {
-                  const filteredLayers = mapStore.dynamicLayers.filter(
-                    layer => !data.layerIds.includes(layer.id) && !data.layerIds.includes(layer.layerId)
-                  );
-                  mapStore.setDynamicLayers(filteredLayers);
-                }
-                continue;
-              }
-
-              if (eventType === CHAT_CONFIG.mapEvents.suggestions && data.items) {
-                setSuggestions(data.items);
-                continue;
-              }
-
-              // Handle Message IDs
-              const incomingUserId = data.usermessage_id || data.userMessageId;
-              const incomingAssistantId = data.assistantmessage_Id || data.assistantMessageId;
-              if (incomingUserId || incomingAssistantId) {
-                setChats(prev => prev.map(chat => {
-                  if(chat.id !== currentId) return chat;
-                  const safeMsgs = [...chat.messages];
-                  if (incomingUserId) {
-                    for (let i = safeMsgs.length - 1; i >= 0; i--) {
-                      if (safeMsgs[i].role === "user" && (!safeMsgs[i].id || String(safeMsgs[i].id).startsWith("temp_"))) { 
-                        safeMsgs[i] = { ...safeMsgs[i], id: incomingUserId }; 
-                        break; 
-                      }
-                    }
-                  }
-                  if (incomingAssistantId) {
-                    for (let i = safeMsgs.length - 1; i >= 0; i--) {
-                      if (safeMsgs[i].role === "assistant" && (!safeMsgs[i].id || String(safeMsgs[i].id).startsWith("temp_"))) { 
-                        safeMsgs[i] = { ...safeMsgs[i], id: incomingAssistantId }; 
-                        break; 
-                      }
-                    }
-                  }
-                  return { ...chat, messages: safeMsgs };
-                }));
-              }
-
-              // Handle Content Streaming
-              const textChunk = data.text || data.content || "";
-              accumulatedContent += textChunk;
-              const displayContent = accumulatedContent.split("<thinking>").pop()?.trim() || accumulatedContent;
-
-              if (ephemeral) {
-                setEphemeralMessages(prev => prev.map((m, i) => i === prev.length - 1 ? { ...m, content: displayContent } : m));
-              } else {
-                setChats(prev => prev.map(chat => {
-                  if (chat.id !== currentId) return chat;
-                  const safeMsgs = [...chat.messages];
-                  
-                  if (targetMessageId) {
-                    const targetIdx = safeMsgs.findIndex(m => m.id === targetMessageId);
-                    if (targetIdx !== -1) {
-                      safeMsgs[targetIdx] = { ...safeMsgs[targetIdx], content: displayContent || safeMsgs[targetIdx].content };
-                    }
-                  } else {
-                    const lastIdx = safeMsgs.length - 1;
-                    if (lastIdx >= 0 && safeMsgs[lastIdx].role === "assistant") {
-                       safeMsgs[lastIdx] = { ...safeMsgs[lastIdx], content: displayContent || safeMsgs[lastIdx].content }; 
-                    } else {
-                       safeMsgs.push({ id: `temp_assistant_${Date.now()}`, role: "assistant", content: displayContent });
-                    }
-                  }
-                  
-                  return { ...chat, messages: safeMsgs };
-                }));
-              }
-
-            } catch (e) { 
-              console.error("JSON Parse Error", e); 
-            }
-          }
-        }
-      }
-
-      if (!ephemeral && isNewSession && realIdToSwapLater) {
-        setPaginationConfig(prev => ({ ...prev, [realIdToSwapLater as string]: { page: 1, hasMore: false } }));
-        setChats(prev => prev.map(chat => chat.id === currentId ? { ...chat, id: realIdToSwapLater as string } : chat));
-        setActiveChatId(realIdToSwapLater as string);
-        const mapStore = useMapStore.getState();
-        if (mapStore.apiKeys.gistda) {
-          mapStore.setSessionKey(realIdToSwapLater as string, mapStore.apiKeys.gistda);
-          mapStore.setcurrentConversationApiKey(mapStore.apiKeys.gistda);
-        }
-      }
-    } catch (error) { console.error("Stream failed:", error); } 
-    finally { setIsLoading(false); }
   };
 
   const deleteChat = async (id: string) => {

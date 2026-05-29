@@ -107,6 +107,23 @@ export const ChatFeature = () => {
     );
   };
 
+  const handleSendSearch = (messageId: string, searchQuery: string) => {
+    sendMessage(
+      searchQuery, // ส่งข้อความคำค้นหาเป็น prompt หลักไปให้หลังบ้านอ่านง่ายๆ
+      selectedModel, 
+      [], 
+      { 
+        isSilentRetry: true,        // ยิงเงียบ ไม่ขึ้นบับเบิ้ลข้อความใหม่บนหน้าจอแชท
+        targetMessageId: messageId,  // ล็อกเป้าไอดีกล่องปัจจุบัน เพื่อให้ของใหม่สวมทับตำแหน่งเดิม
+        mapselection: { 
+          key: "layerId",            // ยืนยันสล็อตบริบทเดิมว่าเรากำลังเลือก layerId
+          search: searchQuery,       // ส่งคำค้นหาไปฟิลเตอร์
+          pagination: { offset: 0 }  // ค้นหาใหม่ ต้องรีเซ็ตกลับไปหน้าแรกของผลลัพธ์เสมอ
+        } 
+      } as any
+    );
+  };
+
   const handleSendMessage = async (val: string, images: string[] = []) => {
     if (isGuestTimeUp()) {
       const hasStartTime = localStorage.getItem(AUTH_CONFIG.session.guestStartTimeStorageKey);
@@ -187,6 +204,7 @@ export const ChatFeature = () => {
             onSelectTemplate={(text) => handleSendMessage(text)} 
             onSendChoice={handleSendChoice}
             onSendPagination={handleSendPagination}
+            onSendSearch={handleSendSearch}
           />
         </div>
 
