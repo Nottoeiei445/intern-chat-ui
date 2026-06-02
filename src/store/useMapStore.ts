@@ -45,6 +45,10 @@ interface MapState {
   triggerLayerMention: (layerId: string) => void;
   clearPendingMention: () => void;
 
+  pendingAttribute: string | null,
+  setPendingAttribute: (text: string) => void,
+  clearPendingAttribute: () => void,
+
   activeChatId: string | null;
   setActiveChatId: (id: string | null) => void;
 }
@@ -106,4 +110,7 @@ export const useMapStore = create<MapState>((set) => ({
   clearPendingMention: () => set({ pendingMention: null }),
   activeChatId: null,
   setActiveChatId: (id) => set({ activeChatId: id }),
+  pendingAttribute: null,
+  setPendingAttribute: (text) => set({ pendingAttribute: text }),
+  clearPendingAttribute: () => set({ pendingAttribute: null }),
 }));

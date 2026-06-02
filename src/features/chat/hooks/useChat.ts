@@ -1,3 +1,4 @@
+// src/features/chat/hooks/useChat.ts
 "use client"
 
 import { useState, useEffect, useMemo } from "react"; 
@@ -8,7 +9,7 @@ import { AUTH_CONFIG } from "@/features/auth/config/auth.config";
 import { storage } from "@/lib/storage";
 import { useMapStore } from '@/store/useMapStore';
 import { checkAndCleanupExpiredGuest, startGuestExpiryTimer } from "../../auth/utils/guest-timer.util";
-import { useChatStream } from "./useChatStream"; //
+import { useChatStream } from "./useChatStream"; 
 
 // --- Helpers ---
 const sortChats = (list: ChatThread[]) => { 
@@ -68,13 +69,16 @@ const mapBackendLayers = (backendLayers: any[]): any[] => {
 export function useChat() {
   // 1. Context & Store
   const { user } = useAuth(); 
+  
+  // 🌟 [CHANGED]: เพิ่มการดึงสิทธิ์ตัวแปร currentConversationApiKey มาร่วมรับรู้สเตทการสลับคีย์ค้นหา
   const { 
     apiKeys, openKeyModal, pendingChat, 
     setPendingChat, clearPendingChat,
-    dynamicLayers, setDynamicLayers 
+    dynamicLayers, setDynamicLayers,
+    currentConversationApiKey
   } = useMapStore();
 
-  // 2. Main Chat State (สเตทโฮสต์หลักคงไว้)
+  // 2. Main Chat State 
   const [chats, setChats] = useState<ChatThread[]>([]); 
   const [activeChatId, setActiveChatId] = useState<string | null>(null); 
 
@@ -110,14 +114,24 @@ export function useChat() {
   // --- 5. Initialization Effects ---
   useEffect(() => { setIsSessionReady(true); }, []);
 
+  // 🌟 [CHANGED]: ชนวนระเบิดแก้บั๊ก ยกระดับคิวส่งซ้ำอัจฉริยะ (Retry Queue) รองรับครอบคลุมทุกคีย์
   useEffect(() => {
-    if (apiKeys.gistda && pendingChat) {
+    // เช็กสถานะความพร้อมว่าระบบได้คีย์ตัวใดตัวหนึ่งฝังเข้าประวัติสาขาเรียบร้อยแล้วหรือยัง
+    const hasAnyKeyPopulated = apiKeys.gistda || apiKeys.vallaris || currentConversationApiKey;
+
+    if (hasAnyKeyPopulated && pendingChat) {
       const options = { ...pendingChat.options, isSilentRetry: true };
       if (user && options.explicitChatId?.startsWith('guest_')) delete options.explicitChatId;
+      
+      // 🎯 ท่าไม้ตายลั่นไกซ้ำ: สั่งประมวลผลยิงข้อความแชทเดิมที่ค้างไว้ เดินหน้าลุยต่อทันทีโดยไม่ต้องกดส่งซ้ำ!
+      sendMessage(pendingChat.input, pendingChat.model, pendingChat.images, options);
+      
+      // ล้างตู้จดหมายค้างส่งออกเพื่อป้องกันบักลูปอินฟินิตี้ส่งข้อความเบิ้ล
       clearPendingChat();
     }
-  }, [apiKeys.gistda, pendingChat, user]);
+  }, [apiKeys.gistda, apiKeys.vallaris, currentConversationApiKey, pendingChat, user, sendMessage, clearPendingChat]);
 
+  // Fetch all histories
   useEffect(() => {
     if (!isSessionReady) return;
 
@@ -193,12 +207,12 @@ export function useChat() {
         
         chatService.getConversationLayers(targetId)
           .then(layersResponse => {
-            let rawLayers = layersResponse?.layers || layersResponse?.data?.layers || layersResponse?.data || layersResponse || [];
-            const restoredLayers = mapBackendLayers(Array.isArray(rawLayers) ? rawLayers : []);
-            useMapStore.getState().setDynamicLayers(restoredLayers);
+             let rawLayers = layersResponse?.layers || layersResponse?.data?.layers || layersResponse?.data || layersResponse || [];
+             const restoredLayers = mapBackendLayers(Array.isArray(rawLayers) ? rawLayers : []);
+             useMapStore.getState().setDynamicLayers(restoredLayers);
           })
           .catch(err => {
-            useMapStore.getState().setDynamicLayers([]);
+             useMapStore.getState().setDynamicLayers([]);
           });
         
         setChats(prev => {

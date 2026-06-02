@@ -116,9 +116,8 @@ export const ChatFeature = () => {
         isSilentRetry: true,        // ยิงเงียบ ไม่ขึ้นบับเบิ้ลข้อความใหม่บนหน้าจอแชท
         targetMessageId: messageId,  // ล็อกเป้าไอดีกล่องปัจจุบัน เพื่อให้ของใหม่สวมทับตำแหน่งเดิม
         mapselection: { 
-          key: "layerId",            // ยืนยันสล็อตบริบทเดิมว่าเรากำลังเลือก layerId
-          search: searchQuery,       // ส่งคำค้นหาไปฟิลเตอร์
-          pagination: { offset: 0 }  // ค้นหาใหม่ ต้องรีเซ็ตกลับไปหน้าแรกของผลลัพธ์เสมอ
+          key: "search",            // ใช้ key "search" เพื่อให้หลังบ้านรู้ว่าเป็นคำค้นหา ไม่ใช่ pagination หรือ choice
+          value: searchQuery,       // ส่งคำค้นหาไปฟิลเตอร์
         } 
       } as any
     );

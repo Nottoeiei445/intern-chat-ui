@@ -268,7 +268,8 @@ export const MessageItem = ({
                 </div>
               )}
 
-              {msg.role === "assistant" && msg.choices && msg.choices.length > 0 && !isEditing && (
+              {/* 🌟 บล็อกควบคุมกล่องตัวเลือกเลเยอร์ */}
+              {msg.role === "assistant" && msg.choices && !isEditing && (msg.choices.length > 0 || msg.pagination || msg.choiceKey === "layerId") && (
                 <div className="mt-5 pt-4 border-t border-border flex flex-col gap-3 animate-in fade-in slide-in-from-top-2 duration-500">
                   
                   <span className="text-[11px] text-muted-foreground font-semibold uppercase tracking-widest flex items-center gap-1.5 mb-1">
@@ -276,20 +277,21 @@ export const MessageItem = ({
                     Please select an option
                   </span>
 
-                  {msg.choiceKey === "layerId" && (
+                  {/* 🔍 1. กล่องค้นหา (คงอยู่ถาวรไม่ยอมหายไปไหนแล้ว) */}
+                  {(msg.choiceKey === "layerId" || msg.pagination) && (
                     <div className="relative w-full mb-1">
                       <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-muted-foreground/60">
                         <Search size={15} />
                       </span>
                       <input
                         type="text"
-                        placeholder={`Search within ${numberMatched.toLocaleString()} layers`}
+                        placeholder={numberMatched > 0 ? `Search within ${numberMatched.toLocaleString()} layers` : "Search layers..."}
                         disabled={!isLatestMessage || isLoading || selectedChoice !== null}
                         className="w-full pl-9 pr-4 py-2 text-xs sm:text-sm bg-background border border-border rounded-xl outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/30 transition-all font-ibm placeholder:text-muted-foreground/50 text-foreground disabled:opacity-40 disabled:cursor-not-allowed"
                         onKeyDown={(e) => {
                           if (e.key === "Enter" && e.currentTarget.value.trim() && msg.id && onSendSearch) {
                             e.preventDefault();
-                            setSelectedChoice("pagination_clicked"); // เปิด Loading หลอกๆ เพื่อล็อกปุ่มกันกดเบิ้ล
+                            setSelectedChoice("pagination_clicked"); 
                             onSendSearch(msg.id, e.currentTarget.value.trim());
                           }
                         }}
@@ -297,58 +299,70 @@ export const MessageItem = ({
                     </div>
                   )}
                   
-                  <div className="flex flex-col gap-2 w-full">
-                    {msg.choices.map((choice, idx) => {
-                      const isSelected = selectedChoice === choice.value;
-                      const hasSelection = selectedChoice !== null;
-                      const isChoiceClickable = isLatestMessage && !isLoading && !hasSelection;
+                  {/* 📊 2. ส่วนสลับผลลัพธ์การค้นหา */}
+                  {msg.choices.length === 0 ? (
+                    // 🌟 [FIXED]: บังคับพ่นประโยคแจ้งเตือนสากลคลีนๆ ทันทีโดยไม่สน Content ตัวเก่าที่ค้างสตรีม
+                    <div className="py-6 px-4 text-center animate-in fade-in duration-200">
+                      <p className="text-xs sm:text-[13px] text-muted-foreground font-medium leading-relaxed">
+                        No matching layers found. Please try another keyword.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-2 w-full">
+                      {msg.choices.map((choice, idx) => {
+                        const isSelected = selectedChoice === choice.value;
+                        const hasSelection = selectedChoice !== null;
+                        const isChoiceClickable = isLatestMessage && !isLoading && !hasSelection;
 
-                      return (
-                        <button
-                          key={idx}
-                          disabled={!isChoiceClickable} 
-                          onClick={() => {
-                            setSelectedChoice(choice.value); 
-                            onSendChoice?.(msg.choiceKey || "", choice.value); 
-                          }}
-                          className={`group relative flex items-center justify-between w-full px-4 py-3 bg-background border rounded-xl transition-all duration-300 text-left overflow-hidden shadow-sm ${
-                            isSelected
-                              ? "border-primary bg-primary/10 ring-1 ring-primary/50" 
-                              : !isChoiceClickable 
-                                ? "border-transparent opacity-50 cursor-not-allowed bg-muted/50 grayscale" 
-                                : "border-border hover:bg-accent hover:border-primary/50 active:scale-[0.98] hover:shadow-md" 
-                          }`}
-                        >
-                          <span className={`text-sm font-medium z-10 transition-colors ${
-                            isSelected 
-                              ? 'text-primary font-bold' 
-                              : !isChoiceClickable 
-                                ? 'text-muted-foreground' 
-                                : 'text-foreground group-hover:text-primary'
-                          }`}>
-                            {choice.label}
-                          </span>
-                          
-                          <div className={`transition-all duration-300 z-10 ${
-                            isSelected 
-                              ? 'opacity-100 text-primary' 
-                              : 'opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 text-primary'
-                          }`}>
-                            {isSelected ? (
-                              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-                              </svg>
-                            ) : isChoiceClickable ? (
-                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                              </svg>
-                            ) : null}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {msg.pagination && (
+                        return (
+                          <button
+                            key={idx}
+                            disabled={!isChoiceClickable} 
+                            onClick={() => {
+                              setSelectedChoice(choice.value); 
+                              onSendChoice?.(msg.choiceKey || "", choice.value); 
+                            }}
+                            className={`group relative flex items-center justify-between w-full px-4 py-3 bg-background border rounded-xl transition-all duration-300 text-left overflow-hidden shadow-sm ${
+                              isSelected
+                                ? "border-primary bg-primary/10 ring-1 ring-primary/50" 
+                                : !isChoiceClickable 
+                                  ? "border-transparent opacity-50 cursor-not-allowed bg-muted/50 grayscale" 
+                                  : "border-border hover:bg-accent hover:border-primary/50 active:scale-[0.98] hover:shadow-md" 
+                            }`}
+                          >
+                            <span className={`text-sm font-medium z-10 transition-colors ${
+                              isSelected 
+                                ? 'text-primary font-bold' 
+                                : !isChoiceClickable 
+                                  ? 'text-muted-foreground' 
+                                  : 'text-foreground group-hover:text-primary'
+                            }`}>
+                              {choice.label}
+                            </span>
+                            
+                            <div className={`transition-all duration-300 z-10 ${
+                              isSelected 
+                                ? 'opacity-100 text-primary' 
+                                : 'opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 text-primary'
+                            }`}>
+                              {isSelected ? (
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                                </svg>
+                              ) : isChoiceClickable ? (
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                              ) : null}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* ⏭️ 3. แผงควบคุมหน้า (จะแสดงผลเฉพาะตอนที่มี choices เลเยอร์รันอยู่เท่านั้น) */}
+                  {msg.pagination && msg.choices.length > 0 && (
                     <div className="flex items-center justify-between pt-3 mt-1 border-t border-border">
                       <span className="text-[11px] text-muted-foreground font-medium font-ibm">
                         Showing {startItem} - {endItem} of {numberMatched}

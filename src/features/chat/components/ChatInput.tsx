@@ -24,13 +24,23 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
   const [images, setImages] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   
-  const { isKeyModalOpen, dynamicLayers, pendingMention, clearPendingMention, currentConversationApiKey } = useMapStore();
+  const { 
+    isKeyModalOpen, 
+    dynamicLayers, 
+    pendingMention, 
+    clearPendingMention, 
+    currentConversationApiKey,
+    pendingAttribute,       //  เติมตัวรับจดหมายแอตทริบิวต์
+    clearPendingAttribute  //  เติมฟังก์ชันส่งใบเสร็จเคลียร์ค่า
+  } = useMapStore();
+
   const isInputDisabled = isGuestExpired || isKeyModalOpen;
   const [isEditorEmpty, setIsEditorEmpty] = useState(true);
   const { keys, hosts } = useApiKeys();
   const activeKeyObj = keys.find(k => k.id === currentConversationApiKey || k.maskedKey === currentConversationApiKey);
   const currentHost = hosts.find((h) => h.id === activeKeyObj?.hostId);
   const activeHostName = currentHost ? currentHost.hostname : null;
+  const [isBannerDismissed, setIsBannerDismissed] = useState(false);
 
   const editor = useEditor({
   extensions: [
@@ -82,6 +92,12 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
     }
   }, [isInputDisabled, editor]);
 
+  useEffect(() => {
+    if (isEditorEmpty) {
+      setIsBannerDismissed(false);
+    }
+  }, [isEditorEmpty]);
+
   // ฟังก์ชันแปลงโครงสร้าง Editor กลับเป็นข้อความดิบที่ API รู้จัก โดยจะตรวจจับรูปแบบพิเศษของ Mention แล้วแปลงเป็น xxx
   const getSerializedContent = () => {
     if (!editor) return "";
@@ -106,8 +122,8 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
       return text;
     };
 
-    return parseNode(json).trim();
-  };
+  return parseNode(json).trim();
+};
 
   useEffect(() => {
     if (pendingMention && editor) {
@@ -142,6 +158,15 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
       setTimeout(() => editor.commands.focus('end'), 10);
     }
   }, [pendingMention, dynamicLayers, clearPendingMention, editor]);
+
+  useEffect(() => {
+    if (pendingAttribute && editor) {
+      editor.commands.insertContent(pendingAttribute + ' ');
+      setIsEditorEmpty(false);
+      clearPendingAttribute();
+      setTimeout(() => editor.commands.focus('end'), 10);
+    }
+  }, [pendingAttribute, clearPendingAttribute, editor]);
 
   // --- ระบบจัดการรูปภาพภาพ ---
   const fileToBase64 = (file: File): Promise<string> => {
@@ -192,22 +217,19 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
     setImages(prev => prev.filter((_, i) => i !== index));
   };
 
-  // ฟังก์ชันจัดการเมื่อคลิกที่ปุ่มส่งข้อความ หรือกด Enter โดยจะตรวจสอบว่ามีข้อความหรือรูปภาพหรือไม่ก่อนส่ง และจะล้างเนื้อหาใน Editor พร้อมรีเซ็ตสถานะหลังส่ง
   const handleSend = () => {
     if (!editor || isLoading || isInputDisabled) return;
 
-    const finalPayload = getSerializedContent(); // แปลงเนื้อหาใน Editor เป็นข้อความดิบที่ API รู้จัก
-    if (!finalPayload && images.length === 0) return; // ห้ามส่งถ้าไม่มีข้อความและไม่มีรูปภาพ
+    const finalPayload = getSerializedContent(); 
+    if (!finalPayload && images.length === 0) return; 
 
     onSendMessage(finalPayload, images);
     
-    // ล้างเนื้อหาใน Editor ทิ้งให้พร้อมรันข้อความต่อไป
     editor.commands.clearContent();
     setImages([]);
     setIsEditorEmpty(true);
   };
 
-  // ฟังก์ชันจัดการเมื่อคลิกที่ปุ่มคำแนะนำ (Suggestion) โดยจะตรวจสอบประเภทของคำแนะนำและดำเนินการตามนั้น เช่น ถ้าเป็นคำสั่งเคลียร์เลเยอร์ก็จะตั้งค่าเนื้อหาใน Editor เป็นข้อความที่มีเครื่องหมาย @ พร้อมกับชื่อเลเยอร์เพื่อให้ระบบ Mention แปลงเป็นป้าย Chip ทันที
   const handleSuggestionClick = (suggestion: SuggestionItem) => {
     if (isLoading || isInputDisabled || !editor) return;
 
@@ -228,11 +250,10 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
       
       textToSet = textToSet.replace(/\{value\}/g, "").trim() + " "; 
       
-      editor.commands.setContent(textToSet);
+      editor.commands.clearContent();
+      editor.commands.insertContent(textToSet);
       setIsEditorEmpty(false);
-      setTimeout(() => {
-        editor.commands.focus('end'); // โฟกัสเคอร์เซอร์ไปที่ท้ายประโยคพร้อมให้พิมพ์ต่อ
-      }, 10);
+      setTimeout(() => { editor.commands.focus('end'); }, 10);
       return;
     }
     if (isGuidedAttributeValue) {
@@ -242,12 +263,10 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
 
       textToSet = textToSet.trim() + " [color]"; 
 
-      editor.commands.setContent(textToSet);
+      editor.commands.clearContent();
+      editor.commands.insertContent(textToSet);
       setIsEditorEmpty(false);
-      
-      setTimeout(() => {
-        editor.commands.focus('end'); 
-      }, 10);
+      setTimeout(() => { editor.commands.focus('end'); }, 10);
       return;
     }
 
@@ -261,7 +280,7 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
 };
 
   return (
-    <div className="p-6 bg-gradient-to-t from-background to-transparent bg-background">
+    <div className="px-6 pb-6 pt-2 bg-gradient-to-t from-background to-transparent bg-background">
       <div className="max-w-4xl mx-auto relative">
 
         <ApiKeyPopover />
@@ -285,6 +304,31 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
                 </button>
               );
             })}
+          </div>
+        )}
+        
+        {editor && !isEditorEmpty && !isBannerDismissed && (editor.getText().includes("by attribute") || editor.getText().includes("attribute value")) && (
+          <div className="mb-2 p-2.5 bg-primary/5 border border-primary/10 rounded-xl text-[11px] sm:text-xs text-muted-foreground flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-1 duration-300 font-sans select-none w-full">
+            
+            {/* ฝั่งซ้าย: ไอคอนและเนื้อหาคำแนะนำ */}
+            <div className="flex items-center gap-2">
+              <div className="p-1 bg-primary/10 rounded-md text-primary shrink-0">
+                <Sparkles size={12} className="animate-pulse" />
+              </div>
+              <p className="leading-normal">
+                <span className="text-foreground font-semibold">💡 Tip:</span> Click on any map feature to view its attributes. You can then <span className="text-primary font-medium hover:underline">click on any attribute name</span> to insert it directly into the chat input.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsBannerDismissed(true)}
+              className="text-muted-foreground/50 hover:text-foreground p-0.5 rounded-md hover:bg-muted/20 transition-colors shrink-0 cursor-pointer"
+              title="Dismiss tip"
+            >
+              <X size={12} strokeWidth={2.5} />
+            </button>
+            
           </div>
         )}
 

@@ -222,27 +222,39 @@ export const useChatStream = ({
                 });
 
                 updatedLayers = updatedLayers.map(layer => {
-                  if (layer.id === "66e1294a99287a90ba480491" || layer.layerId === "66e1294a99287a90ba480491") {
+                  if (layer.id === "68172e7b171be104cc2be349" || layer.layerId === "68172e7b171be104cc2be349") {
                     return {
                       ...layer,
                       renderStyles: [
                         {
                           "type": "fill",
+                          
+                          "filter": ["==", ["get", "re_nesdb"], "Northeast"],
+                          
+                          // "filter": [">=", ["get", "freq"], 7],
+                          
+                          // "filter": [
+                          //   "all",
+                          //   ["==", ["get", "re_nesdb"], "Northeast"],
+                          //   [">=", ["get", "freq"], 7]
+                          // ],
+
                           "paint": {
                             "fill-color": [
                               "case",
                               ["boolean", ["feature-state", "hover"], false], "#FFFF00",
-                              ["all", ["==", ["get", "y_2011"], 1], ["==", ["get", "y_2018"], 1]], "#a855f7",
-                              ["==", ["get", "y_2011"], 1], "#f472b6",
-                              ["==", ["get", "y_2018"], 1], "#3b82f6",
-                              "#cccccc"
+                              [ 
+                                "interpolate",
+                                ["linear"],
+                                ["get", "freq"],
+                                1, "#22C55E",
+                                3, "#EAB308",
+                                5, "#F97316",
+                                7, "#EF4444",
+                                10, "#7E22CE"
+                              ]
                             ],
-                            "fill-opacity": [
-                              "interpolate", ["linear"], ["get", "freq"],
-                              1, 0.4,
-                              2, 0.7,
-                              5, 0.95
-                            ],
+                            "fill-opacity": 1,
                             "fill-outline-color": "#ffffff"
                           }
                         }

@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState } from "react"
 import { MapDashboard } from '../features/map';
 import { ChatFeature } from "../features/chat"
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { AuthWidget } from "@/features/auth/components/AuthWidget";
 import { LayerManager } from "@/features/map/components/LayerManager";
+import { MapLegend } from "@/features/map/components/MapLegend"; 
 
 export default function MapPage() {
   const [isChatOpen, setIsChatOpen] = useState(true);
@@ -13,8 +14,18 @@ export default function MapPage() {
   return (
     <main className="relative h-screen w-full overflow-hidden bg-background">
       
+      {/* ฝั่งแผนที่พื้นหลัง */}
       <div className="absolute inset-0 z-0">
         <MapDashboard />
+      </div>
+
+      <div 
+        className={`
+          absolute bottom-6 z-10 transition-all duration-300 ease-in-out
+          ${isChatOpen ? "left-[524px]" : "left-6"}
+        `}
+      >
+        <MapLegend />
       </div>
 
       {/* แถบแชท Sidebar ฝั่งซ้าย */}
@@ -65,7 +76,6 @@ export default function MapPage() {
         <div className="pointer-events-auto">
           <LayerManager />
         </div>
-
       </div>
 
       {/* ปรับแต่งสำหรับ Mobile */}
