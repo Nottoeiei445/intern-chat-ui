@@ -9,38 +9,16 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
   const { apiKeys, hiddenLayers, isBaseMapVisible , currentConversationApiKey} = useMapStore();
   const activeLayerIds = useRef<string[]>([]);
 
+  // 🌟 [ADDED 1]: สร้างตัวจำสเตทจำลอง (Refs) เพื่อดักจับค่าความสดใหม่ของปุ่ม ซ่อน/แสดง เลเยอร์
+  // ช่วยแก้ปัญหาเรื่อง Stale Closure ทำให้ฟังก์ชัน handleStyleData ด้านล่างรับรู้สเตทเปิดปิดล่าสุดได้ตลอดเวลาโดยที่ Effect ไม่ต้องรันใหม่ลื่นๆ
   const hiddenLayersRef = useRef(hiddenLayers);
   const isBaseMapVisibleRef = useRef(isBaseMapVisible);
   
-  // 🔐 [ADDED]: ตัวจำลายนิ้วมือโครงสร้างข้อมูล เพื่อสกัดอาการลั่นของ Effect 1 
-  const lastLayersSignatureRef = useRef<string>('');
-
   useEffect(() => { hiddenLayersRef.current = hiddenLayers; }, [hiddenLayers]);
   useEffect(() => { isBaseMapVisibleRef.current = isBaseMapVisible; }, [isBaseMapVisible]);
 
-  // ==========================================
-  // Effect 1: ทำหน้าที่สร้าง/ลบ/จัดลำดับเลเยอร์ (โดนล็อกให้ทำงานเฉพาะเมื่อข้อมูลเปลี่ยนจริงเท่านั้น)
-  // ==========================================
   useEffect(() => {
     if (!map) return;
-
-    // 🔑 ล็อกชั้นที่ 1: ถอดรหัสเนื้อในของเลเยอร์ออกมาเป็นข้อความ String ดิบ (เด็ดขาดเรื่องที่อยู่หน่วยความจำ)
-    const currentSignature = JSON.stringify(
-      dynamicLayers.map(l => ({
-        id: l.id,
-        type: l.type,
-        styleKey: l.activeStyleKey,
-        filter: l.renderStyles?.map((s: any) => s.filter) // แอบจำค่าฟิลเตอร์ไว้ด้วย
-      }))
-    );
-
-    // 🛑 สกัดกั้นขั้นสูงสุด: ถ้าแค่กดปิด-เปิดลูกตา ค่าพิมพ์เขียวตรงนี้จะเหมือนเดิมเป๊ะ 100% 
-    // โค้ดจะเจอคำสั่ง return ดีีดกลับทันที! ไม่มีการเรียก renderLayers หรือ moveLayer ให้การ์ดจอกระตุกแน่นอนครับ
-    if (lastLayersSignatureRef.current === currentSignature) {
-      return;
-    }
-    // ถ้าผ่านด่านมาได้ (แปลว่าแอดเลเยอร์เพิ่ม, สั่งลบออก หรือลากสลับลำดับจริง) ค่อยบันทึกค่าใหม่ลงคลัง
-    lastLayersSignatureRef.current = currentSignature;
 
     const renderLayers = () => {
       if (!map.getStyle()) return; 
@@ -61,7 +39,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
 
           const fullUrl = mapService.buildDynamicUrl(layerConfig, effectiveApiKeys);
 
-          // แอด Source 
+          // แอด Source เฉพาะตอนที่มันยังไม่มีอยู่บนแผนที่จริง
           if (!map.getSource(sourceId)) {
             if (layerConfig.type === 'wms' || layerConfig.type === 'tms'|| layerConfig.type === 'wmts' || layerConfig.type === 'coverage_tile') {
               const titleSize = layerConfig.type === 'wmts' ? 512 : 256;
@@ -95,6 +73,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
               if (!activeLayerIds.current.includes(layerId)) activeLayerIds.current.push(layerId);
             }
           } 
+          // 🔵 เลนข้อมูลเวกเตอร์แบบไดนามิก ปล่อยเป็นเลนอิสระห้ามดักล็อกด้านนอกสุด
           else if (layerConfig.type === 'vector' || layerConfig.type === 'vector_tile') {
             const sourceLayerId = layerConfig.layerId || 'default';
             const hasAvailableStyles = layerConfig.availableStyles && layerConfig.availableStyles.length > 0;
@@ -118,6 +97,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
               const styleSignature = JSON.stringify(stylesToRender);
               const appliedFlag = `${layerId}-ai-applied-${currentStyleKey}-${styleSignature}`;
 
+              // แผนที่จะยอมให้เข้าไปเคลียร์สีและลงสีใหม่ เฉพาะตอนที่ตรวจพบลายเซ็นเปลี่ยนไปเท่านั้น
               if (!activeLayerIds.current.includes(appliedFlag)) {
                 
                 ['fill', 'line', 'point', 'fill-extrusion'].forEach(suffix => {
@@ -136,6 +116,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
                   !id.startsWith(`${layerId}-ai-applied-`)
                 );
 
+                // ทำการวนลูปทาสีและวาดประเภทเลเยอร์ตัวใหม่แกะกล่องลงไปบนจอ
                 stylesToRender.forEach((styleObj: any) => {
                   let suffix = 'fill';
                   if (styleObj.type === 'line' || styleObj.layerType === 'line') suffix = 'line';
@@ -153,6 +134,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
                     };
                     if (styleObj.paint && Object.keys(styleObj.paint).length > 0) layerParams.paint = styleObj.paint;
                     if (styleObj.layout && Object.keys(styleObj.layout).length > 0) layerParams.layout = styleObj.layout;
+                    
                     if (styleObj.filter) layerParams.filter = styleObj.filter;
 
                     map.addLayer(layerParams);
@@ -163,6 +145,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
                 activeLayerIds.current.push(appliedFlag);
               }
 
+              // ท่อส่งคำสั่งอัปเดต Filter แบบเรียลไทม์
               stylesToRender.forEach((styleObj: any) => {
                 let suffix = 'fill';
                 if (styleObj.type === 'line' || styleObj.layerType === 'line') suffix = 'line';
@@ -175,6 +158,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
                 }
               });
             } 
+            // 🟢 เลนที่ 2.3: ตัวเรนเดอร์โหมด Default กันตายกรณีไม่มีสไตล์ส่งมา
             else if (!map.getLayer(`${layerId}-fill`) && !map.getLayer(`${layerId}-line`) && !map.getLayer(`${layerId}-point`)) {
               const fillLayerId = `${layerId}-fill`;
               map.addLayer({
@@ -239,7 +223,11 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
         const layerId = `ai-layer-${layerConfig.id}`;
         
         const targetLayerIds = [
-          layerId, `${layerId}-fill`, `${layerId}-line`, `${layerId}-point`, `${layerId}-fill-extrusion`
+          layerId,
+          `${layerId}-fill`,
+          `${layerId}-line`,
+          `${layerId}-point`,
+          `${layerId}-fill-extrusion`
         ];
 
         targetLayerIds.forEach(targetId => {
@@ -252,6 +240,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
 
     // Garbage Collection 
     const currentConfigIds = dynamicLayers.map(l => l.id);
+
     const idsToRemove = activeLayerIds.current.filter(id => {
       const configId = id.replace('ai-layer-', '').replace('ai-source-', '').split('-')[0];
       return configId && !currentConfigIds.includes(configId);
@@ -268,38 +257,53 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
         map.removeSource(id);
       }
     });
+
     activeLayerIds.current = activeLayerIds.current.filter(id => !idsToRemove.includes(id));
-  
+
     renderLayers();
     reorderMapLayers();
 
+    // 🌟 [CHANGED]: อัปเกรดตัวตรวจจับการเปลี่ยนโครงสร้างสไตล์แผนที่หลัก (Theme เปลี่ยน)
     const handleStyleData = () => {
       if (!map.getStyle()) return;
+      
+      // ตรวจสอบว่าหลังจากอีเวนต์สไตล์ลั่นลงจอ มี Source ของเราหลุดหายไปไหม (ถ้าหายแปลว่าเกิดการสลับ Theme แน่นอน)
       const isMissingSources = dynamicLayers.some(layer => !map.getSource(`ai-source-${layer.id}`));
       
       if (isMissingSources) {
+        // 🔥 จุดไขบั๊ก: สั่งล้างหน่วยความจำแคชเก่าใน useRef ทิ้งให้สะอาดเอี่ยม เพื่อปลดล็อกให้ด่านผ่านฉลุยแอดเลเยอร์ใหม่ได้
         activeLayerIds.current = [];
-        lastLayersSignatureRef.current = ''; // สลัดทิ้งเพื่อยอมให้สร้างใหม่ตอนสลับธีม
+        
+        // รันฟังก์ชันยัดเลเยอร์และจัดระเบียบชั้นตึกใหม่ลงไปในธีมตัวใหม่ทันที
         renderLayers();
         reorderMapLayers();
 
+        // 🛡️ ซ้ำสิทธิ์ความปลอดภัย: บังคับอัปเดตสเตทการ ซ่อน/แสดง ล่าสุดให้ตรงตามค่าจริงในหน้าระบบทันทีหลังแอดเสร็จ
         dynamicLayers.forEach(layer => {
           const visibility = hiddenLayersRef.current.includes(layer.id) ? 'none' : 'visible';
           const targetLayerIds = [
-            `ai-layer-${layer.id}`, `ai-layer-${layer.id}-fill`, `ai-layer-${layer.id}-line`, 
-            `ai-layer-${layer.id}-point`, `ai-layer-${layer.id}-fill-extrusion`
+            `ai-layer-${layer.id}`, 
+            `ai-layer-${layer.id}-fill`, 
+            `ai-layer-${layer.id}-line`, 
+            `ai-layer-${layer.id}-point`,
+            `ai-layer-${layer.id}-fill-extrusion`
           ];
           targetLayerIds.forEach(targetId => {
-            if (map.getLayer(targetId)) map.setLayoutProperty(targetId, 'visibility', visibility);
+            if (map.getLayer(targetId)) {
+              map.setLayoutProperty(targetId, 'visibility', visibility);
+            }
           });
         });
 
+        // 🛡️ ซ้ำสิทธิ์ความปลอดภัย 2: ควบคุมการเปิดปิดตัว Base Map ย่อยของสไตล์ใหม่ตามค่าปัจจุบันด้วย
         const style = map.getStyle();
         if (style && style.layers) {
           style.layers.forEach(l => {
             if (!l.id.startsWith('ai-layer-')) {
               const visibility = isBaseMapVisibleRef.current ? 'visible' : 'none';
-              if (map.getLayer(l.id)) map.setLayoutProperty(l.id, 'visibility', visibility);
+              if (map.getLayer(l.id)) {
+                map.setLayoutProperty(l.id, 'visibility', visibility);
+              }
             }
           });
         }
@@ -307,13 +311,13 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
     };
     
     map.on('styledata', handleStyleData);
-    return () => { map.off('styledata', handleStyleData); };
+    return () => {
+      map.off('styledata', handleStyleData);
+    };
 
   }, [map, dynamicLayers, apiKeys, currentConversationApiKey]); 
 
-  // ==========================================
-  // Effect 2: ชุดสับสวิตช์ลูกตา (ชุดนี้จะทำงานเป็นเอกเทศลื่นๆ เมื่อกดเปิดปิดตา)
-  // ==========================================
+  // ควบคุมการแสดงผล/ซ่อนเลเยอร์ ปกติ
   useEffect(() => {
     if (!map || !map.getStyle()) return;
 

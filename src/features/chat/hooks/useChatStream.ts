@@ -232,7 +232,6 @@ export const useChatStream = ({
                           "filter": ["==", ["get", "re_nesdb"], "Northeast"],
                           
                           // "filter": [">=", ["get", "freq"], 7],
-                          
                           // "filter": [
                           //   "all",
                           //   ["==", ["get", "re_nesdb"], "Northeast"],
@@ -264,6 +263,34 @@ export const useChatStream = ({
                   return layer;
                 });
 
+                setDynamicLayers(updatedLayers);
+                continue;
+              }
+
+              if (eventType === CHAT_CONFIG.mapEvents.mapStylePatch || data.event === "map_style_patch") {
+                const mapStore = useMapStore.getState();
+                const currentLayers = mapStore.dynamicLayers;
+                const updatedLayers = currentLayers.map(layer => {
+                  if (layer.layerId === data.layerId || layer.id === data.layerId) {
+                    const newRenderStyles = JSON.parse(JSON.stringify(layer.renderStyles || []));
+                    
+                    newRenderStyles.forEach((styleObj: any) => {
+                      if (styleObj.paint && styleObj.paint[data.paintKey]) {
+                        const expr = styleObj.paint[data.paintKey];
+                        if (Array.isArray(expr) && data.operation === "update_stops" && data.patches) {
+                          data.patches.forEach((patch: any) => {
+                            const valIdx = expr.findIndex((item: any) => item == patch.attributeValue);
+                            if (valIdx !== -1 && valIdx + 1 < expr.length) {
+                              expr[valIdx + 1] = patch.output;
+                            }
+                          });
+                        }
+                      }
+                    });
+                    return { ...layer, renderStyles: newRenderStyles };
+                  }
+                  return layer;
+                });
                 setDynamicLayers(updatedLayers);
                 continue;
               }

@@ -45,6 +45,7 @@ export const CHAT_CONFIG = {
     suggestions: 'suggestions',
     messageUpdate: 'message',
     missingApiKey: 'missing_api_key',
+    mapStylePatch: 'map_style_patch',
   },
 
   mapClearModes: {
