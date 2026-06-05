@@ -270,6 +270,7 @@ export const useChatStream = ({
               if (eventType === CHAT_CONFIG.mapEvents.mapStylePatch || data.event === "map_style_patch") {
                 const mapStore = useMapStore.getState();
                 const currentLayers = mapStore.dynamicLayers;
+                
                 const updatedLayers = currentLayers.map(layer => {
                   if (layer.layerId === data.layerId || layer.id === data.layerId) {
                     const newRenderStyles = JSON.parse(JSON.stringify(layer.renderStyles || []));
@@ -277,11 +278,47 @@ export const useChatStream = ({
                     newRenderStyles.forEach((styleObj: any) => {
                       if (styleObj.paint && styleObj.paint[data.paintKey]) {
                         const expr = styleObj.paint[data.paintKey];
+                        
                         if (Array.isArray(expr) && data.operation === "update_stops" && data.patches) {
+                          const isInterpolate = expr[0] === "interpolate";
+                          const isMatch = expr[0] === "match";
+
                           data.patches.forEach((patch: any) => {
-                            const valIdx = expr.findIndex((item: any) => item == patch.attributeValue);
-                            if (valIdx !== -1 && valIdx + 1 < expr.length) {
+                            let valIdx = -1;
+                            const startIdx = isInterpolate ? 3 : isMatch ? 2 : 0;
+                            const endLimit = isInterpolate ? expr.length : isMatch ? expr.length - 1 : expr.length;
+
+                            // 1. ค้นหาในลูปเพื่อตรวจสอบว่าค่าจุดนี้มีอยู่แล้วในสไตล์เดิมหรือไม่
+                            for (let i = startIdx; i < endLimit; i += 2) {
+                              if (expr[i] == patch.attributeValue) {
+                                valIdx = i;
+                                break;
+                              }
+                            }
+
+                            if (valIdx !== -1) {
+                              // ถ้าเจอค่าเดิมตั้งตั้งอยู่แล้ว ให้ทำการทาสีโค้ดใหม่ทับลงตำแหน่งถัดไปทันที
                               expr[valIdx + 1] = patch.output;
+                            } else {
+                              // 2. กรณีเป็นค่าใหม่เอี่ยม ให้ทำการสไนเปอร์แทรกตามเงื่อนไขไวยากรณ์แผนที่
+                              if (isInterpolate) {
+                                let inserted = false;
+                                // วนลูปหาจุดแทรกที่ถูกต้อง เพื่อบังคับให้ตัวเลขเรียงจากน้อยไปมากเสมอ
+                                for (let i = 3; i < expr.length; i += 2) {
+                                  if (Number(patch.attributeValue) < Number(expr[i])) {
+                                    expr.splice(i, 0, patch.attributeValue, patch.output);
+                                    inserted = true;
+                                    break;
+                                  }
+                                }
+                                // ถ้าไม่มีตัวไหนมากกว่าเลย แปลว่าเป็นค่าสูงสุด ให้ดันต่อท้ายอาร์เรย์ได้เลย
+                                if (!inserted) {
+                                  expr.push(patch.attributeValue, patch.output);
+                                }
+                              } else if (isMatch) {
+                                // ถ้าเป็นสไตล์ประเภท match ให้ทำการแทรกคู่สไตล์ใหม่ไว้ก่อนหน้าตัวแปร Fallback ค้ำท้าย
+                                expr.splice(expr.length - 1, 0, patch.attributeValue, patch.output);
+                              }
                             }
                           });
                         }
@@ -291,6 +328,7 @@ export const useChatStream = ({
                   }
                   return layer;
                 });
+                
                 setDynamicLayers(updatedLayers);
                 continue;
               }

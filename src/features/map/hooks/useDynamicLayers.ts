@@ -9,8 +9,6 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
   const { apiKeys, hiddenLayers, isBaseMapVisible , currentConversationApiKey} = useMapStore();
   const activeLayerIds = useRef<string[]>([]);
 
-  // 🌟 [ADDED 1]: สร้างตัวจำสเตทจำลอง (Refs) เพื่อดักจับค่าความสดใหม่ของปุ่ม ซ่อน/แสดง เลเยอร์
-  // ช่วยแก้ปัญหาเรื่อง Stale Closure ทำให้ฟังก์ชัน handleStyleData ด้านล่างรับรู้สเตทเปิดปิดล่าสุดได้ตลอดเวลาโดยที่ Effect ไม่ต้องรันใหม่ลื่นๆ
   const hiddenLayersRef = useRef(hiddenLayers);
   const isBaseMapVisibleRef = useRef(isBaseMapVisible);
   
@@ -73,7 +71,6 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
               if (!activeLayerIds.current.includes(layerId)) activeLayerIds.current.push(layerId);
             }
           } 
-          // 🔵 เลนข้อมูลเวกเตอร์แบบไดนามิก ปล่อยเป็นเลนอิสระห้ามดักล็อกด้านนอกสุด
           else if (layerConfig.type === 'vector' || layerConfig.type === 'vector_tile') {
             const sourceLayerId = layerConfig.layerId || 'default';
             const hasAvailableStyles = layerConfig.availableStyles && layerConfig.availableStyles.length > 0;
@@ -158,7 +155,6 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
                 }
               });
             } 
-            // 🟢 เลนที่ 2.3: ตัวเรนเดอร์โหมด Default กันตายกรณีไม่มีสไตล์ส่งมา
             else if (!map.getLayer(`${layerId}-fill`) && !map.getLayer(`${layerId}-line`) && !map.getLayer(`${layerId}-point`)) {
               const fillLayerId = `${layerId}-fill`;
               map.addLayer({
@@ -263,7 +259,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
     renderLayers();
     reorderMapLayers();
 
-    // 🌟 [CHANGED]: อัปเกรดตัวตรวจจับการเปลี่ยนโครงสร้างสไตล์แผนที่หลัก (Theme เปลี่ยน)
+    // อัปเกรดตัวตรวจจับการเปลี่ยนโครงสร้างสไตล์แผนที่หลัก (Theme เปลี่ยน)
     const handleStyleData = () => {
       if (!map.getStyle()) return;
       
@@ -271,14 +267,12 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
       const isMissingSources = dynamicLayers.some(layer => !map.getSource(`ai-source-${layer.id}`));
       
       if (isMissingSources) {
-        // 🔥 จุดไขบั๊ก: สั่งล้างหน่วยความจำแคชเก่าใน useRef ทิ้งให้สะอาดเอี่ยม เพื่อปลดล็อกให้ด่านผ่านฉลุยแอดเลเยอร์ใหม่ได้
         activeLayerIds.current = [];
         
         // รันฟังก์ชันยัดเลเยอร์และจัดระเบียบชั้นตึกใหม่ลงไปในธีมตัวใหม่ทันที
         renderLayers();
         reorderMapLayers();
 
-        // 🛡️ ซ้ำสิทธิ์ความปลอดภัย: บังคับอัปเดตสเตทการ ซ่อน/แสดง ล่าสุดให้ตรงตามค่าจริงในหน้าระบบทันทีหลังแอดเสร็จ
         dynamicLayers.forEach(layer => {
           const visibility = hiddenLayersRef.current.includes(layer.id) ? 'none' : 'visible';
           const targetLayerIds = [
@@ -295,7 +289,6 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
           });
         });
 
-        // 🛡️ ซ้ำสิทธิ์ความปลอดภัย 2: ควบคุมการเปิดปิดตัว Base Map ย่อยของสไตล์ใหม่ตามค่าปัจจุบันด้วย
         const style = map.getStyle();
         if (style && style.layers) {
           style.layers.forEach(l => {
@@ -351,4 +344,5 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
     }
 
   }, [map, dynamicLayers, hiddenLayers, isBaseMapVisible]);
+
 };
