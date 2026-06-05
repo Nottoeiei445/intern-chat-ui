@@ -333,6 +333,57 @@ export const useChatStream = ({
                 continue;
               }
 
+              if (eventType === CHAT_CONFIG.mapEvents.mapFilterPatch || data.event === "map_filter_patch") {
+
+                const currentLayers = useMapStore.getState().dynamicLayers;
+
+                const isSameLayerFamily = (patchType: string, styleType: string) => {
+                  if (!patchType || !styleType) return false;
+                  const pType = patchType.toLowerCase();
+                  const sType = styleType.toLowerCase();
+
+                  if (pType === sType) return true;
+
+                  const polygonGeometryFamily = ["fill", "polygon", "area", "3d", "fill-extrusion", "extrusion"];
+                  if (polygonGeometryFamily.includes(pType) && polygonGeometryFamily.includes(sType)) return true;
+
+                  const lineGeometryFamily = ["line", "dashed-line", "polyline"];
+                  if (lineGeometryFamily.includes(pType) && lineGeometryFamily.includes(sType)) return true;
+
+                  const pointGeometryFamily = ["circle", "symbol", "heatmap", "point"];
+                  if (pointGeometryFamily.includes(pType) && pointGeometryFamily.includes(sType)) return true;
+
+                  return false;
+                };
+
+                let matchFound = false;
+
+                const updatedLayers = currentLayers.map(layer => {
+                  if (layer.layerId === data.layerId || layer.id === data.layerId) {
+                    matchFound = true;
+
+                    const newRenderStyles = JSON.parse(JSON.stringify(layer.renderStyles || []));
+
+                    newRenderStyles.forEach((styleObj: any) => {
+                      const matchingPatch = data.patches?.find((patch: any) => 
+                        isSameLayerFamily(patch.layerType, styleObj.type || styleObj.layerType)
+                      );
+
+
+                      if (matchingPatch && data.operation === "set_filter") {
+                        styleObj.filter = matchingPatch.filter;
+                      }
+                    });
+
+                    return { ...layer, renderStyles: newRenderStyles };
+                  }
+                  return layer;
+                });
+
+                useMapStore.setState({ dynamicLayers: updatedLayers });
+                continue;
+              }
+
               if (eventType === CHAT_CONFIG.mapEvents.mapOptions || data.needInfo || data.choices) {
                 const choices = data.choices || data.payload?.choices;
                 const key = data.key || data.payload?.key;
