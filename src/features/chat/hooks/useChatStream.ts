@@ -201,6 +201,7 @@ export const useChatStream = ({
               }
 
               if (eventType === CHAT_CONFIG.mapEvents.mapStyle && (data.availableStyles || data.layers)) {
+                useMapStore.getState().recordLayerSnapshot(data.layerId);
                 const currentLayers = useMapStore.getState().dynamicLayers; 
                 
                 let updatedLayers = currentLayers.map(layer => {
@@ -269,6 +270,7 @@ export const useChatStream = ({
 
               if (eventType === CHAT_CONFIG.mapEvents.mapStylePatch || data.event === "map_style_patch") {
                 const mapStore = useMapStore.getState();
+                mapStore.recordLayerSnapshot(data.layerId);
                 const currentLayers = mapStore.dynamicLayers;
                 
                 const updatedLayers = currentLayers.map(layer => {
@@ -334,7 +336,7 @@ export const useChatStream = ({
               }
 
               if (eventType === CHAT_CONFIG.mapEvents.mapFilterPatch || data.event === "map_filter_patch") {
-
+                useMapStore.getState().recordLayerSnapshot(data.layerId);
                 const currentLayers = useMapStore.getState().dynamicLayers;
 
                 const isSameLayerFamily = (patchType: string, styleType: string) => {

@@ -114,7 +114,6 @@ export function useChat() {
   // --- 5. Initialization Effects ---
   useEffect(() => { setIsSessionReady(true); }, []);
 
-  // 🌟 [CHANGED]: ชนวนระเบิดแก้บั๊ก ยกระดับคิวส่งซ้ำอัจฉริยะ (Retry Queue) รองรับครอบคลุมทุกคีย์
   useEffect(() => {
     // เช็กสถานะความพร้อมว่าระบบได้คีย์ตัวใดตัวหนึ่งฝังเข้าประวัติสาขาเรียบร้อยแล้วหรือยัง
     const hasAnyKeyPopulated = apiKeys.gistda || apiKeys.vallaris || currentConversationApiKey;
@@ -123,7 +122,6 @@ export function useChat() {
       const options = { ...pendingChat.options, isSilentRetry: true };
       if (user && options.explicitChatId?.startsWith('guest_')) delete options.explicitChatId;
       
-      // 🎯 ท่าไม้ตายลั่นไกซ้ำ: สั่งประมวลผลยิงข้อความแชทเดิมที่ค้างไว้ เดินหน้าลุยต่อทันทีโดยไม่ต้องกดส่งซ้ำ!
       sendMessage(pendingChat.input, pendingChat.model, pendingChat.images, options);
       
       // ล้างตู้จดหมายค้างส่งออกเพื่อป้องกันบักลูปอินฟินิตี้ส่งข้อความเบิ้ล

@@ -33,6 +33,8 @@ interface MapState {
   toggleBaseMap: () => void;
 
   setActiveStyle: (layerId: string, styleKey: string) => void;
+  styleHistories: Record<string, { activeStyleKey: string; renderStyles: any[] }[]>;
+  recordLayerSnapshot: (layerId: string) => void;
 
   currentConversationApiKey?: string | null;
   setcurrentConversationApiKey: (key: string | null) => void;
@@ -40,14 +42,13 @@ interface MapState {
   setSessionKey: (chatId: string, key: string) => void;
   clearSessionKeys: () => void;
 
-  // 🌟 1. ประกาศ Type สำหรับระบบ Mention ฝากคำสั่ง
   pendingMention: { text: string; timestamp: number } | null;
   triggerLayerMention: (layerId: string) => void;
   clearPendingMention: () => void;
 
-  pendingAttribute: string | null,
-  setPendingAttribute: (text: string) => void,
-  clearPendingAttribute: () => void,
+  pendingAttribute: string | null;
+  setPendingAttribute: (text: string) => void;
+  clearPendingAttribute: () => void;
 
   activeChatId: string | null;
   setActiveChatId: (id: string | null) => void;
@@ -56,7 +57,7 @@ interface MapState {
 export const useMapStore = create<MapState>((set) => ({
   dynamicLayers: [], 
   setDynamicLayers: (layers) => set({ dynamicLayers: layers }), 
-  clearLayers: () => set({ dynamicLayers: [], hiddenLayers: [] }), 
+  clearLayers: () => set({ dynamicLayers: [], hiddenLayers: [] as string[], styleHistories: {} }), 
 
   apiKeys: {}, 
   setApiKey: (serviceName, key) => 
@@ -91,6 +92,27 @@ export const useMapStore = create<MapState>((set) => ({
       layer.id === layerId ? { ...layer, activeStyleKey: styleKey } : layer
     )
   })),
+
+  styleHistories: {},
+  recordLayerSnapshot: (layerId) => set((state) => {
+    const targetLayer = state.dynamicLayers.find((l) => l.id === layerId || l.layerId === layerId);
+    if (!targetLayer) return {};
+
+    const currentSnapshot = {
+      activeStyleKey: targetLayer.activeStyleKey || 'default',
+      renderStyles: JSON.parse(JSON.stringify(targetLayer.renderStyles || []))
+    };
+
+    const history = state.styleHistories[layerId] || [];
+    const updatedHistory = [currentSnapshot, ...history].slice(0, 5);
+
+    return {
+      styleHistories: {
+        ...state.styleHistories,
+        [layerId]: updatedHistory
+      }
+    };
+  }),
   
   currentConversationApiKey: null,
   setcurrentConversationApiKey: (key) => set({ currentConversationApiKey: key }),
@@ -101,10 +123,8 @@ export const useMapStore = create<MapState>((set) => ({
   })),
   clearSessionKeys: () => set({ sessionKeys: {} }),
 
-  // 2. สร้าง Logic สำหรับเก็บคำสั่ง Mention ไว้ที่ส่วนกลาง
   pendingMention: null,
   triggerLayerMention: (layerId) => set({ 
-    // ใส่ timestamp ไปด้วย (เผื่อกรณีกดเลเยอร์เดิมรัวๆ)
     pendingMention: { text: `[layer_id: ${layerId}]`, timestamp: Date.now() } 
   }),
   clearPendingMention: () => set({ pendingMention: null }),

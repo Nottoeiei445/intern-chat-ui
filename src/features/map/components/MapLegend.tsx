@@ -12,7 +12,7 @@ export const MapLegend = () => {
   // Guard Clause: ถ้าไม่มีเลเยอร์เปิดอยู่เลย ไม่ต้องขึ้นกล่อง
   if (!dynamicLayers || dynamicLayers.length === 0) return null;
 
-  // ฟังก์ชันย่อยคอยแกะโครงสร้างสไตล์แยกทีละเลเยอร์อย่างปลอดภัย (คงเดิมไว้ทั้งหมด)
+  // ฟังก์ชันย่อยคอยแกะโครงสร้างสไตล์แยกทีละเลเยอร์อย่างปลอดภัย 
   const renderSingleLayerLegend = (layer: any) => {
     if (!layer.renderStyles || !Array.isArray(layer.renderStyles) || layer.renderStyles.length === 0) return null;
 

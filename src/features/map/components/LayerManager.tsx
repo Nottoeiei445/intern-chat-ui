@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useMapStore } from "@/store/useMapStore";
 import { chatService } from "@/features/chat/services/chat.service"; 
-import { Layers, Eye, EyeOff, Map, ChevronRight, GripVertical } from "lucide-react";
+import { Layers, Eye, EyeOff, Map, ChevronRight, GripVertical, Undo2 } from "lucide-react";
+import { useMapStyleActions } from "../hooks/useMapStyleActions";
 
-// นำเข้าเครื่องมือจาก dnd-kit
 import {
   DndContext,
   closestCenter,
@@ -25,8 +25,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
 
-// สร้าง Component ย่อยสำหรับแต่ละกล่องเลเยอร์เพื่อให้รองรับการลาก (โครงสร้างเดิมคงไว้ปกติ)
-const SortableLayerItem = ({ layer, isHidden, onToggleVisibility, onClickMentions }: any) => {
+const SortableLayerItem = ({ layer, isHidden, onToggleVisibility, onClickMentions, styleHistory = [], onUndoStyle }: any) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: layer.id });
 
   const style = {
@@ -35,6 +34,8 @@ const SortableLayerItem = ({ layer, isHidden, onToggleVisibility, onClickMention
     zIndex: isDragging ? 50 : "auto",
     opacity: isDragging ? 0.8 : 1,
   };
+
+  const hasHistory = styleHistory.length > 0;
 
   return (
     <div
@@ -65,25 +66,40 @@ const SortableLayerItem = ({ layer, isHidden, onToggleVisibility, onClickMention
             </span>
           </div>
         </div>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onToggleVisibility(layer.id);
-          }}
-          className={`p-2 rounded-lg transition-all shrink-0 ${
-            !isHidden ? "text-primary hover:bg-primary/10" : "text-muted-foreground hover:bg-accent"
-          }`}
-        >
-          {!isHidden ? <Eye size={18} /> : <EyeOff size={18} />}
-        </button>
+        
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            disabled={!hasHistory}
+            onClick={(e) => {
+              e.stopPropagation();
+              onUndoStyle(layer.id);
+            }}
+            className={`p-2 rounded-lg transition-all ${
+              hasHistory 
+                ? "text-amber-500 hover:bg-amber-500/10 dark:text-amber-400" 
+                : "text-muted-foreground/20 cursor-not-allowed"
+            }`}
+          >
+            <Undo2 size={18} />
+          </button>
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleVisibility(layer.id);
+            }}
+            className={`p-2 rounded-lg transition-all shrink-0 ${
+              !isHidden ? "text-primary hover:bg-primary/10" : "text-muted-foreground hover:bg-accent"
+            }`}
+          >
+            {!isHidden ? <Eye size={18} /> : <EyeOff size={18} />}
+          </button>
+        </div>
       </div>
     </div>
   );
 };
 
-
-// Component หลัก LayerManager
-// ปรับตรงนี้ให้รับ activeChatId ผ่าน Props เพื่อใช้ระบุตัวตนของห้องแชทครับเฮีย
 export const LayerManager = () => {
   const {
     dynamicLayers,
@@ -93,35 +109,30 @@ export const LayerManager = () => {
     isBaseMapVisible,
     toggleBaseMap,
     triggerLayerMention,
-    activeChatId,
   } = useMapStore();
 
   const [isOpen, setIsOpen] = useState(false);
+  const { styleHistories, undoLayerStyle } = useMapStyleActions();
 
-  // ตั้งค่าเซนเซอร์การลาก 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  // ฟังก์ชันจัดการตอนปล่อยเมาส์ 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
 
-    // 1. เช็กความเรียบร้อยก่อน
     if (!over) return;
     if (active.id === over.id) {
         console.log("Ignored: Same position");
         return;
     }
 
-    // 2. จัดการหน้าบ้าน (UI)
     const oldIndex = dynamicLayers.findIndex((l) => l.id === active.id);
     const newIndex = dynamicLayers.findIndex((l) => l.id === over.id);
     const reorderedLayers = arrayMove(dynamicLayers, oldIndex, newIndex);
     setDynamicLayers(reorderedLayers);
 
-    // 3. เตรียมส่งหลังบ้าน (API Sync)
     const currentActiveChatId = useMapStore.getState().activeChatId; 
     
     console.log("Attempting API Sync:", { 
@@ -132,7 +143,7 @@ export const LayerManager = () => {
     if (currentActiveChatId && !currentActiveChatId.startsWith("session_")) {
         try {
             const orderedIds = reorderedLayers.map((layer) => layer.id);
-            console.log("Sending to API:", orderedIds); // ดูว่าส่งอะไรไป
+            console.log("Sending to API:", orderedIds);
 
             await chatService.updateLayersOrder(currentActiveChatId, orderedIds);
             console.log("Sync success!");
@@ -158,7 +169,6 @@ export const LayerManager = () => {
         </button>
       )}
 
-      {/* แถบ Sidebar ทางขวา */}
       <div
         className={`h-full transition-all duration-300 ease-in-out bg-background/95 backdrop-blur-2xl border-l border-border shadow-2xl flex flex-col ${
           isOpen ? "w-full md:w-[320px] translate-x-0" : "w-0 translate-x-full opacity-0 pointer-events-none"
@@ -178,7 +188,6 @@ export const LayerManager = () => {
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
-          {/* Base Map Toggle */}
           <div className="bg-card border border-border rounded-xl p-3 flex items-center justify-between shadow-sm">
             <div className="flex items-center gap-3 overflow-hidden">
               <div className="p-2 bg-accent rounded-lg text-foreground shrink-0">
@@ -198,7 +207,6 @@ export const LayerManager = () => {
 
           <hr className="border-border" />
 
-          {/* Dynamic AI Layers (DND Provider) */}
           {dynamicLayers.length === 0 ? (
             <div className="text-center py-10 text-muted-foreground text-xs">
               No active layers. <br /> Ask AI to generate some maps!
@@ -218,6 +226,8 @@ export const LayerManager = () => {
                       isHidden={hiddenLayers.includes(layer.id)}
                       onToggleVisibility={toggleLayerVisibility}
                       onClickMentions={() => triggerLayerMention(layer.layerId || layer.id)}
+                      styleHistory={styleHistories[layer.id] || []}
+                      onUndoStyle={undoLayerStyle}
                     />
                   ))}
                 </SortableContext>
