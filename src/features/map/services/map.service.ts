@@ -31,6 +31,7 @@ export const mapService = {
       case 'vector':  cleanUrl = mapUrlBuilder.vector(decodedBaseUrl); break;
       case 'geojson': cleanUrl = mapUrlBuilder.geojson(decodedBaseUrl); break;
       case 'coverage_tile': cleanUrl = mapUrlBuilder.coverage_tile(decodedBaseUrl); break;
+      case 'pmtiles':      cleanUrl = mapUrlBuilder.pmtiles(decodedBaseUrl); break;
     }
 
     return appendApiKey(cleanUrl, key);

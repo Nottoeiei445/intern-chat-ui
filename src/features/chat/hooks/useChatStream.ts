@@ -222,6 +222,7 @@ export const useChatStream = ({
                     return layer;
                 });
 
+                /*
                 updatedLayers = updatedLayers.map(layer => {
                   if (layer.id === "68172e7b171be104cc2be349" || layer.layerId === "68172e7b171be104cc2be349") {
                     return {
@@ -262,11 +263,13 @@ export const useChatStream = ({
                     };
                   }
                   return layer;
-                });
+                }); */
 
                 setDynamicLayers(updatedLayers);
                 continue;
               }
+
+
 
               if (eventType === CHAT_CONFIG.mapEvents.mapStylePatch || data.event === "map_style_patch") {
                 const mapStore = useMapStore.getState();

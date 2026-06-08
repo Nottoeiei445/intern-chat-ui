@@ -13,6 +13,16 @@ import { useTheme } from 'next-themes';
 import { useMapEvents } from '../hooks/useMapEvents';
 import { FeaturePopup } from './FeaturePopup';
 import { createRoot } from 'react-dom/client';
+import * as pmtiles from 'pmtiles';
+
+if (typeof window !== 'undefined') {
+  try {
+    const protocol = new pmtiles.Protocol();
+    maplibregl.addProtocol('pmtiles', protocol.tile);
+  } catch (e) {
+    console.log('[PMTiles] Protocol already registered or initializing.');
+  }
+}
 
 interface MapLibreProps {
   activeHazard: HazardType | null;
@@ -78,7 +88,6 @@ export const MapLibre = ({ activeBoundary, dynamicLayers = [] }: MapLibreProps) 
     };
   }, []); 
 
-  // 🌟 [CHANGED]: บล็อกเปลี่ยนสไตล์แผนที่ฐานอัจฉริยะแบบไร้รอยต่อ (Style JSON Injection)
   useEffect(() => {
     if (!map) return;
     
@@ -88,36 +97,34 @@ export const MapLibre = ({ activeBoundary, dynamicLayers = [] }: MapLibreProps) 
         const newStyleUrl = isDark 
           ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'
           : 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json';
-          
-        // 1. ดึงข้อมูลสไตล์ผืนแผ่นปัจจุบันในหน้าจอที่เลเยอร์ AI สิงอยู่ขึ้นมาดักไว้
+        
+        // ดึงสไตล์ใหม่มาเป็น JSON ก่อน แล้วค่อยแทรกเลเยอร์ที่เรามีอยู่เดิมเข้าไป
         const currentStyle = map.getStyle();
         
-        // 2. ยิงไป Fetch โครงสร้างสไตล์ของธีมใหม่มารอไว้ใน RAM ของเครื่อง
+        // ตรวจสอบและแกะโครงสร้างเลเยอร์ที่เราสร้างเอง (สมมติว่าเลเยอร์ของเราจะมี id ขึ้นต้นด้วย "ai-layer-" และ source ขึ้นต้นด้วย "ai-source-")
         const response = await fetch(newStyleUrl);
         const newStyleJson = await response.json();
         
+        // แทรกเลเยอร์และซอร์สของเราจากสไตล์ปัจจุบันเข้าไปในสไตล์ใหม่ก่อนที่จะเซ็ต
         if (currentStyle) {
-          // 3. คว้าเฉพาะ Sources ที่สร้างจากหน้าบ้าน (ตัวที่มีคำว่า ai-source- นำหน้า)
           const myCustomSources = Object.keys(currentStyle.sources)
             .filter(key => key.startsWith('ai-source-'))
             .reduce((obj, key) => ({ ...obj, [key]: currentStyle.sources[key] }), {});
             
-          // 4. คว้าเฉพาะ Layers ที่สร้างจากหน้าบ้าน (ตัวที่มีคำว่า ai-layer- นำหน้า)
           const myCustomLayers = currentStyle.layers.filter((l: any) => 
             l.id.startsWith('ai-layer-')
           );
           
-          // 5. จัดแจงเย็บรวมร่าง: เอาข้อมูล Custom แปะพ่วงเข้าไปท้ายก้อนธีมใหม่ดิ่งตรงเนื้อสกิน
+          // แทรกซอร์สและเลเยอร์ของเราลงในสไตล์ใหม่
           newStyleJson.sources = { ...newStyleJson.sources, ...myCustomSources };
           newStyleJson.layers = [...newStyleJson.layers, ...myCustomLayers];
         }
         
-        // 6. สั่งอัปเดตสไตล์ด้วยก้อนวัตถุ JSON (ระบบสั่งตรวจ Diffing จะทำงานทันที ข้อมูลเดิมไม่โหลดใหม่)
+        // เซ็ตสไตล์ใหม่ที่มีเลเยอร์ของเราแทรกอยู่ด้วย
         map.setStyle(newStyleJson);
         
-      } catch (error) {
+      } catch (error) { // ถ้าเกิดปัญหาในการโหลดสไตล์ใหม่หรือแทรกเลเยอร์ ให้จับผิดและเซ็ตสไตล์สำรองที่ไม่มีการแทรกเลเยอร์แทน
         console.error("[Theme Switch Error] Failed to inject custom layers:", error);
-        // Fallback กันตาย: ถ้าระบบเครือข่าย Fetch พัง ให้สับธีมด้วยวิธีส่ง URL ทื่อๆ แบบเดิมเพื่อไม่ให้แอปค้าง
         const isDark = resolvedTheme === 'dark';
         const fallbackStyle = isDark 
           ? 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json'

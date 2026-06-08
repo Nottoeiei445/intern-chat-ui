@@ -37,7 +37,13 @@ export const mapUrlBuilder = {
     return hasTiles 
       ? baseUrl 
       : (baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`) + '{z}/{x}/{y}';
-   }
+  },
+
+  pmtiles: (baseUrl: string) => {
+    if (!baseUrl) return '';
+    return baseUrl.startsWith('pmtiles://') ? baseUrl : `pmtiles://${baseUrl}`;
+  }
+
 };
 
 const getTmsUrl = (baseUrl: string, _layerId: string) => mapUrlBuilder.tms(baseUrl);
