@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useMapStore } from "@/store/useMapStore";
 import { chatService } from "@/features/chat/services/chat.service"; 
 import { Layers, Eye, EyeOff, Map, ChevronRight, GripVertical, Undo2 } from "lucide-react";
-import { useMapStyleActions } from "../hooks/useMapStyleActions";
 
 import {
   DndContext,
@@ -25,7 +24,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
 
-const SortableLayerItem = ({ layer, isHidden, onToggleVisibility, onClickMentions, styleHistory = [], onUndoStyle }: any) => {
+const SortableLayerItem = ({ layer, isHidden, onToggleVisibility, onClickMentions, canUndo, onUndoStyle }: any) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: layer.id });
 
   const style = {
@@ -34,8 +33,6 @@ const SortableLayerItem = ({ layer, isHidden, onToggleVisibility, onClickMention
     zIndex: isDragging ? 50 : "auto",
     opacity: isDragging ? 0.8 : 1,
   };
-
-  const hasHistory = styleHistory.length > 0;
 
   return (
     <div
@@ -69,13 +66,13 @@ const SortableLayerItem = ({ layer, isHidden, onToggleVisibility, onClickMention
         
         <div className="flex items-center gap-1 shrink-0">
           <button
-            disabled={!hasHistory}
+            disabled={!canUndo}
             onClick={(e) => {
               e.stopPropagation();
               onUndoStyle(layer.id);
             }}
             className={`p-2 rounded-lg transition-all ${
-              hasHistory 
+              canUndo 
                 ? "text-amber-500 hover:bg-amber-500/10 dark:text-amber-400" 
                 : "text-muted-foreground/20 cursor-not-allowed"
             }`}
@@ -109,15 +106,23 @@ export const LayerManager = () => {
     isBaseMapVisible,
     toggleBaseMap,
     triggerLayerMention,
+    triggerLayerUndo,
+    activeChatId,
+    layerHistoryCount,
   } = useMapStore();
 
   const [isOpen, setIsOpen] = useState(false);
-  const { styleHistories, undoLayerStyle } = useMapStyleActions();
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
+
+  const handleUndoStyle = (layerId: string) => {
+    if (triggerLayerUndo) {
+      triggerLayerUndo(layerId); 
+    }
+  };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
@@ -219,20 +224,27 @@ export const LayerManager = () => {
 
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToVerticalAxis, restrictToParentElement]}>
                 <SortableContext items={dynamicLayers.map(l => l.id)} strategy={verticalListSortingStrategy}>
-                  {dynamicLayers.map((layer) => (
-                    <SortableLayerItem
-                      key={layer.id}
-                      layer={layer}
-                      isHidden={hiddenLayers.includes(layer.id)}
-                      onToggleVisibility={toggleLayerVisibility}
-                      onClickMentions={() => triggerLayerMention(layer.layerId || layer.id)}
-                      styleHistory={styleHistories[layer.id] || []}
-                      onUndoStyle={undoLayerStyle}
-                    />
-                  ))}
+                  {dynamicLayers.map((layer) => {
+
+                    const chatId = activeChatId || "default_session";
+                    const currentCount = layerHistoryCount[chatId]?.[layer.id] || 0;
+
+                    const canUndo = currentCount > 1;
+
+                    return (
+                      <SortableLayerItem
+                        key={layer.id}
+                        layer={layer}
+                        isHidden={hiddenLayers.includes(layer.id)}
+                        onToggleVisibility={toggleLayerVisibility}
+                        onClickMentions={() => triggerLayerMention(layer.layerId || layer.id)}
+                        canUndo={canUndo} 
+                        onUndoStyle={handleUndoStyle}
+                      />
+                    );
+                  })}
                 </SortableContext>
               </DndContext>
-              
             </div>
           )}
         </div>

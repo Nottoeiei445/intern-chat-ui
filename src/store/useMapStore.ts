@@ -1,6 +1,7 @@
 // useMapStore.ts
 import { create } from 'zustand';
 import { DynamicLayerPayload } from '@/features/map/types';
+import { persist, createJSONStorage } from 'zustand/middleware';
 
 interface PendingChatData {
   input: string;
@@ -33,8 +34,8 @@ interface MapState {
   toggleBaseMap: () => void;
 
   setActiveStyle: (layerId: string, styleKey: string) => void;
-  styleHistories: Record<string, { activeStyleKey: string; renderStyles: any[] }[]>;
-  recordLayerSnapshot: (layerId: string) => void;
+  layerHistoryCount: Record<string, Record<string, number>>;
+  updateLayerHistoryCount: (chatId:string, layerId: string, action: 'increment' | 'decrement' | 'init') => void;
 
   currentConversationApiKey?: string | null;
   setcurrentConversationApiKey: (key: string | null) => void;
@@ -52,67 +53,74 @@ interface MapState {
 
   activeChatId: string | null;
   setActiveChatId: (id: string | null) => void;
+
+  triggerLayerUndo?: (layerId: string) => void;
 }
 
-export const useMapStore = create<MapState>((set) => ({
-  dynamicLayers: [], 
-  setDynamicLayers: (layers) => set({ dynamicLayers: layers }), 
-  clearLayers: () => set({ dynamicLayers: [], hiddenLayers: [] as string[], styleHistories: {} }), 
+export const useMapStore = create<MapState>()(
+  persist(
+    (set) => ({
+      dynamicLayers: [], 
+      setDynamicLayers: (layers) => set({ dynamicLayers: layers }), 
+      clearLayers: () => set({ dynamicLayers: [], hiddenLayers: [] as string[], layerHistoryCount: {} }),
 
-  apiKeys: {}, 
-  setApiKey: (serviceName, key) => 
-    set((state) => ({ 
-      apiKeys: { ...state.apiKeys, [serviceName]: key } 
+      apiKeys: {}, 
+      setApiKey: (serviceName, key) => 
+        set((state) => ({ 
+          apiKeys: { ...state.apiKeys, [serviceName]: key } 
+        })),
+      clearApiKeys: () => set({ apiKeys: {} }),
+
+      isKeyModalOpen: false, 
+      openKeyModal: () => set({ isKeyModalOpen: true }),
+      closeKeyModal: () => set({ isKeyModalOpen: false }),
+
+      pendingChat: null,
+      setPendingChat: (chatData) => set({ pendingChat: chatData }),
+      clearPendingChat: () => set({ pendingChat: null }),
+
+      hiddenLayers: [],
+      toggleLayerVisibility: (layerId) => set((state) => {
+        const isHidden = state.hiddenLayers.includes(layerId);
+        return {
+          hiddenLayers: isHidden 
+            ? state.hiddenLayers.filter(id => id !== layerId)
+            : [...state.hiddenLayers, layerId] 
+        };
+      }),
+
+      isBaseMapVisible: true,
+      toggleBaseMap: () => set((state) => ({ isBaseMapVisible: !state.isBaseMapVisible })),
+
+      setActiveStyle: (layerId, styleKey) => set((state) => ({
+        dynamicLayers: state.dynamicLayers.map((layer) =>
+          layer.id === layerId ? { ...layer, activeStyleKey: styleKey } : layer
+        )
     })),
-  clearApiKeys: () => set({ apiKeys: {} }),
 
-  isKeyModalOpen: false, 
-  openKeyModal: () => set({ isKeyModalOpen: true }),
-  closeKeyModal: () => set({ isKeyModalOpen: false }),
+      layerHistoryCount: {},
+      updateLayerHistoryCount: (chatId, layerId, action) => set((state) => {
+        const currentChatHistory = state.layerHistoryCount[chatId] || {};
+        let currentCount = currentChatHistory[layerId] || 0;
 
-  pendingChat: null,
-  setPendingChat: (chatData) => set({ pendingChat: chatData }),
-  clearPendingChat: () => set({ pendingChat: null }),
+        if (action === 'increment') {
+          currentCount += 1;
+        } else if (action === 'decrement') {
+          currentCount = Math.max(1, currentCount - 1);
+        } else if (action === 'init') {
+          currentCount = 1;
+        }
 
-  hiddenLayers: [],
-  toggleLayerVisibility: (layerId) => set((state) => {
-    const isHidden = state.hiddenLayers.includes(layerId);
-    return {
-      hiddenLayers: isHidden 
-        ? state.hiddenLayers.filter(id => id !== layerId)
-        : [...state.hiddenLayers, layerId] 
-    };
-  }),
-
-  isBaseMapVisible: true,
-  toggleBaseMap: () => set((state) => ({ isBaseMapVisible: !state.isBaseMapVisible })),
-
-  setActiveStyle: (layerId, styleKey) => set((state) => ({
-    dynamicLayers: state.dynamicLayers.map((layer) =>
-      layer.id === layerId ? { ...layer, activeStyleKey: styleKey } : layer
-    )
-  })),
-
-  styleHistories: {},
-  recordLayerSnapshot: (layerId) => set((state) => {
-    const targetLayer = state.dynamicLayers.find((l) => l.id === layerId || l.layerId === layerId);
-    if (!targetLayer) return {};
-
-    const currentSnapshot = {
-      activeStyleKey: targetLayer.activeStyleKey || 'default',
-      renderStyles: JSON.parse(JSON.stringify(targetLayer.renderStyles || []))
-    };
-
-    const history = state.styleHistories[layerId] || [];
-    const updatedHistory = [currentSnapshot, ...history].slice(0, 5);
-
-    return {
-      styleHistories: {
-        ...state.styleHistories,
-        [layerId]: updatedHistory
-      }
-    };
-  }),
+        return {
+          layerHistoryCount: {
+            ...state.layerHistoryCount,
+            [chatId]: {
+              ...currentChatHistory,
+              [layerId]: currentCount
+            }
+          }
+        };
+      }),
   
   currentConversationApiKey: null,
   setcurrentConversationApiKey: (key) => set({ currentConversationApiKey: key }),
@@ -133,4 +141,16 @@ export const useMapStore = create<MapState>((set) => ({
   pendingAttribute: null,
   setPendingAttribute: (text) => set({ pendingAttribute: text }),
   clearPendingAttribute: () => set({ pendingAttribute: null }),
-}));
+  triggerLayerUndo: undefined,
+}),
+
+{
+      name: 'map-layer-counter-storage',
+      storage: createJSONStorage(() => sessionStorage), // บังคับขังไว้ใน sessionStorage กด F5 ค่าไม่หาย ปิดแท็บล้างทิ้งทันที
+      // ตัวเลือกอัจฉริยะ: สั่งให้คัดเลือก "เฉพาะ" ตัวแปร layerHistoryCount ไปจำลง Cache พอ ตัวอื่นไม่ต้องจำ
+      partialize: (state) => ({
+        layerHistoryCount: state.layerHistoryCount,
+      }),
+    }
+  )
+);

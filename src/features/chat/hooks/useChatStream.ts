@@ -19,6 +19,7 @@ interface UseChatStreamProps {
   user: any; 
 }
 
+
 export const useChatStream = ({
   chats,
   setChats,
@@ -40,7 +41,7 @@ export const useChatStream = ({
   };
 
   const sendMessage = async (input: string, model: string, images: string[] = [], options?: any) => {
-    if (!input.trim() && images.length === 0 && !options?.isRegenerate) return;
+    if (!input.trim() && images.length === 0 && !options?.isRegenerate && !options?.isSilentRetry) return;
 
     const {
       ephemeral = false,
@@ -113,7 +114,9 @@ export const useChatStream = ({
       let realIdToSwapLater = response.headers.get("X-Conversation-Id") || response.headers.get("conversation_id");
       const assistantMsg: Message = { role: "assistant", content: "" };
 
-      if (!targetMessageId) {
+      const isMapUndoAction = mapselection?.key === "mapundo";
+
+      if (!targetMessageId && !isMapUndoAction) {
         if (!ephemeral) setChats(prev => prev.map(chat => chat.id === currentId ? { ...chat, messages: [...chat.messages, assistantMsg] } : chat));
         else setEphemeralMessages(prev => [...prev, assistantMsg]);
       }
@@ -201,9 +204,26 @@ export const useChatStream = ({
               }
 
               if (eventType === CHAT_CONFIG.mapEvents.mapStyle && (data.availableStyles || data.layers)) {
-                useMapStore.getState().recordLayerSnapshot(data.layerId);
+                const mapStore = useMapStore.getState();
+                const chatId = currentId || "default_session";
+                const layerId = data.layerId;
+
+                const isUndoAction = mapselection?.key === "mapundo";
+                const hasHistory = !!mapStore.layerHistoryCount[chatId]?.[layerId];
+
+                if (isUndoAction) {
+                  //หน้าบ้านเป็นคนสั่ง Undo มาเอง ให้ถอยแต้มลง
+                  mapStore.updateLayerHistoryCount(chatId, layerId, 'decrement');
+                } else if (!hasHistory) {
+                  // ถ้ายังไม่มีประวัติการแก้ไขของเลเยอร์นี้เลย ให้บันทึกสแนปช็อตก่อนแก้ไขครั้งแรก และตั้งแต้มประวัติเป็น 1
+                  mapStore.updateLayerHistoryCount(chatId, layerId, 'init');
+                } else {
+                  // ถ้ามีประวัติอยู่แล้วและไม่ใช่การสั่ง Undo ให้เพิ่มแต้มประวัติขึ้น
+                  mapStore.updateLayerHistoryCount(chatId, layerId, 'increment');
+                }
+
+
                 const currentLayers = useMapStore.getState().dynamicLayers; 
-                
                 let updatedLayers = currentLayers.map(layer => {
                     if (layer.layerId === data.layerId || layer.id === data.layerId) {
                     // ป้องกันคลังสไตล์เดิมโดนล้าง: ถ้าหลังบ้านไม่ส่งมา ให้ใช้ของเดิมที่เลเยอร์เคยมีค้ำไว้ก่อน
@@ -269,11 +289,11 @@ export const useChatStream = ({
                 continue;
               }
 
-
-
               if (eventType === CHAT_CONFIG.mapEvents.mapStylePatch || data.event === "map_style_patch") {
+                const chatId = currentId || "default_session";
+                useMapStore.getState().updateLayerHistoryCount(chatId, data.layerId, 'increment');
+                
                 const mapStore = useMapStore.getState();
-                mapStore.recordLayerSnapshot(data.layerId);
                 const currentLayers = mapStore.dynamicLayers;
                 
                 const updatedLayers = currentLayers.map(layer => {
@@ -339,9 +359,10 @@ export const useChatStream = ({
               }
 
               if (eventType === CHAT_CONFIG.mapEvents.mapFilterPatch || data.event === "map_filter_patch") {
-                useMapStore.getState().recordLayerSnapshot(data.layerId);
-                const currentLayers = useMapStore.getState().dynamicLayers;
+                const chatId = currentId || "default_session";
+                useMapStore.getState().updateLayerHistoryCount(chatId, data.layerId, 'increment');
 
+                const currentLayers = useMapStore.getState().dynamicLayers;
                 const isSameLayerFamily = (patchType: string, styleType: string) => {
                   if (!patchType || !styleType) return false;
                   const pType = patchType.toLowerCase();
@@ -472,28 +493,30 @@ export const useChatStream = ({
               accumulatedContent += textChunk;
               const displayContent = accumulatedContent.split("<thinking>").pop()?.trim() || accumulatedContent;
 
-              if (ephemeral) {
-                setEphemeralMessages(prev => prev.map((m, i) => i === prev.length - 1 ? { ...m, content: displayContent } : m)); // อัปเดตข้อความชั่วคราวในโหมด Ephemeral
-              } else {
-                setChats(prev => prev.map(chat => {
-                  if (chat.id !== currentId) return chat;
-                  const safeMsgs = [...chat.messages];
+              if (!isMapUndoAction) {
+                if (ephemeral) {
+                  setEphemeralMessages(prev => prev.map((m, i) => i === prev.length - 1 ? { ...m, content: displayContent } : m));
+                } else {
+                  setChats(prev => prev.map(chat => {
+                    if (chat.id !== currentId) return chat;
+                    const safeMsgs = [...chat.messages];
 
-                  if (targetMessageId) {
-                    const targetIdx = safeMsgs.findIndex(m => m.id === targetMessageId);
-                    if (targetIdx !== -1) {
-                      safeMsgs[targetIdx] = { ...safeMsgs[targetIdx], content: displayContent || safeMsgs[targetIdx].content };
-                    }
-                  } else {
-                    const lastIdx = safeMsgs.length - 1;
-                    if (lastIdx >= 0 && safeMsgs[lastIdx].role === "assistant") {
-                      safeMsgs[lastIdx] = { ...safeMsgs[lastIdx], content: displayContent || safeMsgs[lastIdx].content };
+                    if (targetMessageId) {
+                      const targetIdx = safeMsgs.findIndex(m => m.id === targetMessageId);
+                      if (targetIdx !== -1) {
+                        safeMsgs[targetIdx] = { ...safeMsgs[targetIdx], content: displayContent || safeMsgs[targetIdx].content };
+                      }
                     } else {
-                      safeMsgs.push({ id: `temp_assistant_${Date.now()}`, role: "assistant", content: displayContent });
+                      const lastIdx = safeMsgs.length - 1;
+                      if (lastIdx >= 0 && safeMsgs[lastIdx].role === "assistant") {
+                        safeMsgs[lastIdx] = { ...safeMsgs[lastIdx], content: displayContent || safeMsgs[lastIdx].content };
+                      } else {
+                        safeMsgs.push({ id: `temp_assistant_${Date.now()}`, role: "assistant", content: displayContent });
+                      }
                     }
-                  }
-                  return { ...chat, messages: safeMsgs };
-                }));
+                    return { ...chat, messages: safeMsgs };
+                  }));
+                }
               }
 
             } catch (e) {

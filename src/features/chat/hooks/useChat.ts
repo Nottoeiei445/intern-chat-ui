@@ -1,7 +1,7 @@
 // src/features/chat/hooks/useChat.ts
 "use client"
 
-import { useState, useEffect, useMemo } from "react"; 
+import { useState, useEffect, useMemo, useRef } from "react"; 
 import { ChatThread } from "../types";
 import { useAuth } from "../../auth/context/AuthContext";
 import { chatService } from "../services/chat.service"; 
@@ -9,7 +9,10 @@ import { AUTH_CONFIG } from "@/features/auth/config/auth.config";
 import { storage } from "@/lib/storage";
 import { useMapStore } from '@/store/useMapStore';
 import { checkAndCleanupExpiredGuest, startGuestExpiryTimer } from "../../auth/utils/guest-timer.util";
-import { useChatStream } from "./useChatStream"; 
+import { useChatStream } from "./useChatStream";
+import { useModels } from "../hooks/useModels";
+
+
 
 // --- Helpers ---
 const sortChats = (list: ChatThread[]) => { 
@@ -92,6 +95,7 @@ export function useChat() {
   const [isSessionReady, setIsSessionReady] = useState(false);
   const [isGuestExpired, setIsGuestExpired] = useState(false);
 
+  
   const {
     sendMessage,
     isLoading,
@@ -110,6 +114,12 @@ export function useChat() {
     setPendingChat,
     user
   });
+
+  const { 
+    models, 
+    selectedModel, 
+    setSelectedModel 
+  } = useModels();
 
   // --- 5. Initialization Effects ---
   useEffect(() => { setIsSessionReady(true); }, []);
@@ -400,6 +410,25 @@ export function useChat() {
     });
     return () => stopTimer();
   }, [user, isSessionReady, isGuestExpired]);
+
+  const latestPropsRef = useRef({ sendMessage, selectedModel });
+
+  useEffect(() => {
+    latestPropsRef.current = { sendMessage, selectedModel };
+  }, [sendMessage, selectedModel]);
+
+  useEffect(() => {
+    useMapStore.setState({
+      triggerLayerUndo: (layerId: string) => {
+        const { sendMessage: latestSendMessage, selectedModel: latestModel } = latestPropsRef.current;
+        
+        latestSendMessage("", latestModel, [], {
+          isSilentRetry: true,
+          mapselection: { key: "mapundo", value: layerId }
+        });
+      }
+    });
+  }, []);
 
   return { 
     chats, setChats, activeChatId, setActiveChatId, dynamicLayers, setDynamicLayers, 
