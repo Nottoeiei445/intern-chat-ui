@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useMapStore } from "@/store/useMapStore";
 import { chatService } from "@/features/chat/services/chat.service"; 
-import { Layers, Eye, EyeOff, Map, ChevronRight, GripVertical, Undo2 } from "lucide-react";
+import { Layers, Eye, EyeOff, Map, ChevronRight, GripVertical, Undo2, FileJson } from "lucide-react";
 
 import {
   DndContext,
@@ -23,6 +23,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { restrictToVerticalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
+import { ExploreDataModal } from "./ExploreDataModal";
 
 const SortableLayerItem = ({ layer, isHidden, onToggleVisibility, onClickMentions, canUndo, onUndoStyle }: any) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: layer.id });
@@ -112,6 +113,7 @@ export const LayerManager = () => {
   } = useMapStore();
 
   const [isOpen, setIsOpen] = useState(false);
+  const [isExploreOpen, setIsExploreOpen] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -248,7 +250,21 @@ export const LayerManager = () => {
             </div>
           )}
         </div>
+
+        {dynamicLayers.some(l => l.type === "vector_tile" || l.type === "featureCollection") && (
+          <div className="p-4 border-t border-border mt-auto bg-card shrink-0">
+            <button
+              onClick={() => setIsExploreOpen(true)}
+              className="w-full py-2.5 bg-primary text-primary-foreground font-bold text-xs md:text-sm rounded-xl hover:opacity-90 active:scale-[0.98] transition-all flex items-center justify-center gap-2 shadow-lg shadow-primary/10"
+            >
+              <FileJson size={16} />
+              Explore Chat Data
+            </button>
+          </div>
+        )}
+
       </div>
+      <ExploreDataModal isOpen={isExploreOpen} onClose={() => setIsExploreOpen(false)} />
     </>
   );
 };

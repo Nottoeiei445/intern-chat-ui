@@ -187,19 +187,37 @@ export const useChatStream = ({
                 const currentLayers = useMapStore.getState().dynamicLayers;
                 const newLayerId = b.layerId || b.styleId || b.basename || b.layerName || `ai-layer-${Date.now()}`;
 
-                if (!currentLayers.some(l => l.id === newLayerId)) {
-                  setDynamicLayers([...currentLayers, {
-                    id: newLayerId,
-                    type: b.type,
-                    baseUrl: b.url,
-                    layerId: newLayerId,
-                    title: b.title,
-                    apiProvider: b.url?.includes("vallaris") ? "vallaris" : "gistda",
-                    bounds: b.bounds,
-                    minzoom: b.minzoom,
-                    maxzoom: b.maxzoom
-                  }]);
+                const targetLayerData = {
+                  id: newLayerId,
+                  type: b.type,
+                  baseUrl: b.url,
+                  layerId: newLayerId,
+                  title: b.title,
+                  apiProvider: b.url?.includes("vallaris") ? "vallaris" : "gistda",
+                  bounds: b.bounds,
+                  minzoom: b.minzoom,
+                  maxzoom: b.maxzoom
+                };
+
+                const existingLayer = currentLayers.find(l => l.id === newLayerId);
+
+                if (!existingLayer) {
+                  setDynamicLayers([...currentLayers, targetLayerData]);
+                } else {
+                  const isChanged = 
+                    existingLayer.type !== targetLayerData.type || 
+                    existingLayer.baseUrl !== targetLayerData.baseUrl;
+
+                  if (isChanged) {
+                    const updatedLayers = currentLayers.map(layer => 
+                      layer.id === newLayerId ? { ...layer, ...targetLayerData } : layer
+                    );
+                    setDynamicLayers(updatedLayers);
+                  } else {
+                    continue;
+                  }
                 }
+
                 continue;
               }
 

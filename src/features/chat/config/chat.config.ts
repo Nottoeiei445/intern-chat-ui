@@ -17,6 +17,7 @@ export const CHAT_CONFIG = {
     conversation: "/chat/conversations", // ดึงข้อมูลแชทเฉพาะ conversationId
     message: "/chat/messages",
     models: "/chat/models",   // ดึงรายชื่อโมเดลที่ใช้ได้
+    exploreAnalytics: '/core/api/analytics/1.0/explore',
   },
 
   // Chat Validation & Settings

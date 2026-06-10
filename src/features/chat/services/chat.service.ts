@@ -1,6 +1,7 @@
 // src/features/chat/services/chat.service.ts
 import apiClient from '@/lib/api-client';
 import { CHAT_CONFIG } from '../config/chat.config';
+import axios from 'axios';
 
 export const chatService = {
   // 1. ดึงประวัติแชททั้งหมด
@@ -72,4 +73,27 @@ export const chatService = {
       return apiClient.get<any>(`${CHAT_CONFIG.endpoints.models}`);
     },
 
+  getLayerAnalytics: async (layerBaseUrl: string, connectionId:string, datasourceId: string, apiKey: string, aggregateRules: any[]) => {
+    try {
+      const urlOrigin = new URL(layerBaseUrl).origin;
+
+      const payload = {
+        connectionId,
+        datasource: { id: datasourceId },
+        columns: [{ name: "timestamp", alias: "timestamp" }], 
+        aggregate: aggregateRules, // 
+        sorts: [{ column: "timestamp", direction: "asc" }],
+        limit: 10000
+      };
+
+      const response = await axios.post(
+        `${urlOrigin}${CHAT_CONFIG.endpoints.exploreAnalytics}?api_key=${apiKey}`,
+        payload
+      );
+      return response.data;
+    } catch (error) {
+      console.error("[Explore API Error] พังจังหวะยิงข้ามค่าย:", error);
+      throw error;
+    }
+  },
 };

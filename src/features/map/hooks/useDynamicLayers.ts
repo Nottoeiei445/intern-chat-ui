@@ -43,16 +43,21 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
               const titleSize = layerConfig.type === 'wmts' ? 512 : 256;
               map.addSource(sourceId, { type: 'raster', tiles: [fullUrl], tileSize: titleSize });
             } 
-            else if (layerConfig.type === 'vector' || layerConfig.type === 'vector_tile') {
+            else if (layerConfig.type === 'vector' || layerConfig.type === 'vector_tile' || layerConfig.type === 'pmtiles') {
+              const isPmtiles = layerConfig.type === 'pmtiles';
+
               map.addSource(sourceId, {
                 type: 'vector',
-                tiles: [fullUrl], 
+                ...(isPmtiles 
+                  ? { url: fullUrl } 
+                  : { tiles: [fullUrl] }
+                ),
                 promoteId: '_id', 
                 ...(layerConfig.minzoom !== undefined && { minzoom: layerConfig.minzoom }),
                 ...(layerConfig.maxzoom !== undefined && { maxzoom: layerConfig.maxzoom }),
                 ...(layerConfig.bounds && { bounds: layerConfig.bounds })
               });
-            } 
+            }
             else if (layerConfig.type === 'geojson') {
               map.addSource(sourceId, { type: 'geojson', data: fullUrl });
             }
@@ -71,7 +76,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
               if (!activeLayerIds.current.includes(layerId)) activeLayerIds.current.push(layerId);
             }
           } 
-          else if (layerConfig.type === 'vector' || layerConfig.type === 'vector_tile') {
+          else if (layerConfig.type === 'vector' || layerConfig.type === 'vector_tile' || layerConfig.type === 'pmtiles') {
             const sourceLayerId = layerConfig.layerId || 'default';
             const hasAvailableStyles = layerConfig.availableStyles && layerConfig.availableStyles.length > 0;
             const hasAiStyle = hasAvailableStyles || (layerConfig.renderStyles && layerConfig.renderStyles.length > 0);
