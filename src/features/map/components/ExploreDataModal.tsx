@@ -13,8 +13,6 @@ interface ExploreDataModalProps {
   onClose: () => void;
 }
 
-const CONNECTION_ID = "6734498c30535afad9a3f7ad";
-
 const ANALYTICS_BLACKLIST = [
   "latitude", "longitude", "utm_e", "utm_n",
   "pv_idn", "ap_idn", "tb_idn",
@@ -69,7 +67,7 @@ export const ExploreDataModal = ({ isOpen, onClose }: ExploreDataModalProps) => 
         const urlOrigin = new URL(currentLayer.baseUrl).origin;
         const apiKey = currentConversationApiKey || apiKeys.vallaris || apiKeys.gistda || "";
 
-        const datasourcesPath = MAP_CONFIG.endpoints.analytics.datasources(CONNECTION_ID);
+        const datasourcesPath = MAP_CONFIG.endpoints.analytics.datasources(ENV.VALLARIS_CONNECTION_ID);
         const dsResponse = await axios.get(`${urlOrigin}${datasourcesPath}?api_key=${apiKey}`);
         const allDatasources = dsResponse.data?.datasources || [];
 
@@ -83,7 +81,7 @@ export const ExploreDataModal = ({ isOpen, onClose }: ExploreDataModalProps) => 
 
         const backendDatasourceId = matchedDs.id;
 
-        const columnsPath = MAP_CONFIG.endpoints.analytics.columns(CONNECTION_ID, backendDatasourceId);
+        const columnsPath = MAP_CONFIG.endpoints.analytics.columns(ENV.VALLARIS_CONNECTION_ID, backendDatasourceId);
         const columnsResponse = await axios.get(`${urlOrigin}${columnsPath}?api_key=${apiKey}`);
         const allColumns = columnsResponse.data?.columns || [];
 
@@ -124,7 +122,7 @@ export const ExploreDataModal = ({ isOpen, onClose }: ExploreDataModalProps) => 
         const urlOrigin = new URL(currentLayer.baseUrl).origin;
         const apiKeyExplored = ENV.VALLARIS_ANALYTICS_KEY;
 
-        const datasourcesPath = MAP_CONFIG.endpoints.analytics.datasources(CONNECTION_ID);
+        const datasourcesPath = MAP_CONFIG.endpoints.analytics.datasources(ENV.VALLARIS_CONNECTION_ID);
         const apiKey = currentConversationApiKey || apiKeys.vallaris || apiKeys.gistda || "";
         const dsResponse = await axios.get(`${urlOrigin}${datasourcesPath}?api_key=${apiKey}`);
         const matchedDs = (dsResponse.data?.datasources || []).find(
