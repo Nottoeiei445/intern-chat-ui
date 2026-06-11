@@ -18,8 +18,12 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
   useEffect(() => {
     if (!map) return;
 
+    const masterApiKey = currentConversationApiKey || apiKeys.vallaris || apiKeys.gistda;
+
     const renderLayers = () => {
-      if (!map.getStyle()) return; 
+      if (!map.getStyle()) {
+        return; 
+      }
 
       dynamicLayers.forEach(layerConfig => {
         try {
@@ -27,17 +31,19 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
           const layerId = `ai-layer-${layerConfig.id}`;
           
           const isVallarisLayer = layerConfig.apiProvider === 'vallaris' || layerConfig.baseUrl.includes('vallaris');
-          if (isVallarisLayer && !currentConversationApiKey && !apiKeys.vallaris) {
+          
+          if (isVallarisLayer && !masterApiKey) {
             return; 
           }
 
-          const effectiveApiKeys = currentConversationApiKey 
-            ? { ...apiKeys, vallaris: currentConversationApiKey, gistda: currentConversationApiKey }
-            : apiKeys;
+          const effectiveApiKeys = {
+            ...apiKeys,
+            vallaris: masterApiKey,
+            gistda: masterApiKey
+          };
 
           const fullUrl = mapService.buildDynamicUrl(layerConfig, effectiveApiKeys);
 
-          // แอด Source เฉพาะตอนที่มันยังไม่มีอยู่บนแผนที่จริง
           if (!map.getSource(sourceId)) {
             if (layerConfig.type === 'wms' || layerConfig.type === 'tms'|| layerConfig.type === 'wmts' || layerConfig.type === 'coverage_tile') {
               const titleSize = layerConfig.type === 'wmts' ? 512 : 256;
@@ -62,7 +68,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
               map.addSource(sourceId, { type: 'geojson', data: fullUrl });
             }
             if (!activeLayerIds.current.includes(sourceId)) activeLayerIds.current.push(sourceId);
-          }
+          } 
 
           // แอด Layer ปกติ 
           if (layerConfig.type === 'wms' || layerConfig.type === 'tms' || layerConfig.type === 'wmts' || layerConfig.type === 'coverage_tile') {
@@ -99,9 +105,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
               const styleSignature = JSON.stringify(stylesToRender);
               const appliedFlag = `${layerId}-ai-applied-${currentStyleKey}-${styleSignature}`;
 
-              // แผนที่จะยอมให้เข้าไปเคลียร์สีและลงสีใหม่ เฉพาะตอนที่ตรวจพบลายเซ็นเปลี่ยนไปเท่านั้น
               if (!activeLayerIds.current.includes(appliedFlag)) {
-                
                 ['fill', 'line', 'point', 'fill-extrusion'].forEach(suffix => {
                   const fId = `${layerId}-${suffix}`;
                   if (map.getLayer(fId)) map.removeLayer(fId);
@@ -118,7 +122,6 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
                   !id.startsWith(`${layerId}-ai-applied-`)
                 );
 
-                // ทำการวนลูปทาสีและวาดประเภทเลเยอร์ตัวใหม่แกะกล่องลงไปบนจอ
                 stylesToRender.forEach((styleObj: any) => {
                   let suffix = 'fill';
                   if (styleObj.type === 'line' || styleObj.layerType === 'line') suffix = 'line';
@@ -136,7 +139,6 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
                     };
                     if (styleObj.paint && Object.keys(styleObj.paint).length > 0) layerParams.paint = styleObj.paint;
                     if (styleObj.layout && Object.keys(styleObj.layout).length > 0) layerParams.layout = styleObj.layout;
-                    
                     if (styleObj.filter) layerParams.filter = styleObj.filter;
 
                     map.addLayer(layerParams);
@@ -145,9 +147,8 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
                 });
 
                 activeLayerIds.current.push(appliedFlag);
-              }
+              } 
 
-              // ท่อส่งคำสั่งอัปเดต Filter แบบเรียลไทม์
               stylesToRender.forEach((styleObj: any) => {
                 let suffix = 'fill';
                 if (styleObj.type === 'line' || styleObj.layerType === 'line') suffix = 'line';
@@ -212,7 +213,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
             if (!activeLayerIds.current.includes(layerId)) activeLayerIds.current.push(layerId);
           }
         } catch (error) {
-          console.error(`[Map] Failed to add dynamic layer ${layerConfig.id}:`, error);
+          console.error(`[Map Exception Block] Failed to add dynamic layer ${layerConfig.id}:`, error);
         }
       });
     };
@@ -223,40 +224,25 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
         const layerConfig = dynamicLayers[i];
         const layerId = `ai-layer-${layerConfig.id}`;
         
-        const targetLayerIds = [
-          layerId,
-          `${layerId}-fill`,
-          `${layerId}-line`,
-          `${layerId}-point`,
-          `${layerId}-fill-extrusion`
-        ];
-
+        const targetLayerIds = [layerId, `${layerId}-fill`, `${layerId}-line`, `${layerId}-point`, `${layerId}-fill-extrusion`];
         targetLayerIds.forEach(targetId => {
-          if (map.getLayer(targetId)) {
-            map.moveLayer(targetId); 
-          }
+          if (map.getLayer(targetId)) map.moveLayer(targetId); 
         });
       }
     };
 
     // Garbage Collection 
     const currentConfigIds = dynamicLayers.map(l => l.id);
-
     const idsToRemove = activeLayerIds.current.filter(id => {
       const configId = id.replace('ai-layer-', '').replace('ai-source-', '').split('-')[0];
       return configId && !currentConfigIds.includes(configId);
     });
 
     idsToRemove.forEach(id => {
-      if (id.startsWith('ai-layer-') && map.getLayer(id)) {
-        map.removeLayer(id);
-      }
+      if (id.startsWith('ai-layer-') && map.getLayer(id)) map.removeLayer(id);
     });
-
     idsToRemove.forEach(id => {
-      if (id.startsWith('ai-source-') && map.getSource(id)) {
-        map.removeSource(id);
-      }
+      if (id.startsWith('ai-source-') && map.getSource(id)) map.removeSource(id);
     });
 
     activeLayerIds.current = activeLayerIds.current.filter(id => !idsToRemove.includes(id));
@@ -264,33 +250,20 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
     renderLayers();
     reorderMapLayers();
 
-    // อัปเกรดตัวตรวจจับการเปลี่ยนโครงสร้างสไตล์แผนที่หลัก (Theme เปลี่ยน)
     const handleStyleData = () => {
       if (!map.getStyle()) return;
-      
-      // ตรวจสอบว่าหลังจากอีเวนต์สไตล์ลั่นลงจอ มี Source ของเราหลุดหายไปไหม (ถ้าหายแปลว่าเกิดการสลับ Theme แน่นอน)
       const isMissingSources = dynamicLayers.some(layer => !map.getSource(`ai-source-${layer.id}`));
       
       if (isMissingSources) {
         activeLayerIds.current = [];
-        
-        // รันฟังก์ชันยัดเลเยอร์และจัดระเบียบชั้นตึกใหม่ลงไปในธีมตัวใหม่ทันที
         renderLayers();
         reorderMapLayers();
 
         dynamicLayers.forEach(layer => {
           const visibility = hiddenLayersRef.current.includes(layer.id) ? 'none' : 'visible';
-          const targetLayerIds = [
-            `ai-layer-${layer.id}`, 
-            `ai-layer-${layer.id}-fill`, 
-            `ai-layer-${layer.id}-line`, 
-            `ai-layer-${layer.id}-point`,
-            `ai-layer-${layer.id}-fill-extrusion`
-          ];
+          const targetLayerIds = [`ai-layer-${layer.id}`, `ai-layer-${layer.id}-fill`, `ai-layer-${layer.id}-line`, `ai-layer-${layer.id}-point`, `ai-layer-${layer.id}-fill-extrusion`];
           targetLayerIds.forEach(targetId => {
-            if (map.getLayer(targetId)) {
-              map.setLayoutProperty(targetId, 'visibility', visibility);
-            }
+            if (map.getLayer(targetId)) map.setLayoutProperty(targetId, 'visibility', visibility);
           });
         });
 
@@ -299,9 +272,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
           style.layers.forEach(l => {
             if (!l.id.startsWith('ai-layer-')) {
               const visibility = isBaseMapVisibleRef.current ? 'visible' : 'none';
-              if (map.getLayer(l.id)) {
-                map.setLayoutProperty(l.id, 'visibility', visibility);
-              }
+              if (map.getLayer(l.id)) map.setLayoutProperty(l.id, 'visibility', visibility);
             }
           });
         }
@@ -309,9 +280,7 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
     };
     
     map.on('styledata', handleStyleData);
-    return () => {
-      map.off('styledata', handleStyleData);
-    };
+    return () => { map.off('styledata', handleStyleData); };
 
   }, [map, dynamicLayers, apiKeys, currentConversationApiKey]); 
 
@@ -321,18 +290,9 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
 
     dynamicLayers.forEach(layer => {
       const visibility = hiddenLayers.includes(layer.id) ? 'none' : 'visible';
-      const targetLayerIds = [
-        `ai-layer-${layer.id}`, 
-        `ai-layer-${layer.id}-fill`, 
-        `ai-layer-${layer.id}-line`, 
-        `ai-layer-${layer.id}-point`,
-        `ai-layer-${layer.id}-fill-extrusion`
-      ];
-
+      const targetLayerIds = [`ai-layer-${layer.id}`, `ai-layer-${layer.id}-fill`, `ai-layer-${layer.id}-line`, `ai-layer-${layer.id}-point`, `ai-layer-${layer.id}-fill-extrusion`];
       targetLayerIds.forEach(targetId => {
-        if (map.getLayer(targetId)) {
-          map.setLayoutProperty(targetId, 'visibility', visibility);
-        }
+        if (map.getLayer(targetId)) map.setLayoutProperty(targetId, 'visibility', visibility);
       });
     });
 
@@ -341,13 +301,9 @@ export const useDynamicLayers = (map: maplibregl.Map | null, dynamicLayers: Dyna
       style.layers.forEach(layer => {
         if (!layer.id.startsWith('ai-layer-')) {
           const visibility = isBaseMapVisible ? 'visible' : 'none';
-          if (map.getLayer(layer.id)) {
-            map.setLayoutProperty(layer.id, 'visibility', visibility);
-          }
+          if (map.getLayer(layer.id)) map.setLayoutProperty(layer.id, 'visibility', visibility);
         }
       });
     }
-
   }, [map, dynamicLayers, hiddenLayers, isBaseMapVisible]);
-
 };

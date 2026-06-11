@@ -113,5 +113,17 @@ export const HAZARD_VECTOR_URLS: Record<HazardType, Record<TimeRange, string[]>>
   },
 };
 
+export const MAP_CONFIG = {
+  // API Configuration
+  endpoints: {
+    analytics: {
+      datasources: (connectionId: string) => `/core/api/analytics/1.0/connections/${connectionId}/datasources`,
+      columns: (connectionId: string, datasourceId: string) => `/core/api/analytics/1.0/connections/${connectionId}/datasources/${datasourceId}/columns`,
+      explore: "/core/api/analytics/1.0/explore"
+    }
+  },
+};
+
+
 export const PROVINCE_GEOJSON_URL = `https://app.vallarismaps.com/core/api/features/1.1/collections/69e99410cacd2e5010722e28/items`;
 export const DISTRICT_GEOJSON_URL = `https://app.vallarismaps.com/core/api/features/1.1/collections/69e9a9c0da828e8ffc6d535e/items`;

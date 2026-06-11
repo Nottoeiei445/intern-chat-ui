@@ -79,6 +79,10 @@ export const useChatStream = ({
           return sortChats(prev.map(chat => chat.id === currentId ? { ...chat, messages: [...chat.messages, userMsg], updatedAt: Date.now() } : chat));
         });
         setActiveChatId(currentId);
+      } else if (options?.explicitChatId && options.explicitChatId.startsWith("session_")) {
+          isNewSession = true;
+          setChats(prev => prev.map(chat => chat.id === currentId ? { ...chat, messages: chat.messages.some(m => m.content === input) ? chat.messages : [...chat.messages, userMsg], updatedAt: Date.now() } : chat));
+          setActiveChatId(currentId)
       } else {
         isNewSession = true;
         currentId = `session_${Date.now()}`;
@@ -108,7 +112,7 @@ export const useChatStream = ({
       };
 
       const { currentConversationApiKey, apiKeys } = useMapStore.getState();
-      const activeHeaderKey = currentConversationApiKey || apiKeys.gistda;
+      const activeHeaderKey = currentConversationApiKey || apiKeys.gistda || apiKeys.Vallaris;
 
       const response = await chatService.sendMessageStream(payload, activeHeaderKey);
       let realIdToSwapLater = response.headers.get("X-Conversation-Id") || response.headers.get("conversation_id");
@@ -153,12 +157,15 @@ export const useChatStream = ({
               const realId = data.conversationId || data.conversation_id || data.chat_id || data.chatId;
               if (realId) {
                 if (currentId?.startsWith("session_")) {
+
                   const oldSessionId = currentId;
                   setChats(prev => prev.map(chat => chat.id === oldSessionId ? { ...chat, id: realId } : chat));
                   currentId = realId;
                   setActiveChatId(realId);
                   setPaginationConfig(prev => ({ ...prev, [realId]: { page: 1, hasMore: false } }));
                   const mapStore = useMapStore.getState();
+                  mapStore.setActiveChatId(realId);
+
                   if (mapStore.apiKeys.gistda) {
                     mapStore.setSessionKey(realId, mapStore.apiKeys.gistda);
                     mapStore.setcurrentConversationApiKey(mapStore.apiKeys.gistda);
@@ -260,16 +267,16 @@ export const useChatStream = ({
                     return layer;
                 });
 
-                /*
+                
                 updatedLayers = updatedLayers.map(layer => {
-                  if (layer.id === "68172e7b171be104cc2be349" || layer.layerId === "68172e7b171be104cc2be349") {
+                  if (layer.id === "66b4345b2ab4c9fe9eb2fa7a" || layer.layerId === "66b4345b2ab4c9fe9eb2fa7a") {
                     return {
                       ...layer,
                       renderStyles: [
                         {
-                          "type": "fill",
+                          "type": "heatmap",
                           
-                          "filter": ["==", ["get", "re_nesdb"], "Northeast"],
+                          //"filter": ["==", ["get", "re_nesdb"], "Northeast"],
                           
                           // "filter": [">=", ["get", "freq"], 7],
                           // "filter": [
@@ -279,29 +286,46 @@ export const useChatStream = ({
                           // ],
 
                           "paint": {
-                            "fill-color": [
-                              "case",
-                              ["boolean", ["feature-state", "hover"], false], "#FFFF00",
-                              [ 
-                                "interpolate",
-                                ["linear"],
-                                ["get", "freq"],
-                                1, "#22C55E",
-                                3, "#EAB308",
-                                5, "#F97316",
-                                7, "#EF4444",
-                                10, "#7E22CE"
-                              ]
+                            "heatmap-weight": [
+                              "interpolate",
+                              ["linear"],
+                              ["get", "bright"],
+                              300, 0,
+                              400, 1
                             ],
-                            "fill-opacity": 1,
-                            "fill-outline-color": "#ffffff"
+                            "heatmap-intensity": [
+                              "interpolate",
+                              ["linear"],
+                              ["zoom"], 0, 0.1, 9, 0.5, 15, 1.5
+                            ],
+                            "heatmap-color": [
+                              "interpolate",
+                              ["linear"],
+                              ["heatmap-density"],
+                              0, "rgba(0, 0, 255, 0)",
+                              0.2, "#9eb5cc",
+                              0.4, "#9ea9cc",
+                              0.6, "#9e9ecc",
+                              0.8, "#a99ecc",
+                              1, "#b49ecc"
+                            ],
+                            "heatmap-radius": [
+                              "interpolate",
+                              ["linear"],
+                              ["zoom"], 
+                              0, 5,
+                              5, 15,
+                              9, 25,
+                              15, 45
+                            ],
+                            "heatmap-opacity": 0.85
                           }
                         }
                       ]
                     };
                   }
                   return layer;
-                }); */
+                }); 
 
                 setDynamicLayers(updatedLayers);
                 continue;

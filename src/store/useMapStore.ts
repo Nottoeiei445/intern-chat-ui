@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import { DynamicLayerPayload } from '@/features/map/types';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import maplibregl from 'maplibre-gl';
 
 interface PendingChatData {
   input: string;
@@ -11,6 +12,9 @@ interface PendingChatData {
 }
 
 interface MapState {
+  map: maplibregl.Map | null;
+  setMap: (map: maplibregl.Map | null) => void;
+
   dynamicLayers: DynamicLayerPayload[];
   setDynamicLayers: (layers: DynamicLayerPayload[]) => void;
   clearLayers: () => void;
@@ -60,6 +64,9 @@ interface MapState {
 export const useMapStore = create<MapState>()(
   persist(
     (set) => ({
+      map: null,
+      setMap: (map) => set({ map }),
+
       dynamicLayers: [], 
       setDynamicLayers: (layers) => set({ dynamicLayers: layers }), 
       clearLayers: () => set({ dynamicLayers: [], hiddenLayers: [] as string[], layerHistoryCount: {} }),

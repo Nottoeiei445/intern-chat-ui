@@ -14,6 +14,7 @@ import { useMapEvents } from '../hooks/useMapEvents';
 import { FeaturePopup } from './FeaturePopup';
 import { createRoot } from 'react-dom/client';
 import * as pmtiles from 'pmtiles';
+import { useMapStore } from '@/store/useMapStore';
 
 if (typeof window !== 'undefined') {
   try {
@@ -38,6 +39,7 @@ export const MapLibre = ({ activeBoundary, dynamicLayers = [] }: MapLibreProps) 
   const [selectedData, setSelectedData] = useState<any>(null);
   
   const { resolvedTheme } = useTheme();
+  const  setGlobalMap = useMapStore((state) => state.setMap);
   
   useEffect(() => {
     setSelectedData(null);
@@ -82,9 +84,11 @@ export const MapLibre = ({ activeBoundary, dynamicLayers = [] }: MapLibreProps) 
     });
 
     setMap(mapInstance);
+    setGlobalMap(mapInstance);
 
     return () => {
       mapInstance.remove();
+      setGlobalMap(null);
     };
   }, []); 
 
