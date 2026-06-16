@@ -267,7 +267,7 @@ export const useChatStream = ({
                     return layer;
                 });
 
-                
+                /*
                 updatedLayers = updatedLayers.map(layer => {
                   if (layer.id === "66b4345b2ab4c9fe9eb2fa7a" || layer.layerId === "66b4345b2ab4c9fe9eb2fa7a") {
                     return {
@@ -326,6 +326,7 @@ export const useChatStream = ({
                   }
                   return layer;
                 }); 
+                */
 
                 setDynamicLayers(updatedLayers);
                 continue;
@@ -438,7 +439,7 @@ export const useChatStream = ({
                       );
 
 
-                      if (matchingPatch && data.operation === "set_filter") {
+                      if (matchingPatch && (data.operation === "add_filter" || data.operation === "set_filter")) {
                         styleObj.filter = matchingPatch.filter;
                       }
                     });

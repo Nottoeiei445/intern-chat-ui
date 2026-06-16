@@ -1,7 +1,8 @@
+// src/features/map/components/FeaturePopup.tsx
 "use client";
 
 import { MapPin } from "lucide-react";
-import { useMapStore } from "@/store/useMapStore"; // 🌟 1. นำเข้า Store กลางเพื่อเชื่อมท่อสัญญาณไปหน้าแชท
+import { useMapStore } from "@/store/useMapStore"; 
 
 interface FeaturePopupProps {
   properties: any;
@@ -9,10 +10,6 @@ interface FeaturePopupProps {
 
 export const FeaturePopup = ({ properties }: FeaturePopupProps) => {
   const title = properties.pv_tn || properties.ap_tn || properties.name || properties.title || "Feature Details";
-
-  const handleAttributeClick = (key: string) => {
-    useMapStore.getState().setPendingAttribute(key);
-  };
 
   return (
     <div className="flex flex-col w-full min-w-[250px] max-w-[320px] bg-card text-foreground font-sans">
@@ -27,21 +24,32 @@ export const FeaturePopup = ({ properties }: FeaturePopupProps) => {
 
       {/* Content List */}
       <div className="p-3 max-h-[220px] overflow-y-auto space-y-2 custom-scrollbar">
-        {Object.entries(properties).map(([key, val]) => (
-          <div key={key} className="flex justify-between gap-3 text-xs border-b border-border/40 pb-1.5 last:border-0 last:pb-0 hover:bg-muted/20 transition-colors rounded px-1 items-center">
-            
-            <button 
-              onClick={() => useMapStore.getState().setPendingAttribute(key)}
-              className="text-muted-foreground font-medium truncate w-1/3 text-left hover:text-primary hover:underline transition-colors cursor-pointer"
-            >
-              {key}
-            </button>
+        {Object.entries(properties).map(([key, val]) => {
+          const hasValue = val !== null && val !== undefined;
+          const displayValue = hasValue ? String(val) : '-';
 
-            <span className="text-foreground text-right break-words w-2/3">
-              {val !== null && val !== undefined ? String(val) : '-'}
-            </span>
-          </div>
-        ))}
+          return (
+            <div key={key} className="flex justify-between gap-3 text-xs border-b border-border/40 pb-1.5 last:border-0 last:pb-0 hover:bg-muted/20 transition-colors rounded px-1 items-center">
+              
+              {/* ปุ่มฝั่ง Attribute Key (คลิกส่งชื่อคอลัมน์เข้าช่องแชท) */}
+              <button 
+                onClick={() => useMapStore.getState().setPendingAttribute(key)}
+                className="text-muted-foreground font-medium truncate w-1/3 text-left hover:text-primary hover:underline transition-colors cursor-pointer"
+              >
+                {key}
+              </button>
+
+              <button
+                disabled={!hasValue}
+                onClick={() => useMapStore.getState().setPendingAttribute(displayValue)}
+                className="text-foreground text-right break-words w-2/3 hover:text-primary hover:underline transition-colors cursor-pointer disabled:cursor-not-allowed disabled:hover:no-underline disabled:hover:text-foreground"
+              >
+                {displayValue}
+              </button>
+              
+            </div>
+          );
+        })}
       </div>
 
     </div>

@@ -131,53 +131,21 @@ export const LayerManager = () => {
   };
 
   const handleExportWorkspace = () => {
-    if (!map || dynamicLayers.length === 0) return;
+    if (!map) return;
 
-    // รีดเค้นค่ามุมกล้องล่าสุดจากแผนที่จริงหน้างาน
-    const center = map.getCenter();
-    const zoom = map.getZoom();
+    const exportedStyle = map.getStyle();
 
-    // บีบรวมกุญแจดอกหลักดอกเดียวให้หลุดพ้นจากบั๊กแยกถังคีย์
-    const masterApiKey = currentConversationApiKey || apiKeys.vallaris || apiKeys.gistda;
-
-    const workspaceJson = {
-      "exportAt": new Date().toISOString(),
-      "mapState": {
-        "zoom": Number(zoom.toFixed(2)),
-        "center": [Number(center.lng.toFixed(5)), Number(center.lat.toFixed(5))]
-      },
-      // วนลูปแปลงร่างอาร์เรย์เลเยอร์ให้ได้โครงสร้างตรงตามพิมพ์เขียวที่เฮียกำหนดเป๊ะๆ
-      "layers": dynamicLayers.map(layer => {
-        const effectiveApiKeys = {
-          ...apiKeys,
-          vallaris: masterApiKey || '',
-          gistda: masterApiKey || ''
-        };
-        const fullUrl = mapService.buildDynamicUrl(layer, effectiveApiKeys);
-
-        return {
-          "layerId": layer.id,
-          "title": layer.title || "Untitled Layer",
-          "type": layer.type,
-          "provider": layer.apiProvider || (layer.baseUrl.includes('vallaris') ? 'vallaris' : 'gistda'),
-          "baseUrl": fullUrl,
-          "activeStyleKey": layer.activeStyleKey || 'default',
-          "styles": layer.renderStyles || []
-        };
-      })
-    };
- 
-    // สร้างไฟล์ดาวน์โหลดจาก JSON ที่เตรียมไว้
-    const blob = new Blob([JSON.stringify(workspaceJson, null, 2)], { type: 'application/json' });
-   
-    // สร้างลิงก์ดาวน์โหลดและคลิกมันเพื่อดาวน์โหลดไฟล์
+    const blob = new Blob([JSON.stringify(exportedStyle, null, 2)], {
+      type: "application/json;charset=utf-8;",
+    });
     const url = URL.createObjectURL(blob);
     const downloadAnchor = document.createElement('a');
     downloadAnchor.href = url;
-    // ชื่อไฟล์จะมีรูปแบบประมาณนี้: map-workspace-2024-06-17-1700000000000.json
-    downloadAnchor.download = `map-workspace-${new Date().toISOString().split('T')[0]}-${Date.now()}.json`;
+    downloadAnchor.download = `maplibre-style-${new Date().toISOString().split('T')[0]}-${Date.now()}.json`;
     document.body.appendChild(downloadAnchor);
     downloadAnchor.click();
+    
+    // ล้างเศษหน่วยความจำขยะบนบราวเซอร์ (Garbage Collection)
     document.body.removeChild(downloadAnchor);
     URL.revokeObjectURL(url);
   };

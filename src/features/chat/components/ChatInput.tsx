@@ -236,6 +236,7 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
     const isGuidedClear = suggestion.key === "clear_layer";
     const isGuidedAttribute = suggestion.key === "style_by_attribute";
     const isGuidedAttributeValue = suggestion.key === "style_attribute_value";
+    const isGuidedFilter = suggestion.key === "filter_by_attribute";
     if (isGuidedClear) {
       const textToSet = `${suggestion.promptTemplate || "Clear map layer "}@`;
       editor.commands.setContent(textToSet);
@@ -269,15 +270,32 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
       setTimeout(() => { editor.commands.focus('end'); }, 10);
       return;
     }
+    if (isGuidedFilter) {
+        let textToSet = suggestion.promptTemplate || "Filter the current map by attribute ";
+        editor.commands.clearContent();
+        editor.commands.insertContent(textToSet);
+        setIsEditorEmpty(false);
+        setTimeout(() => { editor.commands.focus('end'); }, 10);
+        return;
+    }
 
     let finalPrompt = suggestion.promptTemplate || "";
-  if (suggestion.value) {
-    finalPrompt = finalPrompt.replace(/\{value\}/g, suggestion.value);
-  }
+    if (suggestion.value) {
+      finalPrompt = finalPrompt.replace(/\{value\}/g, suggestion.value);
+    }
   
-  onSendMessage(finalPrompt, []); 
-  setImages([]);
-};
+    onSendMessage(finalPrompt, []); 
+    setImages([]);
+  };
+
+  const currentText = editor ? editor.getText().toLowerCase() : "";
+  const shouldShowTipBanner = 
+    editor && 
+    !isEditorEmpty && 
+    !isBannerDismissed && 
+    (currentText.includes("by attribute") || 
+     currentText.includes("attribute value") || 
+     currentText.includes("filter"));
 
   return (
     <div className="px-6 pb-6 pt-2 bg-gradient-to-t from-background to-transparent bg-background">
@@ -307,16 +325,15 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
           </div>
         )}
         
-        {editor && !isEditorEmpty && !isBannerDismissed && (editor.getText().includes("by attribute") || editor.getText().includes("attribute value")) && (
+        {shouldShowTipBanner && (
           <div className="mb-2 p-2.5 bg-primary/5 border border-primary/10 rounded-xl text-[11px] sm:text-xs text-muted-foreground flex items-center justify-between gap-3 animate-in fade-in slide-in-from-bottom-1 duration-300 font-sans select-none w-full">
             
-            {/* ฝั่งซ้าย: ไอคอนและเนื้อหาคำแนะนำ */}
             <div className="flex items-center gap-2">
               <div className="p-1 bg-primary/10 rounded-md text-primary shrink-0">
                 <Sparkles size={12} className="animate-pulse" />
               </div>
               <p className="leading-normal">
-                <span className="text-foreground font-semibold">💡 Tip:</span> Click on any map feature to view its attributes. You can then <span className="text-primary font-medium hover:underline">click on any attribute name</span> to insert it directly into the chat input.
+                <span className="text-foreground font-semibold">💡 Tip:</span> Click on any map feature to view its attributes. You can then <span className="text-primary font-medium hover:underline">click on any attribute name or the value</span> to insert it directly into the chat input.
               </p>
             </div>
 
