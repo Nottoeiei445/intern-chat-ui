@@ -1,6 +1,5 @@
 "use client"
 
-import React from 'react';
 import { MapLibre } from './MapLibre';
 import { useMapStore } from '@/store/useMapStore';
 

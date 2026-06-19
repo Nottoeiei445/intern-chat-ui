@@ -196,7 +196,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         }
       }
     } catch (err: any) {
-      // ดึง Error Message จากหลังบ้านมาโชว์ (ถ้ามี)
+      // ดึง Error Message จากหลังบ้านมาโชว์
       const errorMessage = err.response?.data?.message || err.message || "Login failed";
       setError(errorMessage);
       throw err;

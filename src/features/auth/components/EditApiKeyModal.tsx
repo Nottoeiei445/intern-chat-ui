@@ -16,8 +16,6 @@ type RestrictionType = "None" | "HTTP Referer" | "IP Address";
 export const EditApiKeyModal = ({ isOpen, onClose, apiKey, onSuccess }: Props) => {
   const [name, setName] = useState("");
   const [status, setStatus] = useState<"active" | "revoked">("active");
-  const [restriction, setRestriction] = useState<RestrictionType>("None");
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {

@@ -73,7 +73,6 @@ export function useChat() {
   // 1. Context & Store
   const { user } = useAuth(); 
   
-  // 🌟 [CHANGED]: เพิ่มการดึงสิทธิ์ตัวแปร currentConversationApiKey มาร่วมรับรู้สเตทการสลับคีย์ค้นหา
   const { 
     apiKeys, openKeyModal, pendingChat, 
     setPendingChat, clearPendingChat,
@@ -116,9 +115,7 @@ export function useChat() {
   });
 
   const { 
-    models, 
     selectedModel, 
-    setSelectedModel 
   } = useModels();
 
   // --- 5. Initialization Effects ---

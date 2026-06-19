@@ -6,12 +6,14 @@ import { ApiKeyPopover } from "@/features/auth/components/ApiKeyPopover"
 import { useMapStore } from "@/store/useMapStore";
 import { SuggestionItem } from "../types";
 
-// 1. นำเข้าและตั้งค่า Tiptap Editor พร้อม Extension สำหรับระบบ Mention ที่จะใช้แปลงข้อความพิเศษเป็นป้าย Chip
+// นำเข้าและตั้งค่า Tiptap Editor พร้อม Extension สำหรับระบบ Mention ที่จะใช้แปลงข้อความพิเศษเป็นป้าย Chip
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Mention from '@tiptap/extension-mention'
 import { useApiKeys } from "@/features/auth/hooks/useApiKeys";
 import { suggestion } from './suggestion'
+import { CHAT_CONFIG } from "../config/chat.config";
+import { useToast } from "@/components/ui/Toast"; 
 
 interface Props {
   onSendMessage: (content: string, images: string[]) => void;
@@ -23,6 +25,7 @@ interface Props {
 export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, suggestions = [] }: Props) => {
   const [images, setImages] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const { error } = useToast();
   
   const { 
     isKeyModalOpen, 
@@ -41,6 +44,8 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
   const currentHost = hosts.find((h) => h.id === activeKeyObj?.hostId);
   const activeHostName = currentHost ? currentHost.hostname : null;
   const [isBannerDismissed, setIsBannerDismissed] = useState(false);
+
+  const MAX_FILE_SIZE = CHAT_CONFIG.settings.limitImgSizeMB * 1024 * 1024;
 
   const editor = useEditor({
   extensions: [
@@ -168,7 +173,7 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
     }
   }, [pendingAttribute, clearPendingAttribute, editor]);
 
-  // --- ระบบจัดการรูปภาพภาพ ---
+// --- ระบบจัดการรูปภาพภาพ ---
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -180,11 +185,36 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
 
   const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
-    if (!files) return;
+    if (!files || files.length === 0) return;
+
+    if (CHAT_CONFIG.settings.limitImgs === 1) {
+      const file = files[0];
+      
+      if (file.size > MAX_FILE_SIZE) {
+        error(`The image size exceeds the limit (${CHAT_CONFIG.settings.limitImgSizeMB} MB)`, "File Too Large");
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+
+      try {
+        const b64 = await fileToBase64(file);
+        setImages([b64]); 
+      } catch (error) {
+        console.error("Convert file to base64 failed:", error);
+      }
+      if (fileInputRef.current) fileInputRef.current.value = ""; 
+      return; 
+    }
 
     const newImages: string[] = [];
     for (let i = 0; i < files.length; i++) {
-      if (images.length + newImages.length >= 5) break; 
+      if (images.length + newImages.length >= CHAT_CONFIG.settings.limitImgs) break; 
+      
+      if (files[i].size > MAX_FILE_SIZE) {
+        error(`The image "${files[i].name}" exceeds the size limit (${CHAT_CONFIG.settings.limitImgSizeMB} MB)`, "File Too Large");
+        continue;
+      }
+
       const b64 = await fileToBase64(files[i]);
       newImages.push(b64);
     }
@@ -195,13 +225,39 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
 
   const handlePaste = async (e: React.ClipboardEvent) => {
     const items = e.clipboardData.items;
-    const newImages: string[] = [];
+    const imageItems = Array.from(items).filter(item => item.type.indexOf("image") !== -1);
+    if (imageItems.length === 0) return;
 
+    if (CHAT_CONFIG.settings.limitImgs === 1) {
+      const file = imageItems[0].getAsFile();
+      if (file) {
+        if (file.size > MAX_FILE_SIZE) {
+          error(`The image "${file.name}" exceeds the size limit (${CHAT_CONFIG.settings.limitImgSizeMB} MB)`, "File Too Large");
+          return;
+        }
+
+        try {
+          const b64 = await fileToBase64(file);
+          setImages([b64]); 
+        } catch (error) {
+          console.error("Convert pasted file to base64 failed:", error);
+        }
+      }
+      return; 
+    }
+
+    const newImages: string[] = [];
     for (let i = 0; i < items.length; i++) {
       if (items[i].type.indexOf("image") !== -1) {
         const file = items[i].getAsFile();
         if (file) {
-          if (images.length + newImages.length >= 5) break;
+          if (images.length + newImages.length >= CHAT_CONFIG.settings.limitImgs) break;
+          
+          if (file.size > MAX_FILE_SIZE) {
+            error(`The image "${file.name}" exceeds the size limit (${CHAT_CONFIG.settings.limitImgSizeMB} MB)`, "File Too Large");
+            continue;
+          }
+
           const b64 = await fileToBase64(file);
           newImages.push(b64);
         }
@@ -226,7 +282,7 @@ export const ChatInput = ({ onSendMessage, isLoading, isGuestExpired = false, su
     onSendMessage(finalPayload, images);
     
     editor.commands.clearContent();
-    setImages([]);
+    setImages([]); // ล้างคลังรูปภาพในสเตตพร้อมส่งงานรอบถัดไป
     setIsEditorEmpty(true);
   };
 

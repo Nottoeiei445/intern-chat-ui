@@ -1,6 +1,6 @@
 // src/features/map/services/map.service.ts
-import { HAZARD_URLS, HAZARD_TMS_URLS, HAZARD_VECTOR_URLS, mapUrlBuilder } from '../config/map.config';
-import { HazardType, TimeRange, MapMode, DynamicLayerPayload } from '../types';
+import { mapUrlBuilder } from '../config/map.config';
+import { DynamicLayerPayload } from '../types';
 
 const appendApiKey = (url: string, key?: string) => {
   if (!key) return url;

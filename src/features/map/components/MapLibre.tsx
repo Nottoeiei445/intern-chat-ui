@@ -81,6 +81,7 @@ export const MapLibre = ({ activeBoundary, dynamicLayers = [] }: MapLibreProps) 
       style: initialStyle,
       center: [100.5200, 13.7500],
       zoom: 6,
+      attributionControl: false,
     });
 
     setMap(mapInstance);

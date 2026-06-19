@@ -506,8 +506,8 @@ export const useChatStream = ({
               }
 
               // แมปผูกไอดีข้อความที่แท้จริงแทนข้อความจำลอง
-              const incomingUserId = data.usermessage_id || data.userMessageId;
-              const incomingAssistantId = data.assistantmessage_Id || data.assistantMessageId;
+              const incomingUserId = data.usermessageId || data.userMessageId;
+              const incomingAssistantId = data.assistantmessageId || data.assistantMessageId;
               if (incomingUserId || incomingAssistantId) {
                 setChats(prev => prev.map(chat => {
                   if (chat.id !== currentId) return chat;

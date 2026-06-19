@@ -126,7 +126,7 @@ export const MapLegend = () => {
       return (
         <div key={layer.id} className="p-3 bg-background/70 backdrop-blur-md border border-border rounded-xl shadow-lg w-[240px] font-sans text-foreground animate-in fade-in slide-in-from-bottom-2 duration-300">
           <h4 className="text-[11px] font-bold mb-2 text-muted-foreground uppercase tracking-wider truncate" title={title}>
-            {isHeatmap ? `ความหนาแน่น (${title})` : title}
+            {isHeatmap ? `Data density (${title})` : title}
           </h4>
           
           {/* หลอดแก้วสเกลเฉดสีระบบกระจกฝ้าตามแบบดีไซน์ของเฮีย */}

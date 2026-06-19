@@ -124,7 +124,7 @@ api.interceptors.response.use(
           currentAccessToken = newToken;
           // 2. เรียกคนที่รออยู่ในคิวให้ทำงานต่อ
           onRefreshed(newToken);
-          // 3. เอา Token ใหม่แปะให้ Request ของตัวเอง แล้วยิงซ้ำ
+          // 3. เอา Token ใหม่แปะให้ Request ของตัวเอง
           originalRequest.headers.Authorization = `Bearer ${newToken}`;
           
           isRefreshing = false; // ปลดล็อคคิว
@@ -192,7 +192,7 @@ export const authService = {
       if (data?.data) {
         saveAuthSession(data.data);
         storage.removeCookie(AUTH_CONFIG.session.guestIdStorageKey);
-        authService.logEvent("✅ [Auth] Login successful!");
+        authService.logEvent(" [Auth] Login successful!");
       }
       return data;
     } catch (error: any) { 
@@ -216,7 +216,7 @@ export const authService = {
       if (data?.data) {
         saveAuthSession(data.data);
         storage.removeCookie(AUTH_CONFIG.session.guestIdStorageKey);
-        authService.logEvent("✅ [Auth] Registration successful!");
+        authService.logEvent(" [Auth] Registration successful!");
       }
       return data;
     } catch (error: any) {
@@ -268,7 +268,7 @@ export const authService = {
     try {
       await api.delete(AUTH_CONFIG.endpoints.logout); 
     } catch (error) {
-      authService.logEvent("ℹ️ [Auth] Backend logout failed.");
+      authService.logEvent(" [Auth] Backend logout failed.");
     } finally {
       clearAuthSession();
     }

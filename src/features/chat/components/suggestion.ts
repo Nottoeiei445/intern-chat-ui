@@ -5,10 +5,10 @@ import { useMapStore } from '@/store/useMapStore';
 
 export const suggestion = { // ทำให้เป็น object ที่มีฟังก์ชัน items และ render
     items: ({ query }: { query: string }) => {
-        const dynamicLayers = useMapStore.getState().dynamicLayers || []; // ดึงข้อมูล dynamicLayers จาก Zustand store โดยตรง เพราะฟังก์ชันนี้จะถูกเรียกใน context ที่ไม่ใช่ React component จึงไม่สามารถใช้ hook ได้
-
-        return dynamicLayers // กรอง dynamicLayers ตาม query และจำกัดผลลัพธ์ไว้ที่ 5 รายการ
-            .filter(layer => (layer.title || layer.id || "").toLowerCase().includes(query.toLowerCase())) // กรองชั้นข้อมูลที่มีชื่อหรือ id ตรงกับ query โดยไม่สนใจตัวพิมพ์ใหญ่เล็ก
+        const dynamicLayers = useMapStore.getState().dynamicLayers || []; 
+        return dynamicLayers 
+            .filter(layer => (layer.title || layer.id || "")
+            .toLowerCase().includes(query.toLowerCase())) 
             .slice(0, 5);
     },
 
@@ -18,7 +18,8 @@ export const suggestion = { // ทำให้เป็น object ที่ม�
 
         return { // props คือข้อมูลที่ tiptap ส่งมาให้ มี props.item และช้อมูลตำแหน่งจอ
             onStart: (props: any) => { // ฟังก์ชัน onStart จะถูกเรียกเมื่อเริ่มแสดง suggestion โดยจะสร้าง ReactRenderer และ tippy instance เพื่อแสดง popup
-                component = new ReactRenderer(MentionList, { // สร้าง ReactRenderer โดยใช้ MentionList เป็น component และส่ง props และ editor ให้กับมัน
+                
+                component = new ReactRenderer(MentionList, { 
                     props,
                     editor: props.editor,
                 })

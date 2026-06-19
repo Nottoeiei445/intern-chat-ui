@@ -25,6 +25,8 @@ export const CHAT_CONFIG = {
     maxMessageLength: 2000,
     defaultTitleLength: 30, // ตัดชื่อแชทแค่ 30 ตัวอักษร
     ephemeralModeDefault: false,
+    limitImgs: 1,
+    limitImgSizeMB: 1,
   },
 
   // Feature Flags
